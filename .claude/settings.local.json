@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find ~/.claude -name *.md -path *nm-ai* -o -name *.md -path *requirements*)",
+      "Read",
+      "Write",
+      "Edit",
+      "Bash(python:*)",
+      "Bash(pip:*)",
+      "Bash(pytest:*)",
+      "Bash(git:*)",
+      "Bash(gcloud:*)",
+      "Bash(docker:*)",
+      "Bash(curl:*)",
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(uvicorn:*)",
+      "Bash(npx:*)"
+    ]
+  }
+}
