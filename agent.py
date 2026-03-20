@@ -16,7 +16,7 @@ from google.genai import types
 from claude_client import get_claude_client, CLAUDE_MODEL
 from prompts import build_system_prompt
 from tripletex_api import TripletexClient
-from observability import traceable
+from observability import traceable, trace_child
 
 logger = logging.getLogger(__name__)
 
@@ -242,19 +242,44 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
 
         logger.info(f"Iteration {iteration + 1}/{MAX_ITERATIONS} ({elapsed:.0f}s elapsed)")
 
-        with claude_client.messages.stream(
-            model=CLAUDE_MODEL,
-            system=[{
-                "type": "text",
-                "text": system_prompt,
-                "cache_control": {"type": "ephemeral"},
-            }],
-            messages=messages,
-            tools=TOOLS,
-            max_tokens=16000,
-            thinking={"type": "adaptive"},
-        ) as stream:
-            response = stream.get_final_message()
+        # --- LLM call span ---
+        with trace_child(f"claude_{iteration + 1}", run_type="llm", inputs={
+            "model": CLAUDE_MODEL,
+            "messages": messages,
+            "tools": [t["name"] for t in TOOLS],
+            "max_tokens": 16000,
+            "thinking": "adaptive",
+        }) as llm_span:
+            with claude_client.messages.stream(
+                model=CLAUDE_MODEL,
+                system=[{
+                    "type": "text",
+                    "text": system_prompt,
+                    "cache_control": {"type": "ephemeral"},
+                }],
+                messages=messages,
+                tools=TOOLS,
+                max_tokens=16000,
+                thinking={"type": "adaptive"},
+            ) as stream:
+                response = stream.get_final_message()
+
+            # Capture response metadata for LangSmith
+            if llm_span:
+                usage = getattr(response, "usage", None)
+                output_content = _serialize_content(response.content)
+                llm_span.end(
+                    outputs={
+                        "stop_reason": response.stop_reason,
+                        "content": output_content,
+                    },
+                    **({"metadata": {
+                        "input_tokens": usage.input_tokens,
+                        "output_tokens": usage.output_tokens,
+                        "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", 0),
+                        "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", 0),
+                    }} if usage else {}),
+                )
 
         # Check if agent is done
         if response.stop_reason == "end_turn":
@@ -262,10 +287,8 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
             break
 
         # Append assistant response — strip internal Pydantic fields
-        messages.append({
-            "role": "assistant",
-            "content": _serialize_content(response.content),
-        })
+        serialized = _serialize_content(response.content)
+        messages.append({"role": "assistant", "content": serialized})
 
         # Execute tool calls
         tool_use_blocks = [b for b in response.content if b.type == "tool_use"]
@@ -277,17 +300,31 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
         for block in tool_use_blocks:
             logger.info(f"  Tool: {block.name}({json.dumps(block.input, ensure_ascii=False)[:200]})")
 
-            result = execute_tool(block.name, block.input, client)
+            # --- Tool execution span ---
+            with trace_child(block.name, run_type="tool", inputs={
+                "tool": block.name,
+                "args": block.input,
+            }) as tool_span:
+                result = execute_tool(block.name, block.input, client)
 
-            status = result.get("status_code", "?")
-            logger.info(f"  -> {status} success={result.get('success')}")
+                status = result.get("status_code", "?")
+                success = result.get("success", False)
+                logger.info(f"  -> {status} success={success}")
+
+                if tool_span:
+                    tool_span.end(outputs={
+                        "status_code": status,
+                        "success": success,
+                        "body": result.get("body", {}),
+                        **({"error": result.get("error")} if not success else {}),
+                    })
 
             content = json.dumps(result)
             tool_results.append({
                 "type": "tool_result",
                 "tool_use_id": block.id,
                 "content": content,
-                **({"is_error": True} if not result.get("success") else {}),
+                **({"is_error": True} if not success else {}),
             })
 
         messages.append({"role": "user", "content": tool_results})
