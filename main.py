@@ -1,6 +1,9 @@
 # main.py
+import json
 import logging
 import os
+import threading
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException
@@ -18,6 +21,34 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="AI Accounting Agent")
 
 API_KEY = os.getenv("API_KEY")
+REQUEST_LOG_BUCKET = os.getenv("REQUEST_LOG_BUCKET", "")
+
+
+def _save_request_to_gcs(body: dict, result: dict | None = None):
+    """Save the full request payload + result to GCS for replay. Non-blocking."""
+    if not REQUEST_LOG_BUCKET:
+        return
+    try:
+        from google.cloud import storage
+        client = storage.Client()
+        bucket = client.bucket(REQUEST_LOG_BUCKET)
+
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%S")
+        prompt_preview = (body.get("prompt") or body.get("task_prompt") or "unknown")[:50]
+        prompt_preview = "".join(c if c.isalnum() or c in " -_" else "" for c in prompt_preview).strip().replace(" ", "_")[:40]
+        filename = f"requests/{ts}_{prompt_preview}.json"
+
+        # Save full payload including files, credentials, and result
+        payload = {
+            "request": body,
+            "result": result,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        blob = bucket.blob(filename)
+        blob.upload_from_string(json.dumps(payload, ensure_ascii=False, default=str), content_type="application/json")
+        logger.info(f"Request saved to gs://{REQUEST_LOG_BUCKET}/{filename}")
+    except Exception as e:
+        logger.warning(f"Failed to save request to GCS: {e}")
 
 
 @app.get("/health")
@@ -66,10 +97,10 @@ async def solve(request: Request):
     base_url = creds.get("base_url") or body.get("tripletex_base_url", "")
     session_token = creds.get("session_token") or body.get("session_token", "")
 
-    logger.info(f"Task received. Prompt: {prompt} Files: {len(files)}")
-    logger.info(f"FULL_PROMPT: {prompt}")
-    logger.info(f"BASE_URL: {base_url}")
+    logger.info(f"Task received. Prompt: {prompt}")
+    logger.info(f"Files: {len(files)}, Base URL: {base_url}")
 
+    result = None
     try:
         file_contents = process_files(files)
         _preconfigure_bank_account(base_url, session_token)
@@ -77,5 +108,8 @@ async def solve(request: Request):
         logger.info(f"Agent: {result}")
     except Exception as e:
         logger.error(f"Agent error: {e}", exc_info=True)
+
+    # Save full request+result to GCS in background (non-blocking)
+    threading.Thread(target=_save_request_to_gcs, args=(body, result), daemon=True).start()
 
     return JSONResponse({"status": "completed"})
