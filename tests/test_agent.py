@@ -99,3 +99,45 @@ class TestExecuteTool:
     def test_unknown_tool(self):
         result = agent_module.execute_tool("tripletex_patch", {}, MagicMock())
         assert not result["success"]
+
+
+class TestRouting:
+    """Test the run_agent router logic."""
+
+    @patch("agent.run_tool_loop")
+    @patch("agent.execute_plan", return_value={"success": True, "ref_map": {}, "api_calls": 1})
+    @patch("agent.is_known_pattern", return_value=True)
+    @patch("agent.parse_prompt", return_value={"actions": [{"action": "create", "entity": "department", "fields": {"name": "IT"}, "ref": "d1", "depends_on": {}}]})
+    def test_deterministic_path(self, mock_parse, mock_match, mock_exec, mock_fallback):
+        result = agent_module.run_agent("Create dept", [], "http://x/v2", "tok")
+        assert result["status"] == "completed"
+        mock_exec.assert_called_once()
+        mock_fallback.assert_not_called()
+
+    @patch("agent.run_tool_loop", return_value={"status": "completed"})
+    @patch("agent.is_known_pattern", return_value=False)
+    @patch("agent.parse_prompt", return_value={"actions": [{"action": "update", "entity": "employee", "fields": {}, "ref": "e1", "depends_on": {}}]})
+    def test_fallback_on_unknown_pattern(self, mock_parse, mock_match, mock_fallback):
+        result = agent_module.run_agent("Update employee", [], "http://x/v2", "tok")
+        assert result["status"] == "completed"
+        mock_fallback.assert_called_once()
+
+    @patch("agent.run_tool_loop", return_value={"status": "completed"})
+    @patch("agent.parse_prompt", return_value=None)
+    def test_fallback_on_parse_failure(self, mock_parse, mock_fallback):
+        result = agent_module.run_agent("???", [], "http://x/v2", "tok")
+        assert result["status"] == "completed"
+        mock_fallback.assert_called_once()
+
+    @patch("agent.run_tool_loop", return_value={"status": "completed"})
+    @patch("agent.execute_plan")
+    @patch("agent.is_known_pattern", return_value=True)
+    @patch("agent.parse_prompt", return_value={"actions": []})
+    def test_fallback_on_execution_failure(self, mock_parse, mock_match, mock_exec, mock_fallback):
+        from planner import FallbackContext
+        mock_exec.return_value = {
+            "success": False,
+            "fallback_context": FallbackContext(error="422 failed"),
+        }
+        result = agent_module.run_agent("Create employee", [], "http://x/v2", "tok")
+        mock_fallback.assert_called_once()

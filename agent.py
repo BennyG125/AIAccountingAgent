@@ -13,6 +13,8 @@ from google.genai import types
 
 from api_knowledge.cheat_sheet import TRIPLETEX_API_CHEAT_SHEET
 from tripletex_api import TripletexClient
+from planner import parse_prompt, is_known_pattern, FallbackContext
+from executor import execute_plan
 
 logger = logging.getLogger(__name__)
 
@@ -187,11 +189,66 @@ def build_user_content(prompt: str, file_contents: list[dict]) -> list[types.Par
 # ---------------------------------------------------------------------------
 
 def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_token: str) -> dict:
-    """Run the Gemini tool-use agent loop."""
-    client = TripletexClient(base_url, session_token)
+    """Route: parse → deterministic execution or tool-use fallback."""
     start_time = time.time()
+    client = TripletexClient(base_url, session_token)
+    path = "fallback"
+    total_api_calls = 0
+    llm_calls = 0
+
+    # Step 1: Parse prompt
+    task_plan = parse_prompt(prompt, file_contents)
+    llm_calls += 1
+
+    # Step 2: Try deterministic path
+    if task_plan and is_known_pattern(task_plan):
+        result = execute_plan(client, task_plan)
+        total_api_calls += result.get("api_calls", 0)
+        if result["success"]:
+            path = "deterministic"
+            total_ms = int((time.time() - start_time) * 1000)
+            logger.info(f"result: status=completed path={path} total_api_calls={total_api_calls} "
+                       f"errors_4xx=0 llm_calls={llm_calls} total_time_ms={total_ms}")
+            return {"status": "completed", "path": path}
+        fallback_ctx = result["fallback_context"]
+        path = "deterministic+fallback"
+    else:
+        fallback_ctx = FallbackContext(task_plan=task_plan)
+
+    # Step 3: Tool-use fallback
+    loop_result = run_tool_loop(prompt, file_contents, client, fallback_ctx)
+    total_ms = int((time.time() - start_time) * 1000)
+    logger.info(f"result: status=completed path={path} total_api_calls={total_api_calls} "
+               f"llm_calls={llm_calls} total_time_ms={total_ms}")
+    return {"status": "completed", "path": path}
+
+
+def run_tool_loop(prompt: str, file_contents: list[dict], client: TripletexClient,
+                  fallback_context: FallbackContext | None = None) -> dict:
+    """Run the Gemini tool-use agent loop (fallback path)."""
+    start_time = time.time()
+    reason = "parse_failure"
+    if fallback_context:
+        if fallback_context.failed_action:
+            reason = "execution_error"
+        elif fallback_context.task_plan:
+            reason = "pattern_mismatch"
+    logger.info(f"fallback: reason={reason} context_refs={len(fallback_context.completed_refs) if fallback_context else 0}")
 
     system_prompt = build_system_prompt()
+
+    # Inject fallback context
+    if fallback_context:
+        extra = []
+        if fallback_context.completed_refs:
+            extra.append(f"These entities were already created: {json.dumps(fallback_context.completed_refs)}")
+        if fallback_context.failed_action and fallback_context.error:
+            extra.append(f"This action failed: {json.dumps(fallback_context.failed_action)}. Error: {fallback_context.error}. Fix and continue.")
+        if fallback_context.task_plan:
+            extra.append(f"Parsed task plan for context: {json.dumps(fallback_context.task_plan)}")
+        if extra:
+            system_prompt += "\n\n## Context from previous attempt\n" + "\n".join(extra)
+
     user_parts = build_user_content(prompt, file_contents)
 
     contents: list[types.Content] = [

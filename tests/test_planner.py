@@ -21,7 +21,10 @@ class TestParsePrompt:
                  "ref": "dep1", "depends_on": {}}
             ]
         }
-        _mock_genai_client.models.generate_content.return_value = mock_response
+        # Patch the actual genai_client on the planner module (it may have been
+        # imported earlier by test_agent.py with a different mock).
+        import planner as _planner_mod
+        _planner_mod.genai_client.models.generate_content.return_value = mock_response
 
         result = parse_prompt("Opprett avdeling IT", [])
         assert result is not None
@@ -30,10 +33,11 @@ class TestParsePrompt:
 
     def test_returns_none_on_exception(self):
         """parse_prompt returns None if Gemini call fails."""
-        _mock_genai_client.models.generate_content.side_effect = Exception("timeout")
+        import planner as _planner_mod
+        _planner_mod.genai_client.models.generate_content.side_effect = Exception("timeout")
         result = parse_prompt("test", [])
         assert result is None
-        _mock_genai_client.models.generate_content.side_effect = None
+        _planner_mod.genai_client.models.generate_content.side_effect = None
 
     def test_parse_system_prompt_includes_field_names(self):
         assert "firstName" in PARSE_SYSTEM_PROMPT
