@@ -43,6 +43,16 @@ def execute_plan(client: TripletexClient, task_plan: dict) -> dict:
 
         # ---- Create / register_payment / lookup (existing flow) ----
         if action_type in ("create", "register_payment", "lookup"):
+            # Pre-check: reuse existing entity if unique fields match
+            if action_type == "create":
+                schema = ENTITY_SCHEMAS.get(action["entity"], {})
+                existing_id = _check_existing(client, action, schema)
+                if existing_id is not None:
+                    ref_map[action["ref"]] = existing_id
+                    logger.info(f"exec: step={step} reused_existing ref={action['ref']} id={existing_id}")
+                    total_api_calls += 1
+                    continue
+
             payload = _build_payload(action, ref_map)
             method = payload["method"]
             endpoint = payload["endpoint"]
@@ -375,6 +385,31 @@ def _auto_batch(actions: list[dict]) -> list[dict]:
     result = [a for a in actions if a["ref"] not in batched_refs]
     result.extend(batched)
     return result
+
+
+def _check_existing(client: TripletexClient, action: dict, schema: dict) -> int | None:
+    """Check if entity already exists by unique fields. Returns existing ID or None."""
+    unique_checks = schema.get("unique_check_fields", {})
+    if not unique_checks:
+        return None
+
+    fields = action.get("fields", {})
+    endpoint = schema["endpoint"]
+
+    for field_name, query_param in unique_checks.items():
+        value = fields.get(field_name)
+        if not value:
+            continue
+        # Unwrap {"id": X} to bare value for search
+        if isinstance(value, dict) and "id" in value:
+            value = value["id"]
+        result = client.get(endpoint, params={query_param: str(value), "count": "1", "fields": "id"})
+        if result["success"] and result["body"].get("values"):
+            existing_id = result["body"]["values"][0]["id"]
+            logger.info(f"exec: found_existing entity={action['entity']} field={field_name} value={value} id={existing_id}")
+            return existing_id
+
+    return None
 
 
 def _extract_id(result: dict) -> int | None:

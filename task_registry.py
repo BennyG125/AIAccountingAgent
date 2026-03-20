@@ -19,6 +19,7 @@ ENTITY_SCHEMAS = {
         "required": ["name", "departmentNumber"],
         "defaults": {},
         "auto_generate": ["departmentNumber"],
+        "unique_check_fields": {"departmentNumber": "departmentNumber"},
     },
     "employee": {
         "endpoint": "/employee",
@@ -27,12 +28,14 @@ ENTITY_SCHEMAS = {
         "defaults": {"userType": "STANDARD"},
         "pre_lookups": {"department": "/department"},
         "object_ref_fields": ["department"],
+        "unique_check_fields": {"email": "email"},
     },
     "customer": {
         "endpoint": "/customer",
         "method": "POST",
         "required": ["name"],
         "defaults": {},
+        "unique_check_fields": {"organizationNumber": "organizationNumber"},
     },
     "product": {
         "endpoint": "/product",
@@ -129,6 +132,7 @@ ENTITY_SCHEMAS = {
         "method": "POST",
         "required": ["name"],
         "defaults": {},
+        "unique_check_fields": {"organizationNumber": "organizationNumber"},
     },
     "supplier_invoice": {
         "endpoint": "/supplierInvoice",

@@ -10,6 +10,7 @@ with patch("google.genai.Client", return_value=_mock_genai_client):
         from executor import (
             execute_plan, _topological_sort, _build_payload,
             _resolve_pre_lookups, _resolve_by_search, _auto_batch,
+            _check_existing,
         )
         from task_registry import BULK_ENDPOINTS
 
@@ -124,6 +125,10 @@ class TestBuildPayload:
 class TestExecutePlan:
     def test_single_create(self):
         client = MagicMock()
+        client.get.return_value = {
+            "success": True, "status_code": 200,
+            "body": {"values": []},
+        }
         client.post.return_value = {
             "success": True, "status_code": 201,
             "body": {"value": {"id": 42}},
@@ -139,6 +144,10 @@ class TestExecutePlan:
 
     def test_threads_ids_between_actions(self):
         client = MagicMock()
+        client.get.return_value = {
+            "success": True, "status_code": 200,
+            "body": {"values": []},
+        }
         client.post.side_effect = [
             {"success": True, "status_code": 201, "body": {"value": {"id": 10}}},
             {"success": True, "status_code": 201, "body": {"value": {"id": 20}}},
@@ -159,6 +168,10 @@ class TestExecutePlan:
 
     def test_stops_on_4xx_returns_fallback_context(self):
         client = MagicMock()
+        client.get.return_value = {
+            "success": True, "status_code": 200,
+            "body": {"values": []},
+        }
         client.post.side_effect = [
             {"success": True, "status_code": 201, "body": {"value": {"id": 10}}},
             {"success": False, "status_code": 422, "error": "Validation failed", "body": {}},
@@ -368,3 +381,66 @@ class TestActionDispatch:
         assert client.post.call_count == 1
         call_args = client.post.call_args
         assert "/list" in call_args[0][0] or "/list" in str(call_args)
+
+
+class TestCheckExisting:
+    def test_reuses_existing_department(self):
+        """If department with same number exists, reuse it."""
+        client = MagicMock()
+        client.get.return_value = {
+            "success": True, "status_code": 200,
+            "body": {"values": [{"id": 99}]},
+        }
+        client.post.return_value = {
+            "success": True, "status_code": 201,
+            "body": {"value": {"id": 99}},
+        }
+        plan = {"actions": [
+            {"action": "create", "entity": "department",
+             "fields": {"name": "IT", "departmentNumber": "100"},
+             "ref": "dep1", "depends_on": {}},
+        ]}
+        result = execute_plan(client, plan)
+        assert result["success"] is True
+        assert result["ref_map"]["dep1"] == 99
+        # Should have called GET (pre-check), NOT POST
+        client.post.assert_not_called()
+
+    def test_creates_when_no_existing(self):
+        """If no existing entity found, proceed with POST."""
+        client = MagicMock()
+        client.get.return_value = {
+            "success": True, "status_code": 200,
+            "body": {"values": []},
+        }
+        client.post.return_value = {
+            "success": True, "status_code": 201,
+            "body": {"value": {"id": 42}},
+        }
+        plan = {"actions": [
+            {"action": "create", "entity": "department",
+             "fields": {"name": "IT", "departmentNumber": "100"},
+             "ref": "dep1", "depends_on": {}},
+        ]}
+        result = execute_plan(client, plan)
+        assert result["success"] is True
+        assert result["ref_map"]["dep1"] == 42
+        client.post.assert_called_once()
+
+    def test_skips_check_when_no_unique_fields(self):
+        """Entities without unique_check_fields skip the pre-check."""
+        client = MagicMock()
+        client.post.return_value = {
+            "success": True, "status_code": 201,
+            "body": {"value": {"id": 42}},
+        }
+        plan = {"actions": [
+            {"action": "create", "entity": "customer",
+             "fields": {"name": "Acme AS"},
+             "ref": "c1", "depends_on": {}},
+        ]}
+        result = execute_plan(client, plan)
+        assert result["success"] is True
+        # No GET should be called since name is not a unique check field
+        # (organizationNumber is, but it's not in fields)
+        client.get.assert_not_called()
