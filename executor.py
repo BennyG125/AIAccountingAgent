@@ -4,13 +4,19 @@
 Takes a TaskPlan (from planner.py), topologically sorts actions by dependencies,
 builds payloads from the entity registry, and executes API calls in order —
 threading response IDs into subsequent calls.
+
+Supports: create, update, delete, named actions (send_invoice, approve_travel_expense, etc.),
+auto-batching via bulk endpoints, and pre-lookups for runtime constants.
 """
 
 import logging
 import time
-from datetime import date
+from collections import defaultdict
 
-from task_registry import ENTITY_SCHEMAS, KNOWN_CONSTANTS, generate_auto_value
+from task_registry import (
+    ENTITY_SCHEMAS, KNOWN_CONSTANTS, generate_auto_value,
+    ACTION_SCHEMAS, BULK_ENDPOINTS, SEARCH_PARAMS,
+)
 from planner import FallbackContext
 from tripletex_api import TripletexClient
 
@@ -24,35 +30,142 @@ def execute_plan(client: TripletexClient, task_plan: dict) -> dict:
     total_api_calls = 0
     start = time.time()
 
-    # Resolve lookup_defaults before execution
-    _resolve_lookup_defaults(client, actions, ref_map)
+    # Resolve pre-lookups before execution (replaces old _resolve_lookup_defaults)
+    lookup_cache: dict[str, int] = {}
+    _resolve_pre_lookups(client, actions, ref_map, lookup_cache)
+
+    # Auto-batch independent creates of the same entity type
+    actions = _auto_batch(actions)
 
     for i, action in enumerate(actions):
         step = f"{i + 1}/{len(actions)}"
-        payload = _build_payload(action, ref_map)
+        action_type = action.get("action")
 
-        method = payload["method"]
-        endpoint = payload["endpoint"]
-        logger.info(f"exec: step={step} method={method} endpoint={endpoint} ref={action['ref']}")
+        # ---- Create / register_payment / lookup (existing flow) ----
+        if action_type in ("create", "register_payment", "lookup"):
+            payload = _build_payload(action, ref_map)
+            method = payload["method"]
+            endpoint = payload["endpoint"]
+            logger.info(f"exec: step={step} method={method} endpoint={endpoint} ref={action['ref']}")
 
-        call_start = time.time()
-        if payload.get("use_query_params"):
-            result = client.put(endpoint, params=payload.get("params"))
-        elif method == "POST":
-            result = client.post(endpoint, body=payload.get("body"))
-        elif method == "PUT":
-            result = client.put(endpoint, body=payload.get("body"), params=payload.get("params"))
-        elif method == "GET":
-            result = client.get(endpoint, params=payload.get("params"))
+            call_start = time.time()
+            if payload.get("use_query_params"):
+                result = client.put(endpoint, params=payload.get("params"))
+            elif method == "POST":
+                result = client.post(endpoint, body=payload.get("body"))
+            elif method == "PUT":
+                result = client.put(endpoint, body=payload.get("body"), params=payload.get("params"))
+            elif method == "GET":
+                result = client.get(endpoint, params=payload.get("params"))
+            else:
+                result = {"success": False, "error": f"Unsupported method: {method}"}
+
+        # ---- Update (search + PUT) ----
+        elif action_type == "update":
+            logger.info(f"exec: step={step} action=update entity={action['entity']} ref={action['ref']}")
+            call_start = time.time()
+            found = _resolve_by_search(client, action)
+            if not found:
+                total_ms = int((time.time() - start) * 1000)
+                logger.warning(f"exec: step={step} search_not_found entity={action['entity']}")
+                return {
+                    "success": False,
+                    "fallback_context": FallbackContext(
+                        task_plan=task_plan,
+                        completed_refs=dict(ref_map),
+                        failed_action=action,
+                        error=f"Search returned 0 results for {action.get('search_fields')}",
+                    ),
+                }
+            schema = ENTITY_SCHEMAS[action["entity"]]
+            merged = {**found, **action.get("fields", {})}
+            result = client.put(f"{schema['endpoint']}/{found['id']}", body=merged)
+
+        # ---- Delete (search + DELETE) ----
+        elif action_type == "delete":
+            logger.info(f"exec: step={step} action=delete entity={action['entity']} ref={action['ref']}")
+            call_start = time.time()
+            found = _resolve_by_search(client, action)
+            if not found:
+                total_ms = int((time.time() - start) * 1000)
+                logger.warning(f"exec: step={step} search_not_found entity={action['entity']}")
+                return {
+                    "success": False,
+                    "fallback_context": FallbackContext(
+                        task_plan=task_plan,
+                        completed_refs=dict(ref_map),
+                        failed_action=action,
+                        error=f"Search returned 0 results for {action.get('search_fields')}",
+                    ),
+                }
+            schema = ENTITY_SCHEMAS[action["entity"]]
+            result = client.delete(f"{schema['endpoint']}/{found['id']}")
+
+        # ---- Batch create (auto-batched by _auto_batch) ----
+        elif action_type == "create_batch":
+            entity = action["entity"]
+            endpoint = BULK_ENDPOINTS[entity]
+            logger.info(f"exec: step={step} action=create_batch entity={entity} count={len(action['batch_items'])} ref={action['ref']}")
+            call_start = time.time()
+            bodies = []
+            for item in action["batch_items"]:
+                payload = _build_payload(item, ref_map)
+                bodies.append(payload.get("body", {}))
+            result = client.post(endpoint, body=bodies)
+            if result["success"]:
+                values = result["body"].get("values", [])
+                for item, value in zip(action["batch_items"], values):
+                    if isinstance(value, dict) and "id" in value:
+                        ref_map[item["ref"]] = value["id"]
+
+        # ---- Named actions (send_invoice, approve_travel_expense, etc.) ----
+        elif action_type in ACTION_SCHEMAS:
+            action_schema = ACTION_SCHEMAS[action_type]
+            logger.info(f"exec: step={step} action={action_type} entity={action['entity']} ref={action['ref']}")
+            call_start = time.time()
+            found = _resolve_by_search(client, action)
+            if not found:
+                total_ms = int((time.time() - start) * 1000)
+                logger.warning(f"exec: step={step} search_not_found action={action_type}")
+                return {
+                    "success": False,
+                    "fallback_context": FallbackContext(
+                        task_plan=task_plan,
+                        completed_refs=dict(ref_map),
+                        failed_action=action,
+                        error=f"Search returned 0 results for {action.get('search_fields')}",
+                    ),
+                }
+            endpoint = action_schema["action_endpoint"].replace("{id}", str(found["id"]))
+            body = action.get("fields", {}) or None
+            params = None
+            if "action_params_from_search" in action_schema:
+                params = {
+                    param: found[source_field]
+                    for param, source_field in action_schema["action_params_from_search"].items()
+                }
+            if action_schema.get("body_from_search"):
+                body = [{"id": found["id"]}]
+            if action_schema["action_method"] == "PUT":
+                result = client.put(endpoint, body=body, params=params)
+            elif action_schema["action_method"] == "POST":
+                result = client.post(endpoint, body=body)
+            elif action_schema["action_method"] == "DELETE":
+                result = client.delete(endpoint)
+            else:
+                result = {"success": False, "error": f"Unsupported action method: {action_schema['action_method']}"}
+
         else:
-            result = {"success": False, "error": f"Unsupported method: {method}"}
+            logger.warning(f"exec: step={step} unsupported_action={action_type}")
+            result = {"success": False, "error": f"Unsupported action: {action_type}"}
+            call_start = time.time()
 
         call_ms = int((time.time() - call_start) * 1000)
         total_api_calls += 1
 
         if not result["success"]:
             error_msg = result.get("error", str(result.get("body", "")))
-            logger.warning(f"exec: step={step} method={method} endpoint={endpoint} "
+            logger.warning(f"exec: step={step} action={action_type} "
                          f"status={result.get('status_code')} error=\"{error_msg}\" "
                          f"body={result.get('body')} time_ms={call_ms}")
             logger.info(f"exec: fallback_triggered completed_refs={ref_map} failed_action={action['ref']}")
@@ -67,7 +180,7 @@ def execute_plan(client: TripletexClient, task_plan: dict) -> dict:
                 ),
             }
 
-        # Extract created entity ID
+        # Extract created entity ID (for create and named actions)
         entity_id = _extract_id(result)
         if entity_id is not None:
             ref_map[action["ref"]] = entity_id
@@ -161,30 +274,102 @@ def _build_payload(action: dict, ref_map: dict) -> dict:
     return result
 
 
-def _resolve_lookup_defaults(client: TripletexClient, actions: list[dict], ref_map: dict):
-    """Insert GET lookups for entities that need dependencies not in the plan."""
-    all_refs = {a["ref"] for a in actions}
+def _resolve_pre_lookups(client: TripletexClient, actions: list[dict],
+                         ref_map: dict, lookup_cache: dict):
+    """GET lookup endpoints for entities that need runtime constants.
 
+    Replaces the old _resolve_lookup_defaults() and _resolve_lookup_constants_inject().
+    Unified: all lookups go through pre_lookups on entity schemas.
+    """
+    # Phase 1: Fetch all needed lookups (deduplicated via cache)
     for action in actions:
-        entity = action["entity"]
-        schema = ENTITY_SCHEMAS.get(entity, {})
-        lookup_defaults = schema.get("lookup_defaults", {})
-
-        for field_name, endpoint in lookup_defaults.items():
-            # Check if this field is already provided via depends_on
-            dep_ref = action.get("depends_on", {}).get(field_name)
-            if dep_ref and (dep_ref in all_refs or dep_ref in ref_map):
+        schema = ENTITY_SCHEMAS.get(action["entity"], {})
+        for field_name, endpoint in schema.get("pre_lookups", {}).items():
+            if field_name in lookup_cache:
                 continue
-
-            # Need to look up a default
-            logger.info(f"exec: lookup_default field={field_name} endpoint={endpoint}")
-            result = client.get(endpoint, params={"fields": "id,name", "count": "1"})
+            # Skip if the field is already set by the user
+            if field_name in action.get("fields", {}):
+                continue
+            logger.info(f"exec: pre_lookup field={field_name} endpoint={endpoint}")
+            result = client.get(endpoint, params={"count": "1", "fields": "id,name"})
             if result["success"] and result["body"].get("values"):
-                default_id = result["body"]["values"][0]["id"]
-                # Create a synthetic ref and inject into depends_on
-                synth_ref = f"_lookup_{field_name}"
-                ref_map[synth_ref] = default_id
-                action.setdefault("depends_on", {})[field_name] = synth_ref
+                lookup_cache[field_name] = result["body"]["values"][0]["id"]
+
+    # Phase 2: Inject cached IDs into action fields
+    for action in actions:
+        schema = ENTITY_SCHEMAS.get(action["entity"], {})
+        for field_name in schema.get("pre_lookups", {}):
+            if field_name in lookup_cache and field_name not in action.get("fields", {}):
+                action.setdefault("fields", {})[field_name] = {"id": lookup_cache[field_name]}
+
+
+def _resolve_by_search(client: TripletexClient, action: dict) -> dict | None:
+    """GET search for an existing entity. Returns {id, version, ...} or None."""
+    entity = action["entity"]
+    search_fields = action.get("search_fields", {})
+    if not search_fields:
+        return None
+
+    schema = ENTITY_SCHEMAS.get(entity, {})
+    endpoint = schema.get("endpoint", "")
+
+    # Translate field names to query params using SEARCH_PARAMS
+    param_mapping = SEARCH_PARAMS.get(entity, {})
+    params = {"fields": "*", "count": "1"}
+    for field_name, value in search_fields.items():
+        query_param = param_mapping.get(field_name, field_name)
+        params[query_param] = value
+
+    result = client.get(endpoint, params=params)
+    if result["success"] and result["body"].get("values"):
+        return result["body"]["values"][0]
+    return None
+
+
+def _auto_batch(actions: list[dict]) -> list[dict]:
+    """Merge same-type creates with no cross-deps into batch actions.
+
+    E.g., 3 independent employee creates → 1 batch action using POST /employee/list.
+    Only batches entity types that have BULK_ENDPOINTS entries.
+    Actions that depend on each other (via depends_on refs) are NOT batched.
+    """
+    groups = defaultdict(list)
+    for action in actions:
+        if action.get("action") == "create" and action["entity"] in BULK_ENDPOINTS:
+            groups[action["entity"]].append(action)
+
+    if not groups:
+        return actions
+
+    batched = []
+    batched_refs = set()
+    for entity, group_actions in groups.items():
+        group_refs = {a["ref"] for a in group_actions}
+        independent = []
+        for a in group_actions:
+            dep_refs = set()
+            for v in a.get("depends_on", {}).values():
+                if isinstance(v, list):
+                    dep_refs.update(v)
+                else:
+                    dep_refs.add(v)
+            if not dep_refs.intersection(group_refs):
+                independent.append(a)
+
+        if len(independent) >= 2:
+            batch_action = {
+                "action": "create_batch",
+                "entity": entity,
+                "batch_items": independent,
+                "ref": f"_batch_{entity}",
+                "depends_on": {},
+            }
+            batched.append(batch_action)
+            batched_refs.update(a["ref"] for a in independent)
+
+    result = [a for a in actions if a["ref"] not in batched_refs]
+    result.extend(batched)
+    return result
 
 
 def _extract_id(result: dict) -> int | None:

@@ -5,7 +5,11 @@ from unittest.mock import MagicMock, patch
 
 _mock_genai_client = MagicMock()
 with patch("google.genai.Client", return_value=_mock_genai_client):
-    from executor import execute_plan, _topological_sort, _build_payload
+    from executor import (
+        execute_plan, _topological_sort, _build_payload,
+        _resolve_pre_lookups, _resolve_by_search, _auto_batch,
+    )
+    from task_registry import BULK_ENDPOINTS
 
 
 class TestTopologicalSort:
@@ -148,22 +152,193 @@ class TestExecutePlan:
         assert ctx.failed_action["ref"] == "emp1"
         assert "Validation" in ctx.error
 
-    def test_lookup_defaults_inserts_get(self):
-        """Employee without dept in plan triggers GET /department."""
+
+class TestResolvePreLookups:
+    def test_injects_ids_from_get(self):
         client = MagicMock()
         client.get.return_value = {
             "success": True, "status_code": 200,
-            "body": {"values": [{"id": 55, "name": "Default"}]},
+            "body": {"values": [{"id": 55, "name": "Default Category"}]},
         }
-        client.post.return_value = {
-            "success": True, "status_code": 201,
-            "body": {"value": {"id": 20}},
+        actions = [
+            {"action": "create", "entity": "travel_expense_cost",
+             "fields": {"amountCurrencyIncVat": 500}, "ref": "tec1", "depends_on": {}},
+        ]
+        ref_map = {}
+        lookup_cache = {}
+        _resolve_pre_lookups(client, actions, ref_map, lookup_cache)
+        assert actions[0]["fields"]["costCategory"] == {"id": 55}
+        assert "costCategory" in lookup_cache
+
+    def test_caches_lookups(self):
+        client = MagicMock()
+        client.get.return_value = {
+            "success": True, "status_code": 200,
+            "body": {"values": [{"id": 55}]},
+        }
+        actions = [
+            {"action": "create", "entity": "travel_expense_cost",
+             "fields": {}, "ref": "tec1", "depends_on": {}},
+            {"action": "create", "entity": "travel_expense_cost",
+             "fields": {}, "ref": "tec2", "depends_on": {}},
+        ]
+        lookup_cache = {}
+        _resolve_pre_lookups(client, actions, {}, lookup_cache)
+        # costCategory and paymentType looked up once each, not twice
+        assert client.get.call_count == 2  # costCategory + paymentType
+
+    def test_skips_if_field_already_set(self):
+        client = MagicMock()
+        actions = [
+            {"action": "create", "entity": "employee",
+             "fields": {"department": {"id": 99}}, "ref": "e1", "depends_on": {}},
+        ]
+        _resolve_pre_lookups(client, actions, {}, {})
+        client.get.assert_not_called()
+
+
+class TestResolveBySearch:
+    def test_finds_entity(self):
+        client = MagicMock()
+        client.get.return_value = {
+            "success": True, "status_code": 200,
+            "body": {"values": [{"id": 42, "name": "Acme", "version": 1}]},
+        }
+        action = {"action": "update", "entity": "customer",
+                  "search_fields": {"name": "Acme"}, "fields": {}, "ref": "c1"}
+        result = _resolve_by_search(client, action)
+        assert result["id"] == 42
+
+    def test_returns_none_when_not_found(self):
+        client = MagicMock()
+        client.get.return_value = {
+            "success": True, "status_code": 200,
+            "body": {"values": []},
+        }
+        action = {"action": "delete", "entity": "department",
+                  "search_fields": {"name": "Nonexistent"}, "fields": {}, "ref": "d1"}
+        result = _resolve_by_search(client, action)
+        assert result is None
+
+    def test_returns_none_with_empty_search_fields(self):
+        client = MagicMock()
+        action = {"action": "update", "entity": "customer",
+                  "search_fields": {}, "fields": {}, "ref": "c1"}
+        result = _resolve_by_search(client, action)
+        assert result is None
+        client.get.assert_not_called()
+
+
+class TestAutoBatch:
+    def test_batches_independent_creates(self):
+        actions = [
+            {"action": "create", "entity": "employee", "fields": {"firstName": "A"}, "ref": "e1", "depends_on": {}},
+            {"action": "create", "entity": "employee", "fields": {"firstName": "B"}, "ref": "e2", "depends_on": {}},
+            {"action": "create", "entity": "employee", "fields": {"firstName": "C"}, "ref": "e3", "depends_on": {}},
+        ]
+        result = _auto_batch(actions)
+        batch_actions = [a for a in result if a.get("action") == "create_batch"]
+        assert len(batch_actions) == 1
+        assert batch_actions[0]["entity"] == "employee"
+        assert len(batch_actions[0]["batch_items"]) == 3
+
+    def test_does_not_batch_with_cross_deps(self):
+        actions = [
+            {"action": "create", "entity": "customer", "fields": {"name": "A"}, "ref": "c1", "depends_on": {}},
+            {"action": "create", "entity": "customer", "fields": {"name": "B"}, "ref": "c2", "depends_on": {"parent": "c1"}},
+        ]
+        result = _auto_batch(actions)
+        batch_actions = [a for a in result if a.get("action") == "create_batch"]
+        assert len(batch_actions) == 0
+
+    def test_does_not_batch_non_bulk_entities(self):
+        actions = [
+            {"action": "create", "entity": "department", "fields": {"name": "A"}, "ref": "d1", "depends_on": {}},
+            {"action": "create", "entity": "department", "fields": {"name": "B"}, "ref": "d2", "depends_on": {}},
+        ]
+        result = _auto_batch(actions)
+        batch_actions = [a for a in result if a.get("action") == "create_batch"]
+        assert len(batch_actions) == 0  # department not in BULK_ENDPOINTS
+
+    def test_does_not_batch_single_entity(self):
+        actions = [
+            {"action": "create", "entity": "employee", "fields": {"firstName": "A"}, "ref": "e1", "depends_on": {}},
+        ]
+        result = _auto_batch(actions)
+        assert len(result) == 1
+        assert result[0]["action"] == "create"
+
+
+class TestActionDispatch:
+    def test_update_searches_and_puts(self):
+        client = MagicMock()
+        client.get.return_value = {
+            "success": True, "status_code": 200,
+            "body": {"values": [{"id": 42, "name": "Old", "version": 1}]},
+        }
+        client.put.return_value = {
+            "success": True, "status_code": 200,
+            "body": {"value": {"id": 42}},
         }
         plan = {"actions": [
-            {"action": "create", "entity": "employee",
-             "fields": {"firstName": "K", "lastName": "N"},
-             "ref": "emp1", "depends_on": {}},
+            {"action": "update", "entity": "customer",
+             "fields": {"email": "new@test.no"},
+             "search_fields": {"name": "Old"},
+             "ref": "c1", "depends_on": {}},
         ]}
         result = execute_plan(client, plan)
         assert result["success"] is True
-        client.get.assert_called_once()  # looked up department
+        client.get.assert_called_once()
+        client.put.assert_called_once()
+
+    def test_delete_searches_and_deletes(self):
+        client = MagicMock()
+        client.get.return_value = {
+            "success": True, "status_code": 200,
+            "body": {"values": [{"id": 42, "name": "Dept", "version": 1}]},
+        }
+        client.delete.return_value = {
+            "success": True, "status_code": 200, "body": {},
+        }
+        plan = {"actions": [
+            {"action": "delete", "entity": "department",
+             "fields": {}, "search_fields": {"name": "Dept"},
+             "ref": "d1", "depends_on": {}},
+        ]}
+        result = execute_plan(client, plan)
+        assert result["success"] is True
+        client.delete.assert_called_once()
+
+    def test_search_not_found_returns_fallback(self):
+        client = MagicMock()
+        client.get.return_value = {
+            "success": True, "status_code": 200,
+            "body": {"values": []},
+        }
+        plan = {"actions": [
+            {"action": "update", "entity": "customer",
+             "fields": {"email": "x"}, "search_fields": {"name": "Missing"},
+             "ref": "c1", "depends_on": {}},
+        ]}
+        result = execute_plan(client, plan)
+        assert result["success"] is False
+        assert "0 results" in result["fallback_context"].error
+
+    def test_batch_create(self):
+        client = MagicMock()
+        client.post.return_value = {
+            "success": True, "status_code": 201,
+            "body": {"values": [{"id": 10}, {"id": 11}]},
+        }
+        plan = {"actions": [
+            {"action": "create", "entity": "employee",
+             "fields": {"firstName": "A", "lastName": "A"}, "ref": "e1", "depends_on": {}},
+            {"action": "create", "entity": "employee",
+             "fields": {"firstName": "B", "lastName": "B"}, "ref": "e2", "depends_on": {}},
+        ]}
+        result = execute_plan(client, plan)
+        assert result["success"] is True
+        # Should have used /employee/list (1 call, not 2)
+        assert client.post.call_count == 1
+        call_args = client.post.call_args
+        assert "/list" in call_args[0][0] or "/list" in str(call_args)
