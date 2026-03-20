@@ -33,7 +33,7 @@
 - Create: `claude_client.py`
 - Modify: `requirements.txt`
 
-- [ ] **Step 1: Create claude_client.py**
+- [x] **Step 1: Create claude_client.py**
 
 ```python
 # claude_client.py
@@ -63,7 +63,7 @@ def get_claude_client() -> AnthropicVertex:
     return _client
 ```
 
-- [ ] **Step 2: Update requirements.txt**
+- [x] **Step 2: Update requirements.txt**
 
 Add `anthropic[vertex]>=0.86.0` after `google-genai`:
 
@@ -77,12 +77,12 @@ pymupdf
 python-dotenv
 ```
 
-- [ ] **Step 3: Install and verify import**
+- [x] **Step 3: Install and verify import**
 
 Run: `pip install anthropic[vertex]>=0.86.0 && python -c "from claude_client import get_claude_client, CLAUDE_MODEL; print(CLAUDE_MODEL)"`
 Expected: `claude-opus-4-6`
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add claude_client.py requirements.txt
@@ -97,7 +97,7 @@ git commit -m "feat: add Claude client for Vertex AI + anthropic SDK dependency"
 - Modify: `planner.py`
 - Modify: `tests/test_planner.py`
 
-- [ ] **Step 1: Write updated planner tests**
+- [x] **Step 1: Write updated planner tests**
 
 Replace `TestParsePrompt` class and add code fence test. Keep all `TestIsKnownPattern` and `TestFallbackContext` tests unchanged. Replace the entire file:
 
@@ -381,12 +381,12 @@ class TestFallbackContext:
         assert ctx.completed_refs["dep1"] == 123
 ```
 
-- [ ] **Step 2: Run tests — expect FAIL**
+- [x] **Step 2: Run tests — expect FAIL**
 
 Run: `python -m pytest tests/test_planner.py -v`
 Expected: FAIL with ImportError — planner.py still imports `google.genai` and doesn't use `claude_client` yet. This is expected and will be resolved in Step 3.
 
-- [ ] **Step 3: Update planner.py**
+- [x] **Step 3: Update planner.py**
 
 Replace the imports, remove `genai_client`, `TASK_PLAN_SCHEMA`, and rewrite `parse_prompt()`. Keep `PARSE_SYSTEM_PROMPT`, `is_known_pattern()`, `DETERMINISTIC_ACTIONS`, and `FallbackContext` unchanged.
 
@@ -430,12 +430,12 @@ FallbackContext — Shared context for tool-use fallback handoff.
 """
 ```
 
-- [ ] **Step 4: Run tests — expect PASS**
+- [x] **Step 4: Run tests — expect PASS**
 
 Run: `python -m pytest tests/test_planner.py -v`
 Expected: All PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add planner.py tests/test_planner.py
@@ -456,7 +456,7 @@ and few-shot examples alone."
 - Modify: `tests/test_agent.py`
 - Modify: `tests/test_executor.py`
 
-- [ ] **Step 1: Write updated agent tests**
+- [x] **Step 1: Write updated agent tests**
 
 Replace the entire test file. Keep `TestSystemPrompt`, `TestExecuteTool`, and `TestRouting` with minor mock updates. Replace `TestToolDefinitions` and `TestBuildUserContent`. Add `TestGeminiOcr`.
 
@@ -681,12 +681,12 @@ class TestRunToolLoop:
         _mock_claude_client.messages.create.side_effect = None
 ```
 
-- [ ] **Step 2: Run tests — expect FAIL**
+- [x] **Step 2: Run tests — expect FAIL**
 
 Run: `python -m pytest tests/test_agent.py -v`
 Expected: FAIL (agent.py still has Gemini code, missing `TOOLS`, `gemini_ocr`)
 
-- [ ] **Step 3: Update agent.py**
+- [x] **Step 3: Update agent.py**
 
 Complete rewrite. Key changes from spec Section 4:
 
@@ -726,7 +726,7 @@ Gemini retained for OCR (image text extraction) only.
 
 All replacement code is in spec Sections 4. Copy `TOOLS`, `gemini_ocr()`, `run_tool_loop()`, and `run_agent()` exactly from the spec.
 
-- [ ] **Step 4: Update tests/test_executor.py mock**
+- [x] **Step 4: Update tests/test_executor.py mock**
 
 The executor tests mock `google.genai.Client` because `planner.py` used to instantiate it at import time. Since `planner.py` no longer does this, but `agent.py` still does (for OCR), update the mock patch:
 
@@ -749,7 +749,7 @@ with patch("google.genai.Client", return_value=_mock_genai_client):
         from task_registry import BULK_ENDPOINTS
 ```
 
-- [ ] **Step 5: Update tests/test_main.py mock**
+- [x] **Step 5: Update tests/test_main.py mock**
 
 `test_main.py` imports `main.py` which imports `agent.py` which now imports `claude_client`. Add the claude_client mock:
 
@@ -768,12 +768,12 @@ with patch("google.genai.Client", return_value=_mock_genai):
         from main import app, _preconfigure_bank_account
 ```
 
-- [ ] **Step 6: Run all tests — expect PASS**
+- [x] **Step 6: Run all tests — expect PASS**
 
 Run: `python -m pytest tests/ -v --ignore=tests/integration`
 Expected: All PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add agent.py tests/test_agent.py tests/test_executor.py tests/test_main.py
@@ -792,12 +792,12 @@ Removes build_user_content — Claude receives text only."
 **Files:**
 - No code changes (unless smoke test reveals issues)
 
-- [ ] **Step 1: Run full unit test suite**
+- [x] **Step 1: Run full unit test suite**
 
 Run: `python -m pytest tests/ -v --ignore=tests/integration`
 Expected: All PASS
 
-- [ ] **Step 2: Deploy to Cloud Run**
+- [x] **Step 2: Deploy to Cloud Run**
 
 ```bash
 gcloud run deploy ai-accounting-agent-det --source . \
@@ -807,7 +807,7 @@ gcloud run deploy ai-accounting-agent-det --source . \
   --quiet
 ```
 
-- [ ] **Step 3: Run Tier 1 smoke tests**
+- [x] **Step 3: Run Tier 1 smoke tests**
 
 ```bash
 source .env && export TRIPLETEX_SESSION_TOKEN
@@ -824,7 +824,7 @@ gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.serv
 Before: all `path=deterministic+fallback` or `path=fallback`
 After: should see `path=deterministic`
 
-- [ ] **Step 4: Run Tier 2 smoke tests**
+- [x] **Step 4: Run Tier 2 smoke tests**
 
 ```bash
 python smoke_test.py --tier 2
@@ -832,7 +832,7 @@ python smoke_test.py --tier 2
 
 Expected: Most Tier 2 tasks PASS. Update/delete tasks should work via deterministic path.
 
-- [ ] **Step 5: Commit any fixes**
+- [x] **Step 5: Commit any fixes**
 
 ```bash
 git status  # review changes first
