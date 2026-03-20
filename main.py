@@ -49,6 +49,7 @@ def _preconfigure_bank_account(base_url: str, session_token: str) -> None:
         logger.warning(f"Bank pre-config failed (non-fatal): {e}")
 
 
+@app.post("/")
 @app.post("/solve")
 async def solve(request: Request):
     if API_KEY:
