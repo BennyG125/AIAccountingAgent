@@ -1,48 +1,121 @@
 # tests/test_planner.py
-"""Tests for planner.py — structured output parsing and pattern matching."""
+"""Tests for planner.py — Claude-based parsing and pattern matching."""
 
+import json
 from unittest.mock import MagicMock, patch
-from dataclasses import asdict
 
-_mock_genai_client = MagicMock()
+# Mock the Claude client before importing planner
+_mock_claude_client = MagicMock()
 
-with patch("google.genai.Client", return_value=_mock_genai_client):
-    from planner import parse_prompt, is_known_pattern, PARSE_SYSTEM_PROMPT, FallbackContext
+with patch("claude_client.get_claude_client", return_value=_mock_claude_client):
+    # agent.py still imports google.genai for OCR — mock that too
+    _mock_genai_client = MagicMock()
+    with patch("google.genai.Client", return_value=_mock_genai_client):
+        from planner import parse_prompt, is_known_pattern, PARSE_SYSTEM_PROMPT, FallbackContext
 
 
 class TestParsePrompt:
+    def _mock_response(self, text: str) -> MagicMock:
+        """Create a mock Claude response with given text content."""
+        response = MagicMock()
+        content_block = MagicMock()
+        content_block.text = text
+        response.content = [content_block]
+        return response
+
     def test_returns_task_plan_dict(self):
         """parse_prompt returns a dict with 'actions' key."""
-        mock_response = MagicMock()
-        mock_response.parsed = {
+        plan_json = json.dumps({
             "actions": [
                 {"action": "create", "entity": "department",
                  "fields": {"name": "IT", "departmentNumber": "100"},
-                 "ref": "dep1", "depends_on": {}}
+                 "search_fields": {}, "ref": "dep1", "depends_on": {}}
             ]
-        }
-        # Patch the actual genai_client on the planner module (it may have been
-        # imported earlier by test_agent.py with a different mock).
-        import planner as _planner_mod
-        _planner_mod.genai_client.models.generate_content.return_value = mock_response
+        })
+        _mock_claude_client.messages.create.return_value = self._mock_response(plan_json)
 
         result = parse_prompt("Opprett avdeling IT", [])
         assert result is not None
         assert "actions" in result
         assert result["actions"][0]["entity"] == "department"
+        assert result["actions"][0]["fields"]["name"] == "IT"
+
+    def test_extracts_fields_and_depends_on(self):
+        """Verify fields and depends_on are populated (the bug we're fixing)."""
+        plan_json = json.dumps({
+            "actions": [
+                {"action": "create", "entity": "department",
+                 "fields": {"name": "Salg", "departmentNumber": "200"},
+                 "search_fields": {}, "ref": "dep1", "depends_on": {}},
+                {"action": "create", "entity": "employee",
+                 "fields": {"firstName": "Kari", "lastName": "Nordmann"},
+                 "search_fields": {}, "ref": "emp1",
+                 "depends_on": {"department": "dep1"}},
+            ]
+        })
+        _mock_claude_client.messages.create.return_value = self._mock_response(plan_json)
+
+        result = parse_prompt("Opprett avdeling Salg og ansatt Kari Nordmann", [])
+        assert result["actions"][0]["fields"]["name"] == "Salg"
+        assert result["actions"][1]["depends_on"]["department"] == "dep1"
+
+    def test_strips_markdown_code_fences(self):
+        """Claude sometimes wraps JSON in ```json ... ``` fences."""
+        plan_json = '```json\n{"actions": [{"action": "create", "entity": "department", "fields": {"name": "IT"}, "search_fields": {}, "ref": "dep1", "depends_on": {}}]}\n```'
+        _mock_claude_client.messages.create.return_value = self._mock_response(plan_json)
+
+        result = parse_prompt("Opprett avdeling IT", [])
+        assert result is not None
+        assert result["actions"][0]["fields"]["name"] == "IT"
+
+    def test_strips_code_fence_without_language(self):
+        """Code fence without language tag."""
+        plan_json = '```\n{"actions": [{"action": "create", "entity": "customer", "fields": {"name": "Acme"}, "search_fields": {}, "ref": "c1", "depends_on": {}}]}\n```'
+        _mock_claude_client.messages.create.return_value = self._mock_response(plan_json)
+
+        result = parse_prompt("Opprett kunde Acme", [])
+        assert result is not None
+        assert result["actions"][0]["fields"]["name"] == "Acme"
 
     def test_returns_none_on_exception(self):
-        """parse_prompt returns None if Gemini call fails."""
-        import planner as _planner_mod
-        _planner_mod.genai_client.models.generate_content.side_effect = Exception("timeout")
+        """parse_prompt returns None if Claude call fails."""
+        _mock_claude_client.messages.create.side_effect = Exception("timeout")
         result = parse_prompt("test", [])
         assert result is None
-        _planner_mod.genai_client.models.generate_content.side_effect = None
+        _mock_claude_client.messages.create.side_effect = None
+
+    def test_returns_none_on_invalid_json(self):
+        """parse_prompt returns None if response is not valid JSON."""
+        _mock_claude_client.messages.create.return_value = self._mock_response("not json at all")
+        result = parse_prompt("test", [])
+        assert result is None
+
+    def test_returns_none_on_missing_actions(self):
+        """parse_prompt returns None if JSON has no 'actions' key."""
+        _mock_claude_client.messages.create.return_value = self._mock_response('{"result": "ok"}')
+        result = parse_prompt("test", [])
+        assert result is None
+
+    def test_includes_file_contents_in_message(self):
+        """File text is included in the user message sent to Claude."""
+        plan_json = json.dumps({"actions": [{"action": "create", "entity": "department", "fields": {"name": "IT"}, "search_fields": {}, "ref": "dep1", "depends_on": {}}]})
+        _mock_claude_client.messages.create.return_value = self._mock_response(plan_json)
+
+        files = [{"filename": "data.csv", "text_content": "col1;col2\n1;2", "images": []}]
+        parse_prompt("Process file", files)
+
+        call_args = _mock_claude_client.messages.create.call_args
+        user_msg = call_args[1]["messages"][0]["content"]
+        assert "col1;col2" in user_msg
+        assert "data.csv" in user_msg
 
     def test_parse_system_prompt_includes_field_names(self):
         assert "firstName" in PARSE_SYSTEM_PROMPT
         assert "departmentNumber" in PARSE_SYSTEM_PROMPT
         assert "priceExcludingVatCurrency" in PARSE_SYSTEM_PROMPT
+
+    def test_parse_system_prompt_requires_json_only(self):
+        assert "Output ONLY the JSON" in PARSE_SYSTEM_PROMPT
 
 
 class TestIsKnownPattern:
@@ -97,7 +170,6 @@ class TestIsKnownPattern:
         assert is_known_pattern(plan) is False
 
     def test_accepts_employee_without_department_action(self):
-        """Employee without dept action in plan — uses lookup_defaults."""
         plan = {"actions": [
             {"action": "create", "entity": "employee",
              "fields": {"firstName": "Kari", "lastName": "N"},
@@ -161,11 +233,19 @@ class TestIsKnownPattern:
         assert is_known_pattern(plan) is False
 
     def test_accepts_new_entity_types(self):
-        """New entities like supplier, project_participant are recognized."""
         plan = {"actions": [
             {"action": "create", "entity": "supplier",
              "fields": {"name": "Test Supplier"},
              "ref": "s1", "depends_on": {}}
+        ]}
+        assert is_known_pattern(plan) is True
+
+    def test_accepts_singleton_update_without_search_fields(self):
+        plan = {"actions": [
+            {"action": "update", "entity": "company",
+             "fields": {"name": "New Name"},
+             "search_fields": {},
+             "ref": "co1", "depends_on": {}}
         ]}
         assert is_known_pattern(plan) is True
 
@@ -177,16 +257,6 @@ class TestIsKnownPattern:
     def test_parse_system_prompt_includes_examples(self):
         assert "Opprett en avdeling med navn Salg" in PARSE_SYSTEM_PROMPT
         assert "Erstellen Sie einen Mitarbeiter" in PARSE_SYSTEM_PROMPT
-
-    def test_accepts_singleton_update_without_search_fields(self):
-        """Company is a singleton — update without search_fields is allowed."""
-        plan = {"actions": [
-            {"action": "update", "entity": "company",
-             "fields": {"name": "New Name"},
-             "search_fields": {},
-             "ref": "co1", "depends_on": {}}
-        ]}
-        assert is_known_pattern(plan) is True
 
 
 class TestFallbackContext:

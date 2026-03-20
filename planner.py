@@ -1,35 +1,22 @@
 # planner.py
 """Structured output parsing and pattern matching for deterministic execution.
 
-parse_prompt() — Gemini extracts a TaskPlan from the prompt (1 LLM call).
+parse_prompt() — Claude extracts a TaskPlan from the prompt (1 LLM call).
 is_known_pattern() — Checks if the plan can be executed deterministically.
 FallbackContext — Shared context for tool-use fallback handoff.
 """
 
+import json
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass, field
 
-from google import genai
-from google.genai import types
-
+from claude_client import get_claude_client, CLAUDE_MODEL
 from task_registry import ENTITY_SCHEMAS, ACTION_SCHEMAS
 
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Gemini client (shared with agent.py)
-# ---------------------------------------------------------------------------
-
-genai_client = genai.Client(
-    vertexai=True,
-    project=os.getenv("GCP_PROJECT_ID"),
-    location=os.getenv("GCP_LOCATION", "global"),
-)
-
-MODEL = "gemini-3.1-pro-preview"
-PARSE_TIMEOUT = 20  # seconds
 
 # ---------------------------------------------------------------------------
 # Parse prompt
@@ -138,83 +125,54 @@ Output:
 {"actions": [{"action": "create", "entity": "employee", "fields": {"firstName": "Hans", "lastName": "Müller", "email": "hans@test.de"}, "search_fields": {}, "ref": "emp1", "depends_on": {}}]}
 
 Output the TaskPlan JSON. Use "ref" labels (dep1, emp1, cust1, etc.) for
-cross-references. Set depends_on to map field names to refs."""
+cross-references. Set depends_on to map field names to refs.
 
-
-TASK_PLAN_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "actions": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "action": {"type": "string"},
-                    "entity": {"type": "string"},
-                    "fields": {
-                        "type": "object",
-                        "description": "Key-value map of API field names to values extracted from the prompt. Use exact Tripletex API field names (e.g., firstName, departmentNumber, priceExcludingVatCurrency). Include all values mentioned in the prompt."
-                    },
-                    "search_fields": {
-                        "type": "object",
-                        "description": "Fields to search for an existing entity (used with update/delete/action patterns). Maps API field names to search values."
-                    },
-                    "ref": {"type": "string"},
-                    "depends_on": {"type": "object"},
-                },
-                "required": ["action", "entity", "fields", "search_fields", "ref", "depends_on"],
-            },
-        },
-    },
-    "required": ["actions"],
-}
+Output ONLY the JSON object. No explanation, no markdown code fences, no other text."""
 
 
 def parse_prompt(prompt: str, file_contents: list[dict]) -> dict | None:
-    """Parse a task prompt into a structured TaskPlan via Gemini."""
+    """Parse a task prompt into a structured TaskPlan via Claude."""
     start = time.time()
 
-    # Build user content with file attachments
-    parts: list[types.Part] = []
+    # Build text context from files (images already OCR'd by this point)
+    text_parts = []
     for f in file_contents:
         text = f.get("text_content", "").strip()
         if text:
-            parts.append(types.Part.from_text(
-                text=f"[Attached file: {f['filename']}]\n{text}"
-            ))
-        for img in f.get("images", []):
-            parts.append(types.Part.from_bytes(
-                data=img["data"], mime_type=img["mime_type"]
-            ))
-    parts.append(types.Part.from_text(text=prompt))
+            text_parts.append(f"[Attached file: {f['filename']}]\n{text}")
 
-    config = types.GenerateContentConfig(
-        system_instruction=PARSE_SYSTEM_PROMPT,
-        response_mime_type="application/json",
-        response_schema=TASK_PLAN_SCHEMA,
-        temperature=0.0,
-    )
+    user_message = "\n\n".join(text_parts + [prompt]) if text_parts else prompt
 
     try:
-        response = genai_client.models.generate_content(
-            model=MODEL,
-            contents=[types.Content(role="user", parts=parts)],
-            config=config,
+        client = get_claude_client()
+        response = client.messages.create(
+            model=CLAUDE_MODEL,
+            system=PARSE_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_message}],
+            max_tokens=4096,
+            temperature=0.0,
         )
         elapsed_ms = int((time.time() - start) * 1000)
 
-        # Extract parsed JSON
-        result = response.parsed
+        # Claude returns JSON as text — parse it
+        raw_text = response.content[0].text
+        # Handle case where Claude wraps JSON in markdown code block
+        raw_text = re.sub(r'^```\w*\n?', '', raw_text.strip())
+        raw_text = raw_text.rsplit("```", 1)[0].strip()
+        result = json.loads(raw_text)
+
         if isinstance(result, dict) and "actions" in result:
             actions = result["actions"]
             entities = [a.get("entity", "?") for a in actions]
-            logger.info(f"parse: task_plan_actions={len(actions)} entities={entities} parse_time_ms={elapsed_ms}")
+            logger.info(f"parse: task_plan_actions={len(actions)} entities={entities} "
+                       f"parse_time_ms={elapsed_ms}")
             for a in actions:
                 logger.info(f"parse: action ref={a.get('ref')} action={a.get('action')} "
-                           f"entity={a.get('entity')} depends_on={a.get('depends_on')}")
+                           f"entity={a.get('entity')} fields={a.get('fields')} "
+                           f"depends_on={a.get('depends_on')}")
             return result
 
-        logger.warning(f"parse: unexpected response format, parse_time_ms={elapsed_ms}")
+        logger.warning(f"parse: unexpected format, parse_time_ms={elapsed_ms}")
         return None
 
     except Exception as e:
