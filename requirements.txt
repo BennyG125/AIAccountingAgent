@@ -6,3 +6,4 @@ anthropic[vertex]>=0.86.0
 pymupdf
 python-dotenv
 google-cloud-storage
+langsmith~=0.7.0
