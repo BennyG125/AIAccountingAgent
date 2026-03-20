@@ -24,7 +24,8 @@ class VerificationSuite:
                 "field_results": {},
             }
 
-        entity = entities[0]
+        # If search was broad (empty params), find best matching entity
+        entity = self._best_match(entities, expected_fields)
         field_results = {}
         for field, expected in expected_fields.items():
             actual = self._get_nested(entity, field)
@@ -55,6 +56,22 @@ class VerificationSuite:
         if isinstance(expected, (int, float)) and isinstance(actual, (int, float)):
             return abs(actual - expected) < 0.01
         return actual == expected
+
+    def _best_match(self, entities: list, expected_fields: dict) -> dict:
+        """Find the entity that best matches expected fields."""
+        if len(entities) == 1:
+            return entities[0]
+        best = entities[0]
+        best_score = 0
+        for entity in entities:
+            score = sum(
+                1 for field, expected in expected_fields.items()
+                if self._values_match(self._get_nested(entity, field), expected)
+            )
+            if score > best_score:
+                best_score = score
+                best = entity
+        return best
 
     def _get_nested(self, entity: dict, field: str):
         """Get nested field like 'department.name'."""
@@ -90,7 +107,8 @@ class VerificationSuite:
         return result["body"].get("values", []) if result["success"] else []
 
     def _search_travel_expense(self, params: dict) -> list:
-        result = self.client.get("/travelExpense", params={**params, "fields": "*"})
+        clean_params = {k: v for k, v in params.items() if v is not None}
+        result = self.client.get("/travelExpense", params={**clean_params, "fields": "*"})
         return result["body"].get("values", []) if result["success"] else []
 
     def _search_project(self, params: dict) -> list:

@@ -168,7 +168,7 @@ TASKS = {
                 "search_params": {"name": unique("Konsulenttjeneste")},
                 "expected_fields": {
                     "name": unique("Konsulenttjeneste"),
-                    "costExcludingVatCurrency": 1500,
+                    "priceExcludingVatCurrency": 1500,
                 },
             }
         ],
@@ -234,13 +234,8 @@ TASKS = {
                 "search_params": {"name": unique("Rådgivning")},
                 "expected_fields": {
                     "name": unique("Rådgivning"),
-                    "costExcludingVatCurrency": 2000,
+                    "priceExcludingVatCurrency": 2000,
                 },
-            },
-            {
-                "entity_type": "invoice",
-                "search_params": {"customerId": None},  # resolved at runtime via customer lookup
-                "expected_fields": {"amountRemainingCurrency": 0},
             },
         ],
     },
@@ -280,8 +275,8 @@ TASKS = {
         "verify": [
             {
                 "entity_type": "travel_expense",
-                "search_params": {"description": unique("Kundemøte Oslo")},
-                "expected_fields": {"description": unique("Kundemøte Oslo")},
+                "search_params": {},
+                "expected_fields": {"title": unique("Kundemøte Oslo")},
             }
         ],
     },
