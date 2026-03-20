@@ -2,7 +2,6 @@
 import json
 import logging
 import os
-import threading
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
@@ -109,7 +108,7 @@ async def solve(request: Request):
     except Exception as e:
         logger.error(f"Agent error: {e}", exc_info=True)
 
-    # Save full request+result to GCS in background (non-blocking)
-    threading.Thread(target=_save_request_to_gcs, args=(body, result), daemon=True).start()
+    # Save full request+result to GCS (synchronous — Cloud Run freezes CPU after response)
+    _save_request_to_gcs(body, result)
 
     return JSONResponse({"status": "completed"})
