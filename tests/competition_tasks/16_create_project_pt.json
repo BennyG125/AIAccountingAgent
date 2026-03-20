@@ -1,0 +1,15 @@
+{
+  "prompt": "Crie o projeto \"Migração Montanha\" vinculado ao cliente Montanha Lda (org. nº 986713344). O gerente ...",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "create_project",
+    "tier": 2,
+    "language": "PT",
+    "source": "competition_logs",
+    "note": "Prompt truncated at ~100 chars in original logs — full text unknown beyond this point"
+  }
+}

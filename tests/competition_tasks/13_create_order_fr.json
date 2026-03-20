@@ -1,0 +1,15 @@
+{
+  "prompt": "Créez une commande pour le client Colline SARL (nº org. 841589033) avec les produits Stockage cloud ...",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "create_order",
+    "tier": 2,
+    "language": "FR",
+    "source": "competition_logs",
+    "note": "Prompt truncated at ~100 chars in original logs — full text unknown beyond this point"
+  }
+}

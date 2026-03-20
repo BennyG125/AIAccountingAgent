@@ -1,0 +1,15 @@
+{
+  "prompt": "Opprett kunden Fjordkraft AS med organisasjonsnummer 843216285. Adressen er Fjordveien 129, 2317 Ham...",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "create_customer",
+    "tier": 1,
+    "language": "NO",
+    "source": "competition_logs",
+    "note": "Prompt truncated at ~100 chars in original logs — full text unknown beyond this point"
+  }
+}

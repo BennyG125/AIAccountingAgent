@@ -1,0 +1,15 @@
+{
+  "prompt": "Registrer leverandøren Nordhav AS med organisasjonsnummer 923456910. E-post: faktura@nordhav.no.",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "create_supplier",
+    "tier": 1,
+    "language": "NO",
+    "source": "competition_logs",
+    "note": "Prompt appears complete based on log length"
+  }
+}

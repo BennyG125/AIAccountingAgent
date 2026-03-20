@@ -1,0 +1,15 @@
+{
+  "prompt": "Crie uma fatura para o cliente Oceano Lda (org. nº 825975497) com três linhas de produto: Design web...",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "create_invoice",
+    "tier": 2,
+    "language": "PT",
+    "source": "competition_logs",
+    "note": "Prompt truncated at ~100 chars in original logs — full text unknown beyond this point"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "prompt": "Erstellen Sie drei Abteilungen in Tripletex: \"Økonomi\", \"Logistikk\" und \"Produksjon\".",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "create_department",
+    "tier": 1,
+    "language": "DE",
+    "source": "competition_logs",
+    "note": "Prompt appears complete based on log length"
+  }
+}

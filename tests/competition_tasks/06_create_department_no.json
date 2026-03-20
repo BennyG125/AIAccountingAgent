@@ -1,0 +1,15 @@
+{
+  "prompt": "Opprett tre avdelingar i Tripletex: \"Logistikk\", \"Innkjøp\" og \"IT\".",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "create_department",
+    "tier": 1,
+    "language": "NO",
+    "source": "competition_logs",
+    "note": "Prompt appears complete based on log length"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "prompt": "Temos um novo funcionário chamado Rita Almeida, nascido em 29. December 1995. Crie-o como funcionári...",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "create_employee",
+    "tier": 1,
+    "language": "PT",
+    "source": "competition_logs",
+    "note": "Prompt truncated at ~100 chars in original logs — full text unknown beyond this point"
+  }
+}

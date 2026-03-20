@@ -1,0 +1,15 @@
+{
+  "prompt": "Establezca un precio fijo de 152400 NOK en el proyecto \"Mejora de infraestructura\" para Estrella SL ...",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "set_project_fixed_price",
+    "tier": 2,
+    "language": "ES",
+    "source": "competition_logs",
+    "note": "Prompt truncated at ~100 chars in original logs — full text unknown beyond this point"
+  }
+}

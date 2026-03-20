@@ -1,0 +1,15 @@
+{
+  "prompt": "Create the customer Brightstone Ltd with organization number 853284882. The address is Parkveien 61,...",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "create_customer",
+    "tier": 1,
+    "language": "EN",
+    "source": "competition_logs",
+    "note": "Prompt truncated at ~100 chars in original logs — full text unknown beyond this point"
+  }
+}

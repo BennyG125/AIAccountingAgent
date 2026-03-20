@@ -66,7 +66,9 @@ async def solve(request: Request):
     base_url = creds.get("base_url") or body.get("tripletex_base_url", "")
     session_token = creds.get("session_token") or body.get("session_token", "")
 
-    logger.info(f"Task received. Prompt: {len(prompt)} chars, Files: {len(files)}")
+    logger.info(f"Task received. Prompt: {prompt} Files: {len(files)}")
+    logger.info(f"FULL_PROMPT: {prompt}")
+    logger.info(f"BASE_URL: {base_url}")
 
     try:
         file_contents = process_files(files)

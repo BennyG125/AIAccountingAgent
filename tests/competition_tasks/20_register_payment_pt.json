@@ -1,0 +1,15 @@
+{
+  "prompt": "O pagamento de Cascata Lda (org. nº 844279892) referente à fatura \"Horas de consultoria\" (41350 NOK ...",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "register_payment",
+    "tier": 2,
+    "language": "PT",
+    "source": "competition_logs",
+    "note": "Prompt truncated at ~100 chars in original logs — full text unknown beyond this point"
+  }
+}

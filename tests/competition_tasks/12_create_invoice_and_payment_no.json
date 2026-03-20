@@ -1,0 +1,15 @@
+{
+  "prompt": "Opprett og send en faktura til kunden Lysgård AS (org.nr 883939832) på 33350 kr eksklusiv MVA. Faktu...",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "create_invoice_and_payment",
+    "tier": 2,
+    "language": "NO",
+    "source": "competition_logs",
+    "note": "Prompt truncated at ~100 chars in original logs — full text unknown beyond this point"
+  }
+}

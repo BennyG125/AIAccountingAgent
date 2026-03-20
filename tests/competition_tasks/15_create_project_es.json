@@ -1,0 +1,15 @@
+{
+  "prompt": "Crea el proyecto \"Análisis Costa\" vinculado al cliente Costa Brava SL (org. nº 921937946). El direct...",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "create_project",
+    "tier": 2,
+    "language": "ES",
+    "source": "competition_logs",
+    "note": "Prompt truncated at ~100 chars in original logs — full text unknown beyond this point"
+  }
+}

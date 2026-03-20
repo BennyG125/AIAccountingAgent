@@ -1,0 +1,15 @@
+{
+  "prompt": "Tenemos un nuevo empleado llamado Diego Rodríguez, nacido el 28. August 1996. Créelo como empleado c...",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "create_employee",
+    "tier": 1,
+    "language": "ES",
+    "source": "competition_logs",
+    "note": "Prompt truncated at ~100 chars in original logs — full text unknown beyond this point"
+  }
+}
