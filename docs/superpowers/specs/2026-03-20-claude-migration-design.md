@@ -11,7 +11,7 @@
 ```
 Request → main.py → agent.run_agent()
   │
-  ├── file_handler.py: extract text from PDFs (PyMuPDF, no LLM)
+  ├── file_handler.py: extract text + page images from PDFs (PyMuPDF, no LLM)
   │
   ├── Gemini (google-genai): OCR only — images → text
   │     Called once if request has image attachments.
@@ -37,6 +37,8 @@ Request → main.py → agent.run_agent()
 - 1 Claude call (parse)
 - 0-25 Claude calls (tool-use fallback, only if deterministic path fails)
 
+**Behavioral change — image handling:** Previously, `parse_prompt()` and `build_user_content()` sent images directly to Gemini as multimodal parts. After migration, images are pre-processed by `gemini_ocr()` into text before Claude sees them. This means image-only PDFs (where PyMuPDF extracts zero text but produces page images) now depend on the OCR step extracting useful text. If `gemini_ocr()` returns empty text for an image, that data is lost to the parse step. This is an acceptable trade-off — Gemini OCR is reliable, and separating OCR from reasoning is cleaner.
+
 ---
 
 ## 2. Claude Client Setup
@@ -53,12 +55,17 @@ from anthropic import AnthropicVertex
 CLAUDE_MODEL = "claude-opus-4-6"
 CLAUDE_REGION = "us-east5"
 
+_client: AnthropicVertex | None = None
+
 def get_claude_client() -> AnthropicVertex:
-    """Get AnthropicVertex client. Uses ADC on Cloud Run, gcloud locally."""
-    return AnthropicVertex(
-        region=CLAUDE_REGION,
-        project_id=os.getenv("GCP_PROJECT_ID"),
-    )
+    """Get cached AnthropicVertex client. Uses ADC on Cloud Run, gcloud locally."""
+    global _client
+    if _client is None:
+        _client = AnthropicVertex(
+            region=CLAUDE_REGION,
+            project_id=os.getenv("GCP_PROJECT_ID"),
+        )
+    return _client
 ```
 
 **Auth:**
@@ -69,6 +76,8 @@ def get_claude_client() -> AnthropicVertex:
 
 `claude-opus-4-6` for both parse and tool-use. Single model, no routing.
 
+Verified working via live API call on 2026-03-20: `AnthropicVertex(region="us-east5", project_id="ai-nm26osl-1799")` with `model="claude-opus-4-6"` returned correct JSON in 2.3s. Response confirmed `"model": "claude-opus-4-6"`.
+
 ---
 
 ## 3. Parse — planner.py Changes
@@ -76,8 +85,9 @@ def get_claude_client() -> AnthropicVertex:
 ### What changes
 
 1. **Remove:** `genai_client`, `genai` imports, `TASK_PLAN_SCHEMA`, `response_schema` usage
-2. **Add:** Import `get_claude_client, CLAUDE_MODEL` from `claude_client.py`
+2. **Add:** `import json`, import `get_claude_client, CLAUDE_MODEL` from `claude_client.py`
 3. **Rewrite:** `parse_prompt()` to use Claude messages API
+4. **Update:** Module docstring to reference Claude instead of Gemini
 
 ### parse_prompt() — new implementation
 
@@ -109,8 +119,9 @@ def parse_prompt(prompt: str, file_contents: list[dict]) -> dict | None:
         # Claude returns JSON as text — parse it
         raw_text = response.content[0].text
         # Handle case where Claude wraps JSON in markdown code block
-        if raw_text.strip().startswith("```"):
-            raw_text = raw_text.strip().split("\n", 1)[1].rsplit("```", 1)[0]
+        import re
+        raw_text = re.sub(r'^```\w*\n?', '', raw_text.strip())
+        raw_text = raw_text.rsplit("```", 1)[0].strip()
         result = json.loads(raw_text)
 
         if isinstance(result, dict) and "actions" in result:
@@ -162,11 +173,13 @@ Everything else stays identical — entity field names, action patterns, few-sho
 
 ### What changes
 
-1. **Remove:** Gemini client, `FUNCTION_DECLARATIONS`, `TOOLS` (Gemini format)
-2. **Add:** Claude tool definitions (Anthropic format), Claude tool loop
-3. **Add:** `gemini_ocr()` function for image pre-processing
-4. **Rewrite:** `run_tool_loop()` for Anthropic SDK message format
-5. **Simplify:** `build_user_content()` — returns text string instead of Gemini Parts
+1. **Remove:** Gemini `FUNCTION_DECLARATIONS`, `TOOLS` (Gemini format), `build_user_content()`
+2. **Rename:** `MODEL` → `GEMINI_MODEL` (clarity — Gemini kept for OCR only)
+3. **Add:** Claude tool definitions (Anthropic format), Claude tool loop
+4. **Add:** `gemini_ocr()` function for image pre-processing
+5. **Add:** Import `get_claude_client, CLAUDE_MODEL` from `claude_client.py`
+6. **Rewrite:** `run_tool_loop()` for Anthropic SDK message format
+7. **Update:** Module docstring to reference Claude instead of Gemini
 
 ### Tool definitions — Anthropic format
 
@@ -435,16 +448,21 @@ from anthropic import AnthropicVertex
 CLAUDE_MODEL = "claude-opus-4-6"
 CLAUDE_REGION = "us-east5"
 
+_client: AnthropicVertex | None = None
+
 def get_claude_client() -> AnthropicVertex:
-    """Get AnthropicVertex client.
+    """Get cached AnthropicVertex client.
 
     On Cloud Run: uses Application Default Credentials (service account).
     Locally: uses gcloud ADC or falls back to gcloud auth.
     """
-    return AnthropicVertex(
-        region=CLAUDE_REGION,
-        project_id=os.getenv("GCP_PROJECT_ID"),
-    )
+    global _client
+    if _client is None:
+        _client = AnthropicVertex(
+            region=CLAUDE_REGION,
+            project_id=os.getenv("GCP_PROJECT_ID"),
+        )
+    return _client
 ```
 
 ---
@@ -458,7 +476,7 @@ fastapi
 uvicorn[standard]
 requests
 google-genai>=1.51.0      # kept for Gemini OCR
-anthropic[vertex]          # new — Claude on Vertex AI
+anthropic[vertex]>=0.86.0  # new — Claude on Vertex AI
 pymupdf
 python-dotenv
 ```
@@ -477,12 +495,13 @@ No new env vars needed. Claude region is hardcoded to `us-east5` (the only regio
 
 | File | Action | What changes |
 |------|--------|--------------|
-| `claude_client.py` | **Create** | Shared AnthropicVertex client + model constant |
-| `planner.py` | **Modify** | Replace Gemini parse with Claude, remove TASK_PLAN_SCHEMA |
-| `agent.py` | **Modify** | Replace Gemini tool loop with Claude, add gemini_ocr() |
-| `requirements.txt` | **Modify** | Add `anthropic[vertex]` |
-| `tests/test_planner.py` | **Modify** | Mock AnthropicVertex instead of google.genai |
-| `tests/test_executor.py` | **Modify** | Update mock patch path (genai → anthropic) |
+| `claude_client.py` | **Create** | Shared cached AnthropicVertex client + model constant |
+| `planner.py` | **Modify** | Replace Gemini parse with Claude, remove TASK_PLAN_SCHEMA, add `import json` |
+| `agent.py` | **Modify** | Replace Gemini tool loop with Claude, add gemini_ocr(), rename MODEL→GEMINI_MODEL |
+| `requirements.txt` | **Modify** | Add `anthropic[vertex]>=0.86.0` |
+| `tests/test_planner.py` | **Modify (significant)** | Mock AnthropicVertex instead of google.genai, test JSON text parsing + code fence stripping |
+| `tests/test_executor.py` | **Modify** | Remove or simplify genai mock (planner.py no longer instantiates genai.Client at import time) |
+| `tests/test_agent.py` | **Modify (significant)** | Rewrite TestToolDefinitions (Gemini→Anthropic format), remove TestBuildUserContent (function removed), add OCR tests |
 | `executor.py` | No change | |
 | `task_registry.py` | No change | |
 | `tripletex_api.py` | No change | |
@@ -500,15 +519,17 @@ No new env vars needed. Claude region is hardcoded to `us-east5` (the only regio
 - Verify markdown code fence stripping works
 - Verify error handling (invalid JSON, timeout, API error)
 
-### Tool loop tests (test_agent.py — new or expanded)
-- Mock Claude tool-use responses (tool_use blocks)
-- Verify tool execution and result threading
-- Verify fallback context injection
-- Verify timeout handling
-- Verify OCR function calls Gemini and appends text
+### Agent tests (test_agent.py — significant rewrite)
+- **Remove:** `TestBuildUserContent` (function removed)
+- **Rewrite:** `TestToolDefinitions` — validate Anthropic format dicts instead of Gemini FunctionDeclaration objects
+- **Add:** Mock Claude tool-use responses (tool_use content blocks with `id` field)
+- **Add:** Verify tool execution and result threading (`tool_use_id` matching)
+- **Add:** Verify fallback context injection into system prompt
+- **Add:** Verify timeout handling
+- **Add:** Verify `gemini_ocr()` calls Gemini and appends text to file_contents
 
 ### Existing tests
-- `test_executor.py` — update mock patch path (import changed from genai to anthropic)
+- `test_executor.py` — remove or simplify genai mock (planner.py no longer runs `genai.Client()` at import time; if `agent.py` still does for OCR, update mock to target `agent.genai_client` only)
 - `test_task_registry.py` — no change
 - All pattern matcher tests — no change (is_known_pattern is LLM-independent)
 
