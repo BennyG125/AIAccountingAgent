@@ -244,6 +244,11 @@ def _build_payload(action: dict, ref_map: dict) -> dict:
         if field not in body:
             body[field] = generate_auto_value(field)
 
+    # Wrap bare values in {"id": X} for object reference fields
+    for field in schema.get("object_ref_fields", []):
+        if field in body and not isinstance(body[field], dict):
+            body[field] = {"id": body[field]}
+
     # Resolve dependency refs → {"id": real_id}
     for field_name, ref_val in action.get("depends_on", {}).items():
         if isinstance(ref_val, list):

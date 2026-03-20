@@ -26,6 +26,7 @@ ENTITY_SCHEMAS = {
         "required": ["firstName", "lastName", "userType", "department"],
         "defaults": {"userType": "STANDARD"},
         "pre_lookups": {"department": "/department"},
+        "object_ref_fields": ["department"],
     },
     "customer": {
         "endpoint": "/customer",
@@ -38,6 +39,7 @@ ENTITY_SCHEMAS = {
         "method": "POST",
         "required": ["name"],
         "defaults": {},
+        "object_ref_fields": ["vatType"],
     },
     "order": {
         "endpoint": "/order",
@@ -46,6 +48,7 @@ ENTITY_SCHEMAS = {
         "defaults": {},
         "auto_generate": ["orderDate", "deliveryDate"],
         "embed": ["orderLines"],
+        "object_ref_fields": ["customer"],
     },
     "invoice": {
         "endpoint": "/invoice",
@@ -67,6 +70,7 @@ ENTITY_SCHEMAS = {
         "method": "POST",
         "required": ["employee", "title"],
         "defaults": {},
+        "object_ref_fields": ["employee"],
     },
     "travel_expense_cost": {
         "endpoint": "/travelExpense/cost",
@@ -78,6 +82,7 @@ ENTITY_SCHEMAS = {
             "costCategory": "/travelExpense/costCategory",
             "paymentType": "/travelExpense/paymentType",
         },
+        "object_ref_fields": ["travelExpense", "currency", "costCategory", "paymentType"],
     },
     "project": {
         "endpoint": "/project",
@@ -85,12 +90,14 @@ ENTITY_SCHEMAS = {
         "required": ["name", "projectManager", "startDate"],
         "defaults": {},
         "auto_generate": ["startDate"],
+        "object_ref_fields": ["projectManager", "customer"],
     },
     "contact": {
         "endpoint": "/contact",
         "method": "POST",
         "required": ["firstName", "lastName", "customer"],
         "defaults": {},
+        "object_ref_fields": ["customer"],
     },
     "voucher": {
         "endpoint": "/ledger/voucher",
@@ -106,6 +113,7 @@ ENTITY_SCHEMAS = {
         "required": ["employee", "startDate"],
         "defaults": {"isMainEmployer": True},
         "auto_generate": ["startDate"],
+        "object_ref_fields": ["employee"],
     },
     "employee_employment_details": {
         "endpoint": "/employee/employment/details",
@@ -113,6 +121,7 @@ ENTITY_SCHEMAS = {
         "required": ["employment", "date"],
         "defaults": {},
         "auto_generate": ["date"],
+        "object_ref_fields": ["employment"],
     },
     # --- Customer/Supplier ---
     "supplier": {
@@ -146,6 +155,7 @@ ENTITY_SCHEMAS = {
         "method": "POST",
         "required": ["order", "product"],
         "defaults": {},
+        "object_ref_fields": ["product", "vatType", "order"],
     },
     # --- Project ---
     "project_participant": {
@@ -153,6 +163,7 @@ ENTITY_SCHEMAS = {
         "method": "POST",
         "required": ["project", "employee"],
         "defaults": {},
+        "object_ref_fields": ["project", "employee"],
     },
     # --- Travel Expense sub-types ---
     "travel_expense_per_diem": {
@@ -164,6 +175,7 @@ ENTITY_SCHEMAS = {
             "rateCategory": "/travelExpense/rateCategory",
             "rateType": "/travelExpense/rate",
         },
+        "object_ref_fields": ["travelExpense", "rateCategory", "rateType"],
     },
     "travel_expense_mileage": {
         "endpoint": "/travelExpense/mileageAllowance",
@@ -175,6 +187,7 @@ ENTITY_SCHEMAS = {
             "rateCategory": "/travelExpense/rateCategory",
             "rateType": "/travelExpense/rate",
         },
+        "object_ref_fields": ["travelExpense", "rateCategory", "rateType"],
     },
     "travel_expense_accommodation": {
         "endpoint": "/travelExpense/accommodationAllowance",
@@ -184,6 +197,7 @@ ENTITY_SCHEMAS = {
         "pre_lookups": {
             "rateCategory": "/travelExpense/rateCategory",
         },
+        "object_ref_fields": ["travelExpense", "rateCategory"],
     },
     # --- Ledger ---
     "ledger_account": {

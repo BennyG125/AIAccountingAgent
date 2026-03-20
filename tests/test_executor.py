@@ -96,6 +96,30 @@ class TestBuildPayload:
         assert payload["params"]["paidAmount"] == 1000
         assert payload["params"]["paidAmountCurrency"] == 1
 
+    def test_wraps_object_ref_fields(self):
+        """Bare int vatType should be wrapped as {"id": 3}."""
+        action = {"action": "create", "entity": "product",
+                  "fields": {"name": "Test", "priceExcludingVatCurrency": 1500, "vatType": 3},
+                  "ref": "p1", "depends_on": {}}
+        payload = _build_payload(action, ref_map={})
+        assert payload["body"]["vatType"] == {"id": 3}
+
+    def test_does_not_double_wrap_object_ref(self):
+        """Already-wrapped {"id": 3} should not become {"id": {"id": 3}}."""
+        action = {"action": "create", "entity": "product",
+                  "fields": {"name": "Test", "vatType": {"id": 3}},
+                  "ref": "p1", "depends_on": {}}
+        payload = _build_payload(action, ref_map={})
+        assert payload["body"]["vatType"] == {"id": 3}
+
+    def test_wraps_project_manager_ref(self):
+        """Bare int projectManager should be wrapped."""
+        action = {"action": "create", "entity": "project",
+                  "fields": {"name": "Test", "projectManager": 42},
+                  "ref": "proj1", "depends_on": {}}
+        payload = _build_payload(action, ref_map={})
+        assert payload["body"]["projectManager"] == {"id": 42}
+
 
 class TestExecutePlan:
     def test_single_create(self):
