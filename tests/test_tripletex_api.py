@@ -10,7 +10,7 @@ def test_client_uses_basic_auth():
 
 
 def test_client_get():
-    """GET request includes auth and params."""
+    """GET request includes auth, params, and timeout."""
     client = TripletexClient("https://example.com/v2", "token")
     with patch("tripletex_api.requests.get") as mock_get:
         mock_response = MagicMock()
@@ -24,13 +24,14 @@ def test_client_get():
             "https://example.com/v2/employee",
             auth=("0", "token"),
             params={"fields": "id,firstName"},
+            timeout=30,
         )
         assert result["status_code"] == 200
         assert result["body"]["values"] == [{"id": 1}]
 
 
 def test_client_post():
-    """POST request includes auth and JSON body."""
+    """POST request includes auth, JSON body, and timeout."""
     client = TripletexClient("https://example.com/v2", "token")
     with patch("tripletex_api.requests.post") as mock_post:
         mock_response = MagicMock()
@@ -44,13 +45,14 @@ def test_client_post():
             "https://example.com/v2/employee",
             auth=("0", "token"),
             json={"firstName": "Ola"},
+            timeout=30,
         )
         assert result["status_code"] == 201
         assert result["body"]["value"]["id"] == 42
 
 
 def test_client_put():
-    """PUT request includes auth and JSON body."""
+    """PUT request includes auth, JSON body, and timeout."""
     client = TripletexClient("https://example.com/v2", "token")
     with patch("tripletex_api.requests.put") as mock_put:
         mock_response = MagicMock()
@@ -64,12 +66,13 @@ def test_client_put():
             "https://example.com/v2/employee/42",
             auth=("0", "token"),
             json={"firstName": "Kari"},
+            timeout=30,
         )
         assert result["status_code"] == 200
 
 
 def test_client_delete():
-    """DELETE request uses ID in URL path."""
+    """DELETE request uses ID in URL path with timeout."""
     client = TripletexClient("https://example.com/v2", "token")
     with patch("tripletex_api.requests.delete") as mock_delete:
         mock_response = MagicMock()
@@ -82,12 +85,13 @@ def test_client_delete():
         mock_delete.assert_called_once_with(
             "https://example.com/v2/travelExpense/99",
             auth=("0", "token"),
+            timeout=30,
         )
         assert result["status_code"] == 204
 
 
 def test_client_handles_error_response():
-    """Client returns error details without raising."""
+    """Client returns error details without raising and increments error_count."""
     client = TripletexClient("https://example.com/v2", "token")
     with patch("tripletex_api.requests.post") as mock_post:
         mock_response = MagicMock()
@@ -103,3 +107,47 @@ def test_client_handles_error_response():
         assert result["status_code"] == 422
         assert result["success"] is False
         assert "email is required" in result["error"]
+
+
+def test_client_tracks_call_count():
+    """Client counts total API calls made."""
+    client = TripletexClient("https://example.com/v2", "token")
+    assert client.call_count == 0
+    with patch("tripletex_api.requests.get") as mock_get:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"values": []}
+        mock_get.return_value = mock_response
+        client.get("/employee")
+        client.get("/customer")
+    assert client.call_count == 2
+
+
+def test_client_tracks_error_count():
+    """Client counts 4xx/5xx errors separately."""
+    client = TripletexClient("https://example.com/v2", "token")
+    with patch("tripletex_api.requests.post") as mock_post:
+        mock_response = MagicMock()
+        mock_response.status_code = 422
+        mock_response.json.return_value = {"message": "validation error"}
+        mock_post.return_value = mock_response
+        client.post("/employee", body={})
+    assert client.error_count == 1
+    assert client.call_count == 1
+
+
+def test_client_uses_timeout():
+    """Client passes custom timeout to every request."""
+    client = TripletexClient("https://example.com/v2", "token", timeout=15)
+    with patch("tripletex_api.requests.get") as mock_get:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"values": []}
+        mock_get.return_value = mock_response
+        client.get("/employee")
+        mock_get.assert_called_once_with(
+            "https://example.com/v2/employee",
+            auth=("0", "token"),
+            params=None,
+            timeout=15,
+        )

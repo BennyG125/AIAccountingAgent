@@ -1,4 +1,6 @@
 import base64
+import csv
+import io
 import logging
 from typing import Any
 
@@ -10,6 +12,7 @@ def process_files(files: list[dict]) -> list[dict]:
 
     PDFs are extracted to text via pymupdf.
     Images are kept as raw bytes for multimodal Gemini input.
+    CSV files are parsed into structured rows.
     Text files are decoded to strings.
     """
     if not files:
@@ -34,16 +37,25 @@ def process_files(files: list[dict]) -> list[dict]:
         elif mime_type.startswith("image/"):
             # Keep raw bytes — Gemini handles images as multimodal input
             pass
+        elif mime_type == "text/csv" or filename.endswith(".csv"):
+            text = _decode_text(raw_bytes)
+            entry["text_content"] = text
+            entry["structured_data"] = _parse_csv(text)
         else:
             # Assume text-like content
-            try:
-                entry["text_content"] = raw_bytes.decode("utf-8")
-            except UnicodeDecodeError:
-                entry["text_content"] = raw_bytes.decode("latin-1")
+            entry["text_content"] = _decode_text(raw_bytes)
 
         processed.append(entry)
 
     return processed
+
+
+def _decode_text(raw_bytes: bytes) -> str:
+    """Decode bytes to string, trying UTF-8 first then Latin-1."""
+    try:
+        return raw_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw_bytes.decode("latin-1")
 
 
 def _extract_pdf_text(pdf_bytes: bytes) -> str:
@@ -60,3 +72,13 @@ def _extract_pdf_text(pdf_bytes: bytes) -> str:
     except Exception as e:
         logger.error(f"PDF extraction failed: {e}")
         return ""
+
+
+def _parse_csv(text: str) -> list[dict]:
+    """Parse CSV text into a list of row dicts."""
+    try:
+        reader = csv.DictReader(io.StringIO(text))
+        return list(reader)
+    except Exception as e:
+        logger.error(f"CSV parsing failed: {e}")
+        return []

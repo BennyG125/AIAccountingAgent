@@ -7,35 +7,42 @@ logger = logging.getLogger(__name__)
 
 
 class TripletexClient:
-    """Thin wrapper around the Tripletex v2 REST API."""
+    """Thin wrapper around the Tripletex v2 REST API with metrics tracking."""
 
-    def __init__(self, base_url: str, session_token: str):
+    def __init__(self, base_url: str, session_token: str, timeout: int = 30):
         self.base_url = base_url.rstrip("/")
         self.session_token = session_token
         self.auth = ("0", session_token)
+        self.timeout = timeout
+        self.call_count = 0
+        self.error_count = 0
 
     def get(self, endpoint: str, params: dict | None = None) -> dict:
         url = f"{self.base_url}{endpoint}"
+        self.call_count += 1
         logger.info(f"GET {url} params={params}")
-        resp = requests.get(url, auth=self.auth, params=params)
+        resp = requests.get(url, auth=self.auth, params=params, timeout=self.timeout)
         return self._parse_response(resp)
 
     def post(self, endpoint: str, body: dict | None = None) -> dict:
         url = f"{self.base_url}{endpoint}"
+        self.call_count += 1
         logger.info(f"POST {url}")
-        resp = requests.post(url, auth=self.auth, json=body)
+        resp = requests.post(url, auth=self.auth, json=body, timeout=self.timeout)
         return self._parse_response(resp)
 
     def put(self, endpoint: str, body: dict | None = None) -> dict:
         url = f"{self.base_url}{endpoint}"
+        self.call_count += 1
         logger.info(f"PUT {url}")
-        resp = requests.put(url, auth=self.auth, json=body)
+        resp = requests.put(url, auth=self.auth, json=body, timeout=self.timeout)
         return self._parse_response(resp)
 
     def delete(self, endpoint: str) -> dict:
         url = f"{self.base_url}{endpoint}"
+        self.call_count += 1
         logger.info(f"DELETE {url}")
-        resp = requests.delete(url, auth=self.auth)
+        resp = requests.delete(url, auth=self.auth, timeout=self.timeout)
         return self._parse_response(resp)
 
     def _parse_response(self, resp: requests.Response) -> dict:
@@ -52,6 +59,7 @@ class TripletexClient:
         }
 
         if not success:
+            self.error_count += 1
             error_msg = body.get("message", str(body))
             result["error"] = error_msg
             logger.warning(f"API error {resp.status_code}: {error_msg}")
