@@ -37,14 +37,17 @@ All dates are strings in YYYY-MM-DD format.
 
 ### POST /employee
 Create an employee.
-Required body fields: firstName (string), lastName (string)
+Required body fields: firstName (string), lastName (string),
+  userType ("STANDARD"|"EXTENDED"|"NO_ACCESS") — MUST be set, cannot be empty,
+  department ({id}) — MUST reference an existing department
 Optional: email, phoneNumberMobile, phoneNumberWork, phoneNumberHome,
           dateOfBirth (YYYY-MM-DD), nationalIdentityNumber, employeeNumber,
           bankAccountNumber, address ({addressLine1, city, postalCode, country: {id}}),
-          department ({id}), employeeCategory ({id}),
-          userType ("STANDARD"|"EXTENDED"|"NO_ACCESS"),
+          employeeCategory ({id}),
           isContact (boolean), comments,
           employments (array — see POST /employee/employment)
+IMPORTANT: If the task does not specify a department, search for existing departments
+with GET /department and use the first one found.
 Note: There is NO "isAdministrator" field. Admin access is controlled via entitlements.
 
 ### PUT /employee/{id}
