@@ -245,6 +245,85 @@ def verify_in_tripletex(endpoint: str, search_params: dict, expected: dict) -> d
 
 
 # ---------------------------------------------------------------------------
+# Cleanup — delete test entities from sandbox
+# ---------------------------------------------------------------------------
+
+# Reverse dependency order: delete children before parents
+CLEANUP_ORDER = [
+    # Payments/invoices are hard to delete (locked after payment), skip them.
+    # Travel expense sub-types
+    {"endpoint": "/travelExpense/cost", "search_key": None, "scan_key": "travelExpense"},
+    # Travel expense
+    {"endpoint": "/travelExpense", "search_key": None, "scan_key": "title"},
+    # Project participants (no name search — skip)
+    # Projects
+    {"endpoint": "/project", "search_key": "name", "scan_key": "name"},
+    # Contacts
+    {"endpoint": "/contact", "search_key": None, "scan_key": "lastName"},
+    # Employees
+    {"endpoint": "/employee", "search_key": "lastName", "scan_key": "lastName"},
+    # Customers
+    {"endpoint": "/customer", "search_key": "name", "scan_key": "name"},
+    # Products
+    {"endpoint": "/product", "search_key": "name", "scan_key": "name"},
+    # Departments
+    {"endpoint": "/department", "search_key": "name", "scan_key": "name"},
+]
+
+
+def cleanup_sandbox(run_id: str):
+    """Delete all entities created during this test run from the sandbox."""
+    logger.info(f"\n{'='*60}")
+    logger.info(f"CLEANUP: Removing test entities (run_id={run_id})")
+    logger.info(f"{'='*60}")
+
+    deleted = 0
+    failed = 0
+
+    for entry in CLEANUP_ORDER:
+        endpoint = entry["endpoint"]
+        scan_key = entry["scan_key"]
+
+        # Fetch recent entities and filter by run_id suffix
+        url = f"{SANDBOX_BASE_URL}{endpoint}"
+        params = {"fields": "*", "count": "100"}
+
+        try:
+            resp = requests.get(url, auth=("0", SANDBOX_TOKEN), params=params, timeout=30)
+            if resp.status_code != 200:
+                continue
+            values = resp.json().get("values", [])
+        except Exception:
+            continue
+
+        # Find entities matching our run_id
+        to_delete = []
+        for v in values:
+            scan_val = str(v.get(scan_key, ""))
+            if run_id in scan_val:
+                to_delete.append(v)
+
+        for entity in to_delete:
+            eid = entity["id"]
+            try:
+                del_resp = requests.delete(
+                    f"{SANDBOX_BASE_URL}{endpoint}/{eid}",
+                    auth=("0", SANDBOX_TOKEN), timeout=30,
+                )
+                if 200 <= del_resp.status_code < 300:
+                    logger.info(f"  Deleted {endpoint}/{eid} ({entity.get(scan_key, '?')})")
+                    deleted += 1
+                else:
+                    logger.warning(f"  Failed to delete {endpoint}/{eid}: HTTP {del_resp.status_code}")
+                    failed += 1
+            except Exception as e:
+                logger.warning(f"  Failed to delete {endpoint}/{eid}: {e}")
+                failed += 1
+
+    logger.info(f"Cleanup complete: {deleted} deleted, {failed} failed")
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -307,6 +386,7 @@ def main():
     parser.add_argument("--tier", type=int, help="Run tasks for a specific tier only")
     parser.add_argument("--list", action="store_true", help="List available tasks")
     parser.add_argument("--token", help="Override Tripletex session token")
+    parser.add_argument("--no-cleanup", action="store_true", help="Skip cleanup of test entities")
     args = parser.parse_args()
 
     if args.list:
@@ -357,6 +437,10 @@ def main():
     pass_count = sum(1 for r in results if r["solve"] == "PASS" and r["verify"] == "PASS")
     total = len(results)
     print(f"\n{pass_count}/{total} fully passed")
+
+    # Cleanup test entities from sandbox
+    if not args.no_cleanup:
+        cleanup_sandbox(_run_id)
 
     if pass_count < total:
         sys.exit(1)
