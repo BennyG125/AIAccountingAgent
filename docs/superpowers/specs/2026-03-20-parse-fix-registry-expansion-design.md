@@ -4,6 +4,19 @@
 
 **Context:** The deterministic execution layer (Tasks 1-4, branch `feat/tool-use-agent`) works end-to-end but Gemini returns empty `fields` objects because the JSON schema lacks guidance. Additionally, the registry only covers 12 create-only entity types, missing 8 entity types and all action patterns needed for the full competition task set.
 
+### Migration: consolidating lookup mechanisms
+
+The existing codebase has two overlapping lookup mechanisms:
+- `lookup_defaults` on employee schema + `_resolve_lookup_defaults()` in executor
+- `lookup_constants_inject` on travel_expense_cost schema + `LOOKUP_CONSTANTS` dict
+
+This spec **replaces both** with a single unified mechanism: `pre_lookups`. Migration:
+- `employee.lookup_defaults: {"department": "/department"}` → `employee.pre_lookups: {"department": "/department"}`
+- `travel_expense_cost.lookup_constants_inject` → `travel_expense_cost.pre_lookups`
+- Remove `LOOKUP_CONSTANTS` dict (its entries move into `pre_lookups` on affected schemas)
+- Remove `_resolve_lookup_defaults()` from executor (replaced by `_resolve_pre_lookups()`)
+- The `lookup_defaults` and `lookup_constants_inject` keys are deleted from all schemas
+
 ---
 
 ## 1. Parse Fix
@@ -106,6 +119,30 @@ For employee admin/entitlements:
 
 ## 2. Registry Expansion
 
+### Existing entity migrations (pre_lookups replaces old mechanisms)
+
+```python
+# task_registry.py — modify existing schemas
+
+"employee": {
+    ...
+    # REMOVE: "lookup_defaults": {"department": "/department"},
+    # ADD:
+    "pre_lookups": {"department": "/department"},
+},
+"travel_expense_cost": {
+    ...
+    # REMOVE: "lookup_constants_inject": {"costCategory": ..., "paymentType": ...},
+    # ADD:
+    "pre_lookups": {
+        "costCategory": "/travelExpense/costCategory",
+        "paymentType": "/travelExpense/paymentType",
+    },
+},
+```
+
+Also remove `LOOKUP_CONSTANTS` dict entirely — `nok`, `norway`, and VAT IDs stay in `KNOWN_CONSTANTS`.
+
 ### New entity types (8 additions → 20 total)
 
 ```python
@@ -177,45 +214,50 @@ For employee admin/entitlements:
 
 ### Action schemas (new concept)
 
+**Entity resolution rule:** For ALL action types, `action["entity"]` in the parsed plan is always
+the base entity name from `ENTITY_SCHEMAS` (e.g., `"invoice"`, `"voucher"`, `"employee"`).
+The planner is instructed to use the base entity name. Named actions like `send_invoice` use
+`ACTION_SCHEMAS` only to determine the action endpoint and HTTP method — the entity's base
+schema in `ENTITY_SCHEMAS` provides the search endpoint.
+
 ```python
 # task_registry.py — new section
 
 ACTION_SCHEMAS = {
     "update": {
         "flow": "search_put",
-        "description": "Search for entity, then PUT with updated fields",
+        "description": "Search for entity by search_fields, then PUT with merged fields",
     },
     "delete": {
         "flow": "search_delete",
-        "description": "Search for entity, then DELETE",
+        "description": "Search for entity by search_fields, then DELETE",
     },
     "send_invoice": {
         "entity": "invoice",
         "flow": "search_action",
         "action_endpoint": "/invoice/{id}/:send",
         "action_method": "PUT",
-        "search_endpoint": "/invoice",
     },
     "create_credit_note": {
         "entity": "invoice",
         "flow": "search_action",
         "action_endpoint": "/invoice/{id}/:createCreditNote",
         "action_method": "PUT",
-        "search_endpoint": "/invoice",
     },
     "reverse_voucher": {
         "entity": "voucher",
         "flow": "search_action",
         "action_endpoint": "/ledger/voucher/{id}/:reverse",
         "action_method": "PUT",
-        "search_endpoint": "/ledger/voucher",
     },
     "grant_entitlements": {
         "entity": "employee",
         "flow": "search_action",
         "action_endpoint": "/employee/entitlement/:grantEntitlementsByTemplate",
         "action_method": "PUT",
-        "search_endpoint": "/employee",
+        "action_params_from_search": {"employeeId": "id"},
+        # Note: this endpoint uses query params, not {id} in path.
+        # The executor passes employeeId as a query param from the searched entity's id.
     },
 }
 ```
@@ -298,7 +340,8 @@ def _resolve_pre_lookups(client, actions, ref_map, lookup_cache):
 
 ### New capability: `_resolve_by_search()`
 
-For update/delete/action patterns, search for the entity first:
+For update/delete/action patterns, search for the entity first.
+Uses `SEARCH_PARAMS` to translate field names to query parameter names.
 
 ```python
 def _resolve_by_search(client, action) -> dict | None:
@@ -308,11 +351,17 @@ def _resolve_by_search(client, action) -> dict | None:
     if not search_fields:
         return None
 
-    # Map to entity's search endpoint
-    schema = ENTITY_SCHEMAS.get(entity) or ACTION_SCHEMAS.get(action["action"], {})
-    endpoint = schema.get("search_endpoint", schema.get("endpoint", ""))
+    # Get search endpoint from entity schema
+    schema = ENTITY_SCHEMAS.get(entity, {})
+    endpoint = schema.get("endpoint", "")
 
-    params = {**search_fields, "fields": "*", "count": "1"}
+    # Translate field names to query params using SEARCH_PARAMS
+    param_mapping = SEARCH_PARAMS.get(entity, {})
+    params = {"fields": "*", "count": "1"}
+    for field_name, value in search_fields.items():
+        query_param = param_mapping.get(field_name, field_name)
+        params[query_param] = value
+
     result = client.get(endpoint, params=params)
     if result["success"] and result["body"].get("values"):
         return result["body"]["values"][0]
@@ -321,37 +370,82 @@ def _resolve_by_search(client, action) -> dict | None:
 
 ### Action dispatch in `execute_plan()`
 
-Extend the main loop to handle action types:
+Extend the main loop to handle action types. `_build_payload()` is only called for
+create/register_payment/lookup actions. Update/delete/named actions construct payloads inline.
+
+Note: DELETE responses have no body, so `_extract_id()` returns None — this is expected.
+The deleted entity's ref will not appear in ref_map, which is correct.
 
 ```python
 action_type = action.get("action")
 
-if action_type == "create" or action_type == "register_payment" or action_type == "lookup":
-    # existing create flow
+if action_type in ("create", "register_payment", "lookup"):
+    # existing create flow — uses _build_payload()
+    payload = _build_payload(action, ref_map)
     ...
+
 elif action_type == "update":
-    entity = _resolve_by_search(client, action)
-    if not entity:
-        # fallback — entity not found
-        return {"success": False, "fallback_context": ...}
-    merged = {**entity, **action.get("fields", {})}
-    result = client.put(f"{schema['endpoint']}/{entity['id']}", body=merged)
+    found = _resolve_by_search(client, action)
+    if not found:
+        return {
+            "success": False,
+            "fallback_context": FallbackContext(
+                task_plan=task_plan,
+                completed_refs=dict(ref_map),
+                failed_action=action,
+                error=f"Search returned 0 results for {action.get('search_fields')}",
+            ),
+        }
+    schema = ENTITY_SCHEMAS[action["entity"]]
+    merged = {**found, **action.get("fields", {})}
+    result = client.put(f"{schema['endpoint']}/{found['id']}", body=merged)
+
 elif action_type == "delete":
-    entity = _resolve_by_search(client, action)
-    if not entity:
-        return {"success": False, "fallback_context": ...}
-    result = client.delete(f"{schema['endpoint']}/{entity['id']}")
+    found = _resolve_by_search(client, action)
+    if not found:
+        return {
+            "success": False,
+            "fallback_context": FallbackContext(
+                task_plan=task_plan,
+                completed_refs=dict(ref_map),
+                failed_action=action,
+                error=f"Search returned 0 results for {action.get('search_fields')}",
+            ),
+        }
+    schema = ENTITY_SCHEMAS[action["entity"]]
+    result = client.delete(f"{schema['endpoint']}/{found['id']}")
+
 elif action_type in ACTION_SCHEMAS:
     action_schema = ACTION_SCHEMAS[action_type]
-    entity = _resolve_by_search(client, action)
-    if not entity:
-        return {"success": False, "fallback_context": ...}
-    endpoint = action_schema["action_endpoint"].replace("{id}", str(entity["id"]))
+    found = _resolve_by_search(client, action)
+    if not found:
+        return {
+            "success": False,
+            "fallback_context": FallbackContext(
+                task_plan=task_plan,
+                completed_refs=dict(ref_map),
+                failed_action=action,
+                error=f"Search returned 0 results for {action.get('search_fields')}",
+            ),
+        }
+    endpoint = action_schema["action_endpoint"].replace("{id}", str(found["id"]))
     body = action.get("fields", {}) or None
-    result = client.put(endpoint, body=body) if action_schema["action_method"] == "PUT" else ...
+    # Handle endpoints that use query params instead of {id} in path
+    params = None
+    if "action_params_from_search" in action_schema:
+        params = {
+            param: found[source_field]
+            for param, source_field in action_schema["action_params_from_search"].items()
+        }
+    if action_schema["action_method"] == "PUT":
+        result = client.put(endpoint, body=body, params=params)
+    elif action_schema["action_method"] == "DELETE":
+        result = client.delete(endpoint)
 ```
 
-### Pattern matcher update
+### Pattern matcher: full updated `is_known_pattern()`
+
+Replaces the existing function in `planner.py`:
 
 ```python
 DETERMINISTIC_ACTIONS = {
@@ -359,13 +453,76 @@ DETERMINISTIC_ACTIONS = {
     "update", "delete",
     "send_invoice", "create_credit_note", "reverse_voucher", "grant_entitlements",
 }
+
+def is_known_pattern(task_plan: dict | None) -> bool:
+    """Check if a TaskPlan can be executed deterministically."""
+    if not task_plan or not task_plan.get("actions"):
+        return False
+
+    actions = task_plan["actions"]
+    all_refs = {a["ref"] for a in actions}
+
+    for action in actions:
+        action_type = action.get("action")
+
+        # Check 1: action type supported
+        if action_type not in DETERMINISTIC_ACTIONS:
+            logger.info(f"match: result=fallback reason=unsupported_action:{action_type}")
+            return False
+
+        entity = action.get("entity", "")
+
+        # Check 2: entity validation (branched by action type)
+        if action_type in ("create", "register_payment", "lookup"):
+            # Creates require entity in ENTITY_SCHEMAS
+            if entity not in ENTITY_SCHEMAS:
+                logger.info(f"match: result=fallback reason=unknown_entity:{entity}")
+                return False
+        elif action_type in ("update", "delete"):
+            # Update/delete require entity in ENTITY_SCHEMAS + non-empty search_fields
+            if entity not in ENTITY_SCHEMAS:
+                logger.info(f"match: result=fallback reason=unknown_entity:{entity}")
+                return False
+            if not action.get("search_fields"):
+                logger.info(f"match: result=fallback reason=missing_search_fields:{entity}")
+                return False
+        elif action_type in ACTION_SCHEMAS:
+            # Named actions: action must be in ACTION_SCHEMAS, entity must be valid
+            expected_entity = ACTION_SCHEMAS[action_type].get("entity")
+            if expected_entity and entity != expected_entity:
+                logger.info(f"match: result=fallback reason=entity_mismatch:{entity}!={expected_entity}")
+                return False
+            if not action.get("search_fields"):
+                logger.info(f"match: result=fallback reason=missing_search_fields:{action_type}")
+                return False
+
+        # Check 3: depends_on refs resolve (for create actions)
+        if action_type in ("create", "register_payment", "lookup"):
+            depends_on = action.get("depends_on", {})
+            for field_name, ref_val in depends_on.items():
+                refs_to_check = ref_val if isinstance(ref_val, list) else [ref_val]
+                for ref in refs_to_check:
+                    if ref not in all_refs:
+                        logger.info(f"match: result=fallback reason=unresolved_ref:{ref}")
+                        return False
+
+    logger.info("match: result=deterministic")
+    return True
 ```
 
-For action types, validation checks:
-- Action type is in `DETERMINISTIC_ACTIONS`
-- For creates: entity is in `ENTITY_SCHEMAS`
-- For named actions: action is in `ACTION_SCHEMAS`
-- For update/delete: entity is in `ENTITY_SCHEMAS` and `search_fields` is non-empty
+### Tests that need updating
+
+The following existing tests will change behavior and must be updated:
+- `tests/test_planner.py::TestIsKnownPattern::test_rejects_update_action` → now returns True (update with search_fields)
+- `tests/test_planner.py::TestIsKnownPattern::test_rejects_delete_action` → now returns True (delete with search_fields)
+
+New tests replace them:
+- `test_rejects_update_without_search_fields` → update with empty search_fields returns False
+- `test_rejects_delete_without_search_fields` → delete with empty search_fields returns False
+- `test_accepts_update_with_search_fields` → update with search_fields returns True
+- `test_accepts_delete_with_search_fields` → delete with search_fields returns True
+- `test_accepts_named_action` → send_invoice with correct entity + search_fields returns True
+- `test_rejects_named_action_wrong_entity` → send_invoice with entity="department" returns False
 
 ---
 
@@ -446,9 +603,41 @@ For action types, validation checks:
 
 ## 6. Test Plan
 
-- Parse: verify fields populated for simple create, multi-step, update, delete
-- Registry: 20 entities have required keys, no DAG cycles, ACTION_SCHEMAS keys valid
-- Executor: pre_lookups inject IDs, search-then-act for update/delete, named actions
-- Pattern matcher: accepts new action types, rejects unknown actions, validates search_fields
-- Smoke test: all Tier 1 + Tier 2 tasks pass against sandbox
-- Regression: all existing 71 tests still pass
+### Parse tests (test_planner.py)
+- Verify fields populated for simple create, multi-step, update, delete
+- Verify search_fields populated for update/delete actions
+
+### Registry tests (test_task_registry.py)
+- 20 entities have required keys (endpoint, method, required)
+- No DAG cycles in expanded DEPENDENCIES
+- ACTION_SCHEMAS keys are valid, each has flow + action_endpoint/action_method
+- SEARCH_PARAMS covers all entities that support update/delete
+- `pre_lookups` replaces old `lookup_constants_inject` and `lookup_defaults` — verify neither exists
+
+### Executor tests (test_executor.py)
+- `_resolve_pre_lookups()` injects IDs from GET results into action fields
+- `_resolve_pre_lookups()` caches — second call for same field skips GET
+- `_resolve_by_search()` translates field names via SEARCH_PARAMS
+- `_resolve_by_search()` returns None when no results
+- Update dispatch: searches, merges fields, PUTs with version
+- Delete dispatch: searches, DELETEs, `_extract_id()` returns None (expected)
+- Named action dispatch: searches, substitutes {id}, PUTs action endpoint
+- `grant_entitlements` dispatch: passes employeeId as query param
+- Search-not-found returns FallbackContext with descriptive error
+
+### Pattern matcher tests (test_planner.py) — updated
+- `test_rejects_update_action` → **replaced by** `test_rejects_update_without_search_fields`
+- `test_rejects_delete_action` → **replaced by** `test_rejects_delete_without_search_fields`
+- New: `test_accepts_update_with_search_fields`
+- New: `test_accepts_delete_with_search_fields`
+- New: `test_accepts_named_action` (send_invoice)
+- New: `test_rejects_named_action_wrong_entity`
+
+### Smoke tests (smoke_test.py)
+- All Tier 1 tasks pass (4 entity types + 2 multilingual)
+- Tier 2 flows: invoice flow, travel expense, project
+- Action patterns: update customer, delete department
+
+### Regression
+- Existing tests updated where behavior intentionally changes (2 planner tests)
+- All other existing tests unaffected
