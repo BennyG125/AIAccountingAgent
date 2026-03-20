@@ -403,8 +403,19 @@ def _auto_batch(actions: list[dict]) -> list[dict]:
             batched.append(batch_action)
             batched_refs.update(a["ref"] for a in independent)
 
-    result = [a for a in actions if a["ref"] not in batched_refs]
-    result.extend(batched)
+    # Insert batch actions at position of first batched item (preserve topo order)
+    result = []
+    inserted_entities = set()
+    for a in actions:
+        if a["ref"] in batched_refs:
+            entity = a["entity"]
+            if entity not in inserted_entities:
+                batch = next(b for b in batched if b["entity"] == entity)
+                result.append(batch)
+                inserted_entities.add(entity)
+            # Skip individual actions that were batched
+        else:
+            result.append(a)
     return result
 
 

@@ -62,7 +62,7 @@ async def solve(request: Request):
     # Handle both payload formats (official + competitor-observed)
     prompt = body.get("prompt") or body.get("task_prompt", "")
     files = body.get("files") or body.get("attached_files", [])
-    creds = body.get("tripletex_credentials", {})
+    creds = body.get("tripletex_credentials") or {}
     base_url = creds.get("base_url") or body.get("tripletex_base_url", "")
     session_token = creds.get("session_token") or body.get("session_token", "")
 

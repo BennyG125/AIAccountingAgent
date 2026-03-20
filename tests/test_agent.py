@@ -13,6 +13,9 @@ with patch("google.genai.Client", return_value=_mock_genai_client):
     with patch("claude_client.get_claude_client", return_value=_mock_claude_client):
         import agent as agent_module
 
+# Ensure lazy genai client returns our mock
+agent_module._get_genai_client = lambda: _mock_genai_client
+
 
 class TestToolDefinitions:
     def test_has_four_tools(self):
@@ -50,6 +53,10 @@ class TestSystemPrompt:
 
 
 class TestGeminiOcr:
+    def setup_method(self):
+        """Ensure lazy genai client returns our mock even if other test files overwrote it."""
+        agent_module._get_genai_client = lambda: _mock_genai_client
+
     def test_returns_empty_when_no_images(self):
         files = [{"filename": "data.csv", "text_content": "col1;col2", "images": []}]
         result = agent_module.gemini_ocr(files)

@@ -17,25 +17,25 @@ class TripletexClient:
     def get(self, endpoint: str, params: dict | None = None) -> dict:
         url = f"{self.base_url}{endpoint}"
         logger.info(f"GET {url} params={params}")
-        resp = requests.get(url, auth=self.auth, params=params)
+        resp = requests.get(url, auth=self.auth, params=params, timeout=30)
         return self._parse_response(resp)
 
     def post(self, endpoint: str, body: dict | None = None) -> dict:
         url = f"{self.base_url}{endpoint}"
         logger.info(f"POST {url}")
-        resp = requests.post(url, auth=self.auth, json=body)
+        resp = requests.post(url, auth=self.auth, json=body, timeout=30)
         return self._parse_response(resp)
 
     def put(self, endpoint: str, body: dict | None = None, params: dict | None = None) -> dict:
         url = f"{self.base_url}{endpoint}"
         logger.info(f"PUT {url} params={params}")
-        resp = requests.put(url, auth=self.auth, json=body, params=params)
+        resp = requests.put(url, auth=self.auth, json=body, params=params, timeout=30)
         return self._parse_response(resp)
 
     def delete(self, endpoint: str) -> dict:
         url = f"{self.base_url}{endpoint}"
         logger.info(f"DELETE {url}")
-        resp = requests.delete(url, auth=self.auth)
+        resp = requests.delete(url, auth=self.auth, timeout=30)
         return self._parse_response(resp)
 
     def _parse_response(self, resp: requests.Response) -> dict:

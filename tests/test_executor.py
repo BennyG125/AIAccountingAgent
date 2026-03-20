@@ -13,6 +13,10 @@ with patch("google.genai.Client", return_value=_mock_genai_client):
             _check_existing,
         )
         from task_registry import BULK_ENDPOINTS
+        import agent as _agent_module
+
+# Ensure lazy genai client returns our mock
+_agent_module._get_genai_client = lambda: _mock_genai_client
 
 
 class TestTopologicalSort:

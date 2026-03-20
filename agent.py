@@ -27,11 +27,18 @@ logger = logging.getLogger(__name__)
 # Gemini client (retained for OCR only)
 # ---------------------------------------------------------------------------
 
-genai_client = genai.Client(
-    vertexai=True,
-    project=os.getenv("GCP_PROJECT_ID"),
-    location=os.getenv("GCP_LOCATION", "global"),
-)
+_genai_client = None
+
+
+def _get_genai_client():
+    global _genai_client
+    if _genai_client is None:
+        _genai_client = genai.Client(
+            vertexai=True,
+            project=os.getenv("GCP_PROJECT_ID"),
+            location=os.getenv("GCP_LOCATION", "global"),
+        )
+    return _genai_client
 
 GEMINI_MODEL = "gemini-3.1-pro-preview"
 MAX_ITERATIONS = 25
@@ -153,7 +160,7 @@ def gemini_ocr(file_contents: list[dict]) -> str:
     ))
 
     config = types.GenerateContentConfig(temperature=0.0)
-    response = genai_client.models.generate_content(
+    response = _get_genai_client().models.generate_content(
         model=GEMINI_MODEL,
         contents=[types.Content(role="user", parts=image_parts)],
         config=config,

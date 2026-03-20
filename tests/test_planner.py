@@ -13,6 +13,10 @@ with patch("claude_client.get_claude_client", return_value=_mock_claude_client):
     with patch("google.genai.Client", return_value=_mock_genai_client):
         from planner import parse_prompt, is_known_pattern, PARSE_SYSTEM_PROMPT, FallbackContext
         import planner as planner_module
+        import agent as _agent_module
+
+# Ensure lazy genai client returns our mock
+_agent_module._get_genai_client = lambda: _mock_genai_client
 
 
 class TestParsePrompt:

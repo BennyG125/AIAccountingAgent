@@ -8,6 +8,10 @@ _mock_claude = MagicMock()
 with patch("google.genai.Client", return_value=_mock_genai):
     with patch("claude_client.get_claude_client", return_value=_mock_claude):
         from main import app, _preconfigure_bank_account
+        import agent as _agent_module
+
+# Ensure lazy genai client returns our mock
+_agent_module._get_genai_client = lambda: _mock_genai
 
 from fastapi.testclient import TestClient
 

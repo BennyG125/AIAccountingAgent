@@ -24,6 +24,7 @@ def test_client_get():
             "https://example.com/v2/employee",
             auth=("0", "token"),
             params={"fields": "id,firstName"},
+            timeout=30,
         )
         assert result["status_code"] == 200
         assert result["body"]["values"] == [{"id": 1}]
@@ -44,6 +45,7 @@ def test_client_post():
             "https://example.com/v2/employee",
             auth=("0", "token"),
             json={"firstName": "Ola"},
+            timeout=30,
         )
         assert result["status_code"] == 201
         assert result["body"]["value"]["id"] == 42
@@ -65,6 +67,7 @@ def test_client_put():
             auth=("0", "token"),
             json={"firstName": "Kari"},
             params=None,
+            timeout=30,
         )
         assert result["status_code"] == 200
 
@@ -83,6 +86,7 @@ def test_client_delete():
         mock_delete.assert_called_once_with(
             "https://example.com/v2/travelExpense/99",
             auth=("0", "token"),
+            timeout=30,
         )
         assert result["status_code"] == 204
 
