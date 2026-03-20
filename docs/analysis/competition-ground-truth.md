@@ -21,14 +21,14 @@
 | 2 | create_project | 2 | PT, ES, EN | 3 | 26.2s | 4.0 | 0.0 | 100% (3/3) |
 | 3 | create_customer | 1 | NO, EN | 3 | 16.4s | 1.3 | 0.0 | 100% (3/3) |
 | 4 | create_departments (batch) | 1 | NO, DE | 2 | 13.1s | 3.0 | 0.0 | 100% (2/2) |
-| 5 | register_payment | 3 | FR, PT | 2 | 88.9s | 12.5 | 1.0 | 100% (2/2) |
+| 5 | register_payment | 2 | FR, PT | 2 | 88.9s | 12.5 | 1.0 | 100% (2/2) |
 | 6 | create_employee | 1 | ES, PT | 2 | 25.2s | 3.0 | 0.0 | 100% (2/2) |
 | 7 | create_supplier | 1 | NO, FR | 2 | 15.8s | 1.5 | 0.0 | 100% (2/2) |
-| 8 | run_salary | 3 | NO, PT | 2 | 151.4s | 18.5 | 6.0 | 100% (2/2) |
-| 9 | create_project_fixed_price | 3 | ES | 2 | 72.3s | 10.0 | 1.0 | 100% (2/2) |
-| 10 | register_supplier_invoice | 3 | DE | 1 | 68.8s | 10.0 | 1.0 | 100% (1/1) |
+| 8 | run_salary | 2 | NO, PT | 2 | 151.4s | 18.5 | 6.0 | 100% (2/2) |
+| 9 | create_project_fixed_price | 2 | ES | 2 | 72.3s | 10.0 | 1.0 | 100% (2/2) |
+| 10 | register_supplier_invoice | 2 | DE | 1 | 68.8s | 10.0 | 1.0 | 100% (1/1) |
 | 11 | create_order | 2 | FR | 1 | 66.0s | 13.0 | 3.0 | 100% (1/1) |
-| 12 | create_custom_dimension | 3 | EN | 1 | 254.1s | 5.0 | 5.0 | 100% (1/1) |
+| 12 | create_custom_dimension | 2 | EN | 1 | 254.1s | 5.0 | 5.0 | 100% (1/1) |
 
 **Task types seen ONLY in our test requests (not in competition):**
 create_contact, create_product, create_travel_expense, delete_travel_expense, create_invoice_flow, create_credit_note, create_voucher, update_customer, create_department (single)
@@ -326,8 +326,9 @@ The det container received repeating batches of smoke test tasks. Prompts are re
 | Tier | Count | % | Avg Time | Avg Errors | Success |
 |------|-------|---|----------|------------|---------|
 | Tier 1 (single-entity CRUD) | 9 | 36% | 16.2s | 0.0 | 100% (9/9) |
-| Tier 2 (multi-step flows) | 5 | 20% | 61.8s | 1.2 | 80% (4/5) |
-| Tier 3 (complex/salary/vouchers) | 11 | 44% | 112.0s | 2.7 | 100% (11/11) |
+| Tier 2 simple (multi-step flows) | 5 | 20% | 61.8s | 1.2 | 80% (4/5) |
+| Tier 2 complex (salary/payment/vouchers) | 11 | 44% | 112.0s | 2.7 | 100% (11/11) |
+| Tier 3 (not yet released — opens Saturday) | 0 | 0% | — | — | — |
 
 ### Test Request Distribution (64 tasks via kkpqfuj-amager)
 
@@ -391,10 +392,11 @@ Only **1 competition task failed** (96% success rate). The employee creation fai
 
 ### 4.5 What the Competition Actually Tests (vs What We Tested)
 
-The competition platform favors **Tier 2-3 tasks much more heavily** than our test suite assumed:
-- **44% of competition tasks are Tier 3** (salary, payment, supplier invoice, fixed price, custom dimension)
-- **20% are Tier 2** (invoice, order, project)
+The competition platform favors **complex Tier 2 tasks much more heavily** than our test suite assumed:
+- **44% of competition tasks are complex Tier 2** (salary, payment, supplier invoice, fixed price, custom dimension)
+- **20% are standard Tier 2** (invoice, order, project)
 - **36% are Tier 1** (customer, employee, supplier, departments)
+- **Tier 3 has not been released yet** (opens Saturday March 22)
 
 Task types we tested heavily but never appeared in competition:
 - `create_contact`, `create_product`, `create_travel_expense`, `delete_travel_expense` (none in competition)
@@ -413,7 +415,7 @@ Task types in competition that we under-tested:
 Competition submissions are NOT uniform 10-13 task batches. The actual pattern is:
 - Many single-task submissions (testing one task type at a time)
 - Occasional multi-task batches (Batch 6 had 5 tasks)
-- Heavy emphasis on Tier 3 complex tasks (44% of all tasks)
+- Heavy emphasis on complex Tier 2 tasks (44% of all tasks)
 
 Each submission typically sends 1-5 tasks, not 10-13 as previously estimated.
 
@@ -440,7 +442,7 @@ Each submission typically sends 1-5 tasks, not 10-13 as previously estimated.
 | Priority | Task Type | Why | Current Gap |
 |----------|-----------|-----|-------------|
 | 1 | create_invoice (multi-product) | 16% of competition tasks, 75% success, 127.7s avg | Need deterministic handler for multi-product invoices |
-| 2 | run_salary | 8% of tasks, Tier 3, 151.4s avg, 6 avg errors | Need deterministic salary flow |
+| 2 | run_salary | 8% of tasks, Tier 2 complex, 151.4s avg, 6 avg errors | Need deterministic salary flow |
 | 3 | create_project_fixed_price | 8% of tasks, 72.3s avg | Need fixed-price project handler |
 | 4 | register_payment | 8% of tasks, 88.9s avg | Need payment registration handler |
 | 5 | create_custom_dimension | 4% but 254s, 5 errors | Need custom dimension API handler |
