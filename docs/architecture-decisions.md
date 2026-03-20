@@ -101,3 +101,38 @@ Tracks key architectural decisions for the AI Accounting Agent. Each ADR explain
 **Why:** These IDs are the same across all Tripletex sandbox instances and never change. Looking them up wastes API calls and hurts the efficiency score.
 
 **Trade-off:** If Tripletex ever changes these IDs, the hardcoded values would be wrong. This is extremely unlikely for a competition sandbox.
+
+---
+
+## ADR-011: Static Registry Over RAG/SQL for Endpoint Discovery
+
+**Decision:** Endpoint schemas are stored as Python dicts in `task_registry.py`, not in SQLite, a vector store, or a graph database. Gemini's parse call handles prompt → entity mapping using the system prompt as context.
+
+**Why:** The competition has a fixed API surface (~99 cheat sheet endpoints, ~200+ in the full OpenAPI spec). The parse step already correctly identifies entity types and actions — the bottleneck is execution quality (empty fields, retry loops), not endpoint discovery. A static registry is O(1) lookup, zero latency, fully deterministic, and trivially testable. Adding RAG (embed prompt → vector search → retrieve endpoints) would add ~2s latency per request and a dependency (embedding model + vector store) to solve a problem we don't have.
+
+**Alternatives considered:**
+- **SQLite + embeddings (RAG):** Store endpoint descriptions with vector embeddings, semantic search on each prompt. Rejected for now — adds latency and complexity without improving accuracy for known competition patterns.
+- **GraphRAG:** Model entity relationships as a knowledge graph (entity → endpoint → dependencies → constants). Could improve multi-step planning by traversing the graph. Rejected for now — the dependency graph in `DEPENDENCIES` already captures this in a simpler form.
+- **Hybrid (static + RAG fallback):** Use static registry for known patterns, fall back to RAG for unknown ones. Most promising future option if Tier 3 tasks involve unexpected endpoints.
+
+**Revisit trigger:** If smoke tests reveal tasks that require endpoints not in the cheat sheet, or if the competition adds new API categories, revisit RAG/GraphRAG as a discovery layer on top of the static registry.
+
+---
+
+## ADR-012: Bulk Create Auto-Batching
+
+**Decision:** When the executor detects multiple create actions of the same entity type with no cross-dependencies, it automatically batches them into a single `POST /*/list` call instead of N individual POST calls.
+
+**Why:** The competition scores efficiency by API call count. Creating 5 employees via `POST /employee/list` is 1 call instead of 5 — directly improving the efficiency bonus. Six entity types support bulk creates: employee, customer, contact, product, order/orderline, project/participant.
+
+**Trade-off:** Batch creates return a different response format (`{"values": [...]}` vs `{"value": {...}}`). The executor must extract multiple IDs and map them back to their respective refs. If one entity in the batch fails validation, the entire batch may fail — the executor must handle partial failures by falling back to individual creates.
+
+---
+
+## ADR-013: Complete Endpoint Catalog in Parse System Prompt
+
+**Decision:** The full endpoint catalog (all entity types, field names, action patterns) is included in Gemini's parse system prompt. Gemini acts as both the "RAG retrieval" and the "structured extraction" in a single LLM call.
+
+**Why:** With unlimited credits, the cost of a larger system prompt (~4K tokens) is irrelevant. Gemini already understands accounting terminology in 7 languages. Giving it the complete catalog means it can map any prompt to the right endpoint without a separate retrieval step. This is simpler and faster than a two-step RAG pipeline (embed → retrieve → parse).
+
+**Trade-off:** The system prompt is larger, which slightly increases parse latency (~1-2s). If the catalog grows beyond ~10K tokens, response quality may degrade — at that point, RAG pre-filtering would help reduce the context window.

@@ -131,6 +131,12 @@ For company updates (singleton — no search needed):
 
 For salary:
 - action="create", entity="salary_transaction", fields={date, month, year, payslips}
+
+IMPORTANT — Bulk operations:
+When a task requires creating multiple entities of the same type (e.g., "create 3 employees",
+"add 5 products"), output each as a separate create action. The executor will automatically
+batch them into a single API call using bulk endpoints (POST /*/list) when possible.
+This saves API calls and improves efficiency.
 ```
 
 ---
@@ -288,6 +294,99 @@ Also remove `LOOKUP_CONSTANTS` dict entirely — `nok`, `norway`, and VAT IDs st
     "defaults": {},
     "singleton": True,  # No search needed, GET /company/{id} with known ID
 },
+```
+
+### Bulk create endpoints (efficiency optimization)
+
+Six entity types support `POST /*/list` for batch creation. When the executor
+detects multiple creates of the same entity type with no cross-dependencies
+between them, it auto-batches them into a single `/list` call.
+
+```python
+# task_registry.py — new section
+
+BULK_ENDPOINTS = {
+    "employee": "/employee/list",
+    "customer": "/customer/list",
+    "contact": "/contact/list",
+    "product": "/product/list",
+    "order_line": "/order/orderline/list",
+    "project_participant": "/project/participant/list",
+}
+```
+
+**Executor auto-batching logic** (new function in `executor.py`):
+
+```python
+def _auto_batch(actions: list[dict]) -> list[dict]:
+    """Merge same-type creates with no cross-deps into batch actions.
+
+    E.g., 3 independent employee creates → 1 batch action using POST /employee/list.
+    Only batches entity types that have BULK_ENDPOINTS entries.
+    Actions that depend on each other (via depends_on refs) are NOT batched.
+    """
+    from collections import defaultdict
+
+    # Group by entity type
+    groups = defaultdict(list)
+    for action in actions:
+        if action.get("action") == "create" and action["entity"] in BULK_ENDPOINTS:
+            groups[action["entity"]].append(action)
+
+    if not groups:
+        return actions  # nothing to batch
+
+    batched = []
+    batched_refs = set()
+    for entity, group_actions in groups.items():
+        # Only batch actions that don't depend on each other
+        group_refs = {a["ref"] for a in group_actions}
+        independent = []
+        for a in group_actions:
+            dep_refs = set()
+            for v in a.get("depends_on", {}).values():
+                if isinstance(v, list):
+                    dep_refs.update(v)
+                else:
+                    dep_refs.add(v)
+            if not dep_refs.intersection(group_refs):
+                independent.append(a)
+
+        if len(independent) >= 2:
+            # Create a synthetic batch action
+            batch_action = {
+                "action": "create_batch",
+                "entity": entity,
+                "batch_items": independent,
+                "ref": f"_batch_{entity}",
+                "depends_on": {},
+            }
+            batched.append(batch_action)
+            batched_refs.update(a["ref"] for a in independent)
+
+    # Rebuild action list: non-batched originals + batch actions
+    result = [a for a in actions if a["ref"] not in batched_refs]
+    result.extend(batched)
+    return result
+```
+
+**Batch execution** in `execute_plan()`:
+
+```python
+elif action_type == "create_batch":
+    entity = action["entity"]
+    endpoint = BULK_ENDPOINTS[entity]
+    bodies = []
+    for item in action["batch_items"]:
+        payload = _build_payload(item, ref_map)
+        bodies.append(payload.get("body", {}))
+    result = client.post(endpoint, body=bodies)
+    if result["success"]:
+        # Extract IDs from batch response: {"values": [{id: 1}, {id: 2}, ...]}
+        values = result["body"].get("values", [])
+        for item, value in zip(action["batch_items"], values):
+            if "id" in value:
+                ref_map[item["ref"]] = value["id"]
 ```
 
 ### Action schemas (new concept)
@@ -793,8 +892,19 @@ New tests replace them:
 | POST /*/list (bulk creates) | — | — | yes |
 | All GET single-entity and list endpoints | — | — | yes |
 
-**Coverage: ~65 endpoint patterns deterministic, all 99 endpoints via fallback.**
-**Fallback-only: read-only GETs, bulk/list creates, voucher attachments (multipart), sales modules.**
+| **Bulk Creates (auto-batched by executor)** | | | |
+| POST /employee/list | `employee` | create_batch | yes |
+| POST /customer/list | `customer` | create_batch | yes |
+| POST /contact/list | `contact` | create_batch | yes |
+| POST /product/list | `product` | create_batch | yes |
+| POST /order/orderline/list | `order_line` | create_batch | yes |
+| POST /project/participant/list | `project_participant` | create_batch | yes |
+| **Company Sales Modules** | | | |
+| POST /company/salesmodules | — | — | yes |
+| GET /company/salesmodules | — | — | yes |
+
+**Coverage: ~75 endpoint patterns deterministic (incl. bulk), all endpoints via fallback.**
+**Fallback-only: read-only GETs, voucher attachments (multipart), sales modules, advanced salary/bank reconciliation.**
 
 ---
 
@@ -803,8 +913,8 @@ New tests replace them:
 | File | Action | What changes |
 |---|---|---|
 | `planner.py` | Modify | Schema description + search_fields, few-shot examples, action types in prompt |
-| `task_registry.py` | Modify | 18 new entities (→30 total), ACTION_SCHEMAS (15 actions), SEARCH_PARAMS, pre_lookups, updated DEPENDENCIES |
-| `executor.py` | Modify | `_resolve_pre_lookups()`, `_resolve_by_search()`, action dispatch in execute_plan |
+| `task_registry.py` | Modify | 18 new entities (→30 total), ACTION_SCHEMAS (15 actions), BULK_ENDPOINTS (6 types), SEARCH_PARAMS, pre_lookups, updated DEPENDENCIES |
+| `executor.py` | Modify | `_resolve_pre_lookups()`, `_resolve_by_search()`, `_auto_batch()`, action dispatch + batch dispatch in execute_plan |
 | `tests/test_task_registry.py` | Modify | Tests for new entities, ACTION_SCHEMAS, SEARCH_PARAMS |
 | `tests/test_planner.py` | Modify | Tests for updated schema, action patterns in is_known_pattern |
 | `tests/test_executor.py` | Modify | Tests for pre_lookups, search-then-act, update/delete dispatch |
@@ -835,7 +945,14 @@ New tests replace them:
 - Delete dispatch: searches, DELETEs, `_extract_id()` returns None (expected)
 - Named action dispatch: searches, substitutes {id}, PUTs action endpoint
 - `grant_entitlements` dispatch: passes employeeId as query param
+- `body_from_search` dispatch: travel expense approve sends [{"id": found_id}]
 - Search-not-found returns FallbackContext with descriptive error
+- `_auto_batch()`: 3 independent employees → 1 batch action
+- `_auto_batch()`: employees with cross-deps are NOT batched
+- `_auto_batch()`: entity types not in BULK_ENDPOINTS are not batched
+- `_auto_batch()`: single entity of a type is not batched (need ≥2)
+- Batch execution: POST /employee/list with array body, extracts multiple IDs
+- Batch execution: partial failure falls back to individual creates
 
 ### Pattern matcher tests (test_planner.py) — updated
 - `test_rejects_update_action` → **replaced by** `test_rejects_update_without_search_fields`
