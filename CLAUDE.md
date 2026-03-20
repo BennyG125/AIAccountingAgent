@@ -37,32 +37,29 @@ gcloud run deploy accounting-agent-comp --source . --region europe-north1 --proj
 
 ```
 POST / → main.py
-  ├── _save_request_to_gcs()     — full payload to GCS (if REQUEST_LOG_BUCKET set)
-  ├── _preconfigure_bank_account() — ensures ledger 1920 has bank account
-  ├── gemini_ocr()               — Gemini extracts text from images (if any)
-  ├── parse_prompt()             — Claude Opus 4.6 extracts TaskPlan JSON
-  ├── is_known_pattern()         — validates plan can run deterministically
-  │   ├── TRUE → execute_plan()  — deterministic API calls (no LLM)
-  │   └── FALSE → run_tool_loop() — Claude tool-use fallback
-  └── return {"status": "completed"}
+  ├── _save_request_to_gcs()       — full payload to GCS (if REQUEST_LOG_BUCKET set)
+  ├── _preconfigure_bank_account()  — ensures ledger 1920 has bank account
+  ├── gemini_ocr()                 — Gemini extracts text from images (if any)
+  └── Claude Opus 4.6 agentic loop — streaming, adaptive thinking, 4 REST tools
+      ├── system prompt (rules + 16 recipes + api_knowledge/cheat_sheet.py)
+      ├── max 20 iterations, 270s timeout
+      └── return {"status": "completed"}
 ```
 
 - **Claude Opus 4.6** via Vertex AI (region `us-east5`, project `ai-nm26osl-1799`)
 - **Gemini** retained for OCR only (lazy-initialized via `_get_genai_client()`)
-- API knowledge in `api_knowledge/cheat_sheet.py` (941 lines, injected into system prompt)
+- System prompt in `prompts.py` imports `api_knowledge/cheat_sheet.py` (941 lines)
 
 ## Key Files
 
 | File | What |
 |------|------|
 | `main.py` | FastAPI endpoint, request logging, bank pre-config |
-| `agent.py` | Claude tool-use loop, gemini_ocr, tool definitions |
-| `planner.py` | Claude parse, pattern matcher, FallbackContext |
-| `executor.py` | Deterministic execution, pre-checks, vatType retry |
+| `agent.py` | Pure Claude agentic loop, streaming, gemini_ocr, tool definitions |
+| `prompts.py` | System prompt: rules, 16 recipes, gotchas (imports cheat sheet) |
 | `claude_client.py` | Shared AnthropicVertex client (cached singleton) |
-| `task_registry.py` | Entity schemas, action schemas, known constants |
 | `tripletex_api.py` | HTTP client wrapper (Basic Auth, 30s timeout) |
-| `api_knowledge/cheat_sheet.py` | Full API reference (system prompt) |
+| `api_knowledge/cheat_sheet.py` | Full API reference (941 lines, imported by prompts.py) |
 
 ## Ground Truth
 
@@ -88,6 +85,7 @@ python smoke_test.py --tier 2
 - `genai_client` is lazy-initialized (NOT module-level) — prevents cold-start crashes
 - Evaluator sends `POST /` (root path), not `/solve`
 - `tripletex_credentials` may be `null` — always use `or {}`
-- vatType IDs vary per sandbox — executor retries without vatType on rejection
+- vatType IDs vary per sandbox — system prompt guides retry without vatType
 - All `requests.*` calls have `timeout=30`
 - Cloud Run must allow unauthenticated access for the evaluator
+- Iterate on `prompts.py` recipes to improve scores — each change is prompt edit → redeploy → resubmit
