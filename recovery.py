@@ -259,7 +259,6 @@ def recover_and_execute(
                     temperature=0.0,
                     max_output_tokens=4096,
                     response_mime_type="application/json",
-                    response_schema=PLAN_JSON_SCHEMA,
                 ),
             )
         except Exception as e:

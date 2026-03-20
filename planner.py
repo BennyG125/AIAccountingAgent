@@ -135,9 +135,8 @@ def _validate_step(step: dict, index: int) -> None:
         body = step["body"]
         if not isinstance(body, dict):
             raise ValueError(f"{prefix}: body must be a dict")
-        if len(body) == 0:
-            raise ValueError(f"{prefix}: body must be non-empty if present")
-        if method not in BODY_ALLOWED_METHODS:
+        # Allow empty body — Gemini structured output may emit {} for optional fields
+        if body and method not in BODY_ALLOWED_METHODS:
             raise ValueError(f"{prefix}: body not allowed for {method}")
 
     # -- params --
@@ -145,9 +144,8 @@ def _validate_step(step: dict, index: int) -> None:
         params = step["params"]
         if not isinstance(params, dict):
             raise ValueError(f"{prefix}: params must be a dict")
-        if len(params) == 0:
-            raise ValueError(f"{prefix}: params must be non-empty if present")
-        if method not in PARAMS_ALLOWED_METHODS:
+        # Allow empty params — Gemini structured output may emit {} for optional fields
+        if params and method not in PARAMS_ALLOWED_METHODS:
             raise ValueError(f"{prefix}: params not allowed for {method}")
 
     # -- capture --
@@ -155,8 +153,7 @@ def _validate_step(step: dict, index: int) -> None:
         capture = step["capture"]
         if not isinstance(capture, dict):
             raise ValueError(f"{prefix}: capture must be a dict")
-        if len(capture) == 0:
-            raise ValueError(f"{prefix}: capture must be non-empty if present")
+        # Allow empty capture — Gemini structured output may emit {} for optional fields
         for key, val in capture.items():
             if not _IDENTIFIER_RE.match(key):
                 raise ValueError(
@@ -308,7 +305,6 @@ def plan_task(task_prompt: str, file_contents: list[dict]) -> dict:
             temperature=0.0,
             max_output_tokens=4096,
             response_mime_type="application/json",
-            response_schema=PLAN_JSON_SCHEMA,
         ),
     )
 

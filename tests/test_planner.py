@@ -187,7 +187,6 @@ class TestPlanTaskSuccess:
         call_kwargs = _mock_genai_client.models.generate_content.call_args
         config = call_kwargs.kwargs.get("config") or call_kwargs[1].get("config")
         assert config.response_mime_type == "application/json"
-        assert config.response_schema == PLAN_JSON_SCHEMA
 
 
 # ===================================================================
