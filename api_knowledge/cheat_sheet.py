@@ -402,10 +402,10 @@ Required: employee ({id}), title (string)
 Optional: project ({id}), department ({id}),
           travelAdvance (number), isChargeable (boolean),
           travelDetails ({...}),
-          costs (array of Cost — see below),
-          perDiemCompensations (array — see below),
-          mileageAllowances (array — see below),
-          accommodationAllowances (array — see below)
+          costs (array of Cost — can be embedded in POST body),
+          perDiemCompensations (array — can be embedded in POST body)
+Note: mileageAllowances and accommodationAllowances are READ-ONLY on this object.
+      You MUST create them separately via their own POST endpoints (see below).
 
 ### GET /travelExpense
 Search: ?employeeId=X&departmentId=X&projectId=X&fields=...
