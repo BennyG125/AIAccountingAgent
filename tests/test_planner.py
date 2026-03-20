@@ -65,18 +65,19 @@ class TestIsKnownPattern:
         ]}
         assert is_known_pattern(plan) is True
 
-    def test_rejects_update_action(self):
+    def test_rejects_update_without_search_fields(self):
         plan = {"actions": [
             {"action": "update", "entity": "employee",
-             "fields": {"email": "new@test.no"},
+             "fields": {"email": "new@test.no"}, "search_fields": {},
              "ref": "emp1", "depends_on": {}}
         ]}
         assert is_known_pattern(plan) is False
 
-    def test_rejects_delete_action(self):
+    def test_rejects_delete_without_search_fields(self):
         plan = {"actions": [
             {"action": "delete", "entity": "customer",
-             "fields": {}, "ref": "c1", "depends_on": {}}
+             "fields": {}, "search_fields": {},
+             "ref": "c1", "depends_on": {}}
         ]}
         assert is_known_pattern(plan) is False
 
@@ -124,6 +125,68 @@ class TestIsKnownPattern:
 
     def test_rejects_empty_actions(self):
         assert is_known_pattern({"actions": []}) is False
+
+    def test_accepts_update_with_search_fields(self):
+        plan = {"actions": [
+            {"action": "update", "entity": "customer",
+             "fields": {"email": "new@test.no"},
+             "search_fields": {"name": "Acme AS"},
+             "ref": "c1", "depends_on": {}}
+        ]}
+        assert is_known_pattern(plan) is True
+
+    def test_accepts_delete_with_search_fields(self):
+        plan = {"actions": [
+            {"action": "delete", "entity": "department",
+             "fields": {}, "search_fields": {"name": "Old Dept"},
+             "ref": "d1", "depends_on": {}}
+        ]}
+        assert is_known_pattern(plan) is True
+
+    def test_accepts_named_action(self):
+        plan = {"actions": [
+            {"action": "send_invoice", "entity": "invoice",
+             "fields": {"sendType": "EMAIL"},
+             "search_fields": {"customerId": "123"},
+             "ref": "si1", "depends_on": {}}
+        ]}
+        assert is_known_pattern(plan) is True
+
+    def test_rejects_named_action_wrong_entity(self):
+        plan = {"actions": [
+            {"action": "send_invoice", "entity": "department",
+             "fields": {}, "search_fields": {"name": "X"},
+             "ref": "si1", "depends_on": {}}
+        ]}
+        assert is_known_pattern(plan) is False
+
+    def test_accepts_new_entity_types(self):
+        """New entities like supplier, project_participant are recognized."""
+        plan = {"actions": [
+            {"action": "create", "entity": "supplier",
+             "fields": {"name": "Test Supplier"},
+             "ref": "s1", "depends_on": {}}
+        ]}
+        assert is_known_pattern(plan) is True
+
+    def test_parse_system_prompt_includes_action_instructions(self):
+        assert "update" in PARSE_SYSTEM_PROMPT
+        assert "search_fields" in PARSE_SYSTEM_PROMPT
+        assert "send_invoice" in PARSE_SYSTEM_PROMPT
+
+    def test_parse_system_prompt_includes_examples(self):
+        assert "Opprett en avdeling med navn Salg" in PARSE_SYSTEM_PROMPT
+        assert "Erstellen Sie einen Mitarbeiter" in PARSE_SYSTEM_PROMPT
+
+    def test_accepts_singleton_update_without_search_fields(self):
+        """Company is a singleton — update without search_fields is allowed."""
+        plan = {"actions": [
+            {"action": "update", "entity": "company",
+             "fields": {"name": "New Name"},
+             "search_fields": {},
+             "ref": "co1", "depends_on": {}}
+        ]}
+        assert is_known_pattern(plan) is True
 
 
 class TestFallbackContext:
