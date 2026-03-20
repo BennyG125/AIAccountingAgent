@@ -90,7 +90,17 @@ def _handle_task(prompt: str, files: list, base_url: str, session_token: str,
     Args:
         metadata: Competition metadata (prompt_hash, prompt_preview, file_count).
                   Captured by @traceable as a trace input for LangSmith filtering.
+                  session_id groups runs into threads in LangSmith UI.
     """
+    # Set session_id on the run tree so LangSmith groups by thread
+    try:
+        from langsmith.run_helpers import get_current_run_tree
+        rt = get_current_run_tree()
+        if rt and metadata:
+            rt.metadata.update(metadata)
+            rt.metadata["session_id"] = metadata.get("prompt_hash", "unknown")
+    except Exception:
+        pass  # graceful — tracing is optional
     file_contents = process_files(files)
     _preconfigure_bank_account(base_url, session_token)
     return run_agent(prompt, file_contents, base_url, session_token)
