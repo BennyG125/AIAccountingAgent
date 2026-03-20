@@ -2,13 +2,14 @@
 """Static entity registry for deterministic execution.
 
 Contains all knowledge needed to validate and execute Tripletex API calls
-without LLM involvement: entity schemas, known constants, and dependency graph.
+without LLM involvement: entity schemas, known constants, dependency graph,
+action schemas, bulk endpoints, and search parameter mappings.
 """
 
 from datetime import date
 
 # ---------------------------------------------------------------------------
-# Entity Schemas
+# Entity Schemas (27 entities)
 # ---------------------------------------------------------------------------
 
 ENTITY_SCHEMAS = {
@@ -24,7 +25,7 @@ ENTITY_SCHEMAS = {
         "method": "POST",
         "required": ["firstName", "lastName", "userType", "department"],
         "defaults": {"userType": "STANDARD"},
-        "lookup_defaults": {"department": "/department"},
+        "pre_lookups": {"department": "/department"},
     },
     "customer": {
         "endpoint": "/customer",
@@ -73,7 +74,7 @@ ENTITY_SCHEMAS = {
         "required": ["travelExpense", "date", "amountCurrencyIncVat", "costCategory", "paymentType"],
         "defaults": {"currency": {"id": 1}},
         "auto_generate": ["date"],
-        "lookup_constants_inject": {
+        "pre_lookups": {
             "costCategory": "/travelExpense/costCategory",
             "paymentType": "/travelExpense/paymentType",
         },
@@ -98,6 +99,122 @@ ENTITY_SCHEMAS = {
         "defaults": {},
         "auto_generate": ["date"],
     },
+    # --- Employee ---
+    "employee_employment": {
+        "endpoint": "/employee/employment",
+        "method": "POST",
+        "required": ["employee", "startDate"],
+        "defaults": {"isMainEmployer": True},
+        "auto_generate": ["startDate"],
+    },
+    "employee_employment_details": {
+        "endpoint": "/employee/employment/details",
+        "method": "POST",
+        "required": ["employment", "date"],
+        "defaults": {},
+        "auto_generate": ["date"],
+    },
+    # --- Customer/Supplier ---
+    "supplier": {
+        "endpoint": "/supplier",
+        "method": "POST",
+        "required": ["name"],
+        "defaults": {},
+    },
+    "supplier_invoice": {
+        "endpoint": "/supplierInvoice",
+        "method": "GET",
+        "required": [],
+        "defaults": {},
+    },
+    "customer_category": {
+        "endpoint": "/customer/category",
+        "method": "POST",
+        "required": ["name", "number", "type"],
+        "defaults": {},
+    },
+    # --- Product ---
+    "product_unit": {
+        "endpoint": "/product/unit",
+        "method": "POST",
+        "required": ["name", "nameShort", "commonCode"],
+        "defaults": {},
+    },
+    # --- Order ---
+    "order_line": {
+        "endpoint": "/order/orderline",
+        "method": "POST",
+        "required": ["order", "product"],
+        "defaults": {},
+    },
+    # --- Project ---
+    "project_participant": {
+        "endpoint": "/project/participant",
+        "method": "POST",
+        "required": ["project", "employee"],
+        "defaults": {},
+    },
+    # --- Travel Expense sub-types ---
+    "travel_expense_per_diem": {
+        "endpoint": "/travelExpense/perDiemCompensation",
+        "method": "POST",
+        "required": ["travelExpense", "rateCategory"],
+        "defaults": {},
+        "pre_lookups": {
+            "rateCategory": "/travelExpense/rateCategory",
+            "rateType": "/travelExpense/rate",
+        },
+    },
+    "travel_expense_mileage": {
+        "endpoint": "/travelExpense/mileageAllowance",
+        "method": "POST",
+        "required": ["travelExpense", "rateCategory", "date"],
+        "defaults": {},
+        "auto_generate": ["date"],
+        "pre_lookups": {
+            "rateCategory": "/travelExpense/rateCategory",
+            "rateType": "/travelExpense/rate",
+        },
+    },
+    "travel_expense_accommodation": {
+        "endpoint": "/travelExpense/accommodationAllowance",
+        "method": "POST",
+        "required": ["travelExpense", "rateCategory"],
+        "defaults": {},
+        "pre_lookups": {
+            "rateCategory": "/travelExpense/rateCategory",
+        },
+    },
+    # --- Ledger ---
+    "ledger_account": {
+        "endpoint": "/ledger/account",
+        "method": "POST",
+        "required": ["number", "name"],
+        "defaults": {},
+    },
+    # --- Salary ---
+    "salary_transaction": {
+        "endpoint": "/salary/transaction",
+        "method": "POST",
+        "required": ["date", "month", "year"],
+        "defaults": {},
+        "auto_generate": ["date"],
+    },
+    # --- Delivery Address ---
+    "delivery_address": {
+        "endpoint": "/deliveryAddress",
+        "method": "PUT",
+        "required": [],
+        "defaults": {},
+    },
+    # --- Company ---
+    "company": {
+        "endpoint": "/company",
+        "method": "PUT",
+        "required": [],
+        "defaults": {},
+        "singleton": True,
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -113,35 +230,179 @@ KNOWN_CONSTANTS = {
     "paymentTypeId_default": 0,
 }
 
+# NOTE: LOOKUP_CONSTANTS removed — migrated to pre_lookups on individual schemas
+
 # ---------------------------------------------------------------------------
-# Lookup Constants — GET once per session, cache the result
+# Action Schemas — for update/delete/named action patterns
 # ---------------------------------------------------------------------------
 
-LOOKUP_CONSTANTS = {
-    "costCategory": "/travelExpense/costCategory",
-    "paymentType_travel": "/travelExpense/paymentType",
-    "rateCategory": "/travelExpense/rateCategory",
+ACTION_SCHEMAS = {
+    # --- Generic actions (work on any entity in ENTITY_SCHEMAS) ---
+    "update": {
+        "flow": "search_put",
+        "description": "Search for entity by search_fields, then PUT with merged fields",
+    },
+    "delete": {
+        "flow": "search_delete",
+        "description": "Search for entity by search_fields, then DELETE",
+    },
+    # --- Invoice actions ---
+    "send_invoice": {
+        "entity": "invoice",
+        "flow": "search_action",
+        "action_endpoint": "/invoice/{id}/:send",
+        "action_method": "PUT",
+    },
+    "create_credit_note": {
+        "entity": "invoice",
+        "flow": "search_action",
+        "action_endpoint": "/invoice/{id}/:createCreditNote",
+        "action_method": "PUT",
+    },
+    "create_reminder": {
+        "entity": "invoice",
+        "flow": "search_action",
+        "action_endpoint": "/invoice/{id}/:createReminder",
+        "action_method": "PUT",
+    },
+    # --- Voucher actions ---
+    "reverse_voucher": {
+        "entity": "voucher",
+        "flow": "search_action",
+        "action_endpoint": "/ledger/voucher/{id}/:reverse",
+        "action_method": "PUT",
+    },
+    # --- Employee actions ---
+    "grant_entitlements": {
+        "entity": "employee",
+        "flow": "search_action",
+        "action_endpoint": "/employee/entitlement/:grantEntitlementsByTemplate",
+        "action_method": "PUT",
+        "action_params_from_search": {"employeeId": "id"},
+    },
+    # --- Travel expense workflow actions ---
+    "approve_travel_expense": {
+        "entity": "travel_expense",
+        "flow": "search_action",
+        "action_endpoint": "/travelExpense/:approve",
+        "action_method": "PUT",
+        "body_from_search": True,
+    },
+    "deliver_travel_expense": {
+        "entity": "travel_expense",
+        "flow": "search_action",
+        "action_endpoint": "/travelExpense/:deliver",
+        "action_method": "PUT",
+        "body_from_search": True,
+    },
+    "unapprove_travel_expense": {
+        "entity": "travel_expense",
+        "flow": "search_action",
+        "action_endpoint": "/travelExpense/:unapprove",
+        "action_method": "PUT",
+        "body_from_search": True,
+    },
+    # --- Supplier invoice actions ---
+    "approve_supplier_invoice": {
+        "entity": "supplier_invoice",
+        "flow": "search_action",
+        "action_endpoint": "/supplierInvoice/{id}/:approve",
+        "action_method": "PUT",
+    },
+    "reject_supplier_invoice": {
+        "entity": "supplier_invoice",
+        "flow": "search_action",
+        "action_endpoint": "/supplierInvoice/{id}/:reject",
+        "action_method": "PUT",
+    },
+    "pay_supplier_invoice": {
+        "entity": "supplier_invoice",
+        "flow": "search_action",
+        "action_endpoint": "/supplierInvoice/{id}/:addPayment",
+        "action_method": "POST",
+    },
 }
 
 # ---------------------------------------------------------------------------
-# Dependency Graph — directed, acyclic
+# Bulk Endpoints — POST /*/list for batch creation
+# ---------------------------------------------------------------------------
+
+BULK_ENDPOINTS = {
+    "employee": "/employee/list",
+    "customer": "/customer/list",
+    "contact": "/contact/list",
+    "product": "/product/list",
+    "order_line": "/order/orderline/list",
+    "project_participant": "/project/participant/list",
+}
+
+# ---------------------------------------------------------------------------
+# Search Parameters — field name → query param mapping per entity
+# ---------------------------------------------------------------------------
+
+SEARCH_PARAMS = {
+    "department": {"name": "name", "departmentNumber": "departmentNumber"},
+    "employee": {"firstName": "firstName", "lastName": "lastName", "email": "email"},
+    "customer": {"name": "name", "email": "email", "organizationNumber": "organizationNumber"},
+    "product": {"name": "name", "number": "number"},
+    "order": {"customerName": "customerName", "number": "number"},
+    "invoice": {"customerId": "customerId", "invoiceNumber": "invoiceNumber"},
+    "supplier": {"name": "name", "organizationNumber": "organizationNumber"},
+    "contact": {"firstName": "firstName", "lastName": "lastName", "email": "email"},
+    "project": {"name": "name", "number": "number"},
+    "voucher": {"number": "number", "dateFrom": "dateFrom", "dateTo": "dateTo"},
+    "travel_expense": {"employeeId": "employeeId"},
+    "customer_category": {"name": "name", "number": "number"},
+    "product_unit": {"name": "name", "nameShort": "nameShort"},
+    "supplier_invoice": {},
+    "ledger_account": {"number": "number", "name": "name"},
+    "salary_transaction": {},
+    "delivery_address": {},
+    "employee_employment": {"employeeId": "employeeId"},
+    "company": {},
+}
+
+# ---------------------------------------------------------------------------
+# Dependency Graph — directed, acyclic (27 entities)
 # ---------------------------------------------------------------------------
 
 DEPENDENCIES = {
+    # --- Core entities (no deps) ---
     "department": [],
-    "employee": ["department"],
     "customer": [],
     "product": [],
+    "supplier": [],
+    "customer_category": [],
+    "product_unit": [],
+    "ledger_account": [],
+    "voucher": [],
+    "company": [],
+    "delivery_address": [],
+    # --- Employee chain ---
+    "employee": ["department"],
+    "employee_employment": ["employee"],
+    "employee_employment_details": ["employee_employment"],
+    # --- Customer chain ---
     "contact": ["customer"],
+    # --- Order → Invoice → Payment chain ---
     "order": ["customer", "product"],
+    "order_line": ["order", "product"],
     "invoice": ["order"],
     "register_payment": ["invoice"],
+    # --- Travel expense chain ---
     "travel_expense": ["employee"],
     "travel_expense_cost": ["travel_expense"],
+    "travel_expense_per_diem": ["travel_expense"],
+    "travel_expense_mileage": ["travel_expense"],
+    "travel_expense_accommodation": ["travel_expense"],
+    # --- Project chain ---
     "project": ["employee"],
-    "voucher": [],
+    "project_participant": ["project", "employee"],
+    # --- Salary ---
+    "salary_transaction": [],
+    # --- Supplier invoice ---
+    "supplier_invoice": [],
 }
-
 
 # ---------------------------------------------------------------------------
 # Helpers
