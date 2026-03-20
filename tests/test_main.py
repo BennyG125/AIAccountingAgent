@@ -4,8 +4,10 @@
 from unittest.mock import patch, MagicMock
 
 _mock_genai = MagicMock()
+_mock_claude = MagicMock()
 with patch("google.genai.Client", return_value=_mock_genai):
-    from main import app, _preconfigure_bank_account
+    with patch("claude_client.get_claude_client", return_value=_mock_claude):
+        from main import app, _preconfigure_bank_account
 
 from fastapi.testclient import TestClient
 

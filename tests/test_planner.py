@@ -12,9 +12,19 @@ with patch("claude_client.get_claude_client", return_value=_mock_claude_client):
     _mock_genai_client = MagicMock()
     with patch("google.genai.Client", return_value=_mock_genai_client):
         from planner import parse_prompt, is_known_pattern, PARSE_SYSTEM_PROMPT, FallbackContext
+        import planner as planner_module
 
 
 class TestParsePrompt:
+    def setup_method(self):
+        """Ensure planner uses our mock even if another test file imported it first."""
+        self._patcher = patch.object(planner_module, "get_claude_client", return_value=_mock_claude_client)
+        self._patcher.start()
+        _mock_claude_client.reset_mock()
+
+    def teardown_method(self):
+        self._patcher.stop()
+
     def _mock_response(self, text: str) -> MagicMock:
         """Create a mock Claude response with given text content."""
         response = MagicMock()

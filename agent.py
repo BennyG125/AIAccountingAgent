@@ -1,5 +1,9 @@
 # agent.py
-"""Gemini tool-use agentic loop for Tripletex accounting tasks."""
+"""Claude tool-use agentic loop for Tripletex accounting tasks.
+
+Uses Claude Opus 4.6 via Vertex AI for tool-use fallback.
+Gemini retained for OCR (image text extraction) only.
+"""
 
 import json
 import logging
@@ -15,11 +19,12 @@ from api_knowledge.cheat_sheet import TRIPLETEX_API_CHEAT_SHEET
 from tripletex_api import TripletexClient
 from planner import parse_prompt, is_known_pattern, FallbackContext
 from executor import execute_plan
+from claude_client import get_claude_client, CLAUDE_MODEL
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Gemini client & model
+# Gemini client (retained for OCR only)
 # ---------------------------------------------------------------------------
 
 genai_client = genai.Client(
@@ -28,19 +33,19 @@ genai_client = genai.Client(
     location=os.getenv("GCP_LOCATION", "global"),
 )
 
-MODEL = "gemini-3.1-pro-preview"
+GEMINI_MODEL = "gemini-3.1-pro-preview"
 MAX_ITERATIONS = 25
 TIMEOUT_SECONDS = 270  # 30s buffer before 300s hard limit
 
 # ---------------------------------------------------------------------------
-# Tool definitions
+# Tool definitions (Anthropic format)
 # ---------------------------------------------------------------------------
 
-FUNCTION_DECLARATIONS = [
-    types.FunctionDeclaration(
-        name="tripletex_get",
-        description="GET request to Tripletex API. Use for listing, searching, and fetching entities.",
-        parameters={
+TOOLS = [
+    {
+        "name": "tripletex_get",
+        "description": "GET request to Tripletex API. Use for listing, searching, and fetching entities.",
+        "input_schema": {
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "API path e.g. '/employee', '/customer/123'"},
@@ -48,11 +53,11 @@ FUNCTION_DECLARATIONS = [
             },
             "required": ["path"],
         },
-    ),
-    types.FunctionDeclaration(
-        name="tripletex_post",
-        description="POST request to create entities. ALWAYS include body with the JSON payload.",
-        parameters={
+    },
+    {
+        "name": "tripletex_post",
+        "description": "POST request to create entities. ALWAYS include body with the JSON payload.",
+        "input_schema": {
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "API path e.g. '/employee'"},
@@ -61,12 +66,12 @@ FUNCTION_DECLARATIONS = [
             },
             "required": ["path", "body"],
         },
-    ),
-    types.FunctionDeclaration(
-        name="tripletex_put",
-        description="PUT request for updates and action endpoints (/:invoice, /:payment). "
-                    "For payment registration, use params for query parameters, NOT body.",
-        parameters={
+    },
+    {
+        "name": "tripletex_put",
+        "description": "PUT request for updates and action endpoints (/:invoice, /:payment). "
+                       "For payment registration, use params for query parameters, NOT body.",
+        "input_schema": {
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "API path e.g. '/invoice/123/:payment'"},
@@ -75,21 +80,19 @@ FUNCTION_DECLARATIONS = [
             },
             "required": ["path"],
         },
-    ),
-    types.FunctionDeclaration(
-        name="tripletex_delete",
-        description="DELETE request for removing entities.",
-        parameters={
+    },
+    {
+        "name": "tripletex_delete",
+        "description": "DELETE request for removing entities.",
+        "input_schema": {
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "API path e.g. '/employee/123'"},
             },
             "required": ["path"],
         },
-    ),
+    },
 ]
-
-TOOLS = [types.Tool(function_declarations=FUNCTION_DECLARATIONS)]
 
 
 # ---------------------------------------------------------------------------
@@ -131,6 +134,36 @@ Use params, NOT body. paymentTypeId: use GET /invoice/paymentType to find the ri
 
 
 # ---------------------------------------------------------------------------
+# Gemini OCR (image text extraction only)
+# ---------------------------------------------------------------------------
+
+def gemini_ocr(file_contents: list[dict]) -> str:
+    """Use Gemini to extract text from images. Returns OCR text or empty string."""
+    image_parts = []
+    for f in file_contents:
+        for img in f.get("images", []):
+            image_parts.append(types.Part.from_bytes(
+                data=img["data"], mime_type=img["mime_type"]
+            ))
+
+    if not image_parts:
+        return ""
+
+    image_parts.append(types.Part.from_text(
+        text="Extract all text, numbers, dates, names, and amounts from these images. "
+             "Return the extracted data as structured text."
+    ))
+
+    config = types.GenerateContentConfig(temperature=0.0)
+    response = genai_client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=[types.Content(role="user", parts=image_parts)],
+        config=config,
+    )
+    return response.text or ""
+
+
+# ---------------------------------------------------------------------------
 # Tool execution
 # ---------------------------------------------------------------------------
 
@@ -153,50 +186,29 @@ def execute_tool(name: str, args: dict, client: TripletexClient) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# User content builder
-# ---------------------------------------------------------------------------
-
-def build_user_content(prompt: str, file_contents: list[dict]) -> list[types.Part]:
-    """Build the user message parts from prompt and processed file attachments.
-
-    Each file in file_contents has: filename, mime_type, text_content, images[].
-    - text_content is included as text (PDF extracted text, CSV, plain text)
-    - images are included as multimodal parts (PDF page images, photo attachments)
-    """
-    parts: list[types.Part] = []
-
-    for f in file_contents:
-        # Add text content
-        text = f.get("text_content", "").strip()
-        if text:
-            parts.append(types.Part.from_text(
-                text=f"[Attached file: {f['filename']}]\n{text}"
-            ))
-
-        # Add images (PDF pages, photo attachments)
-        for img in f.get("images", []):
-            parts.append(types.Part.from_bytes(
-                data=img["data"], mime_type=img["mime_type"]
-            ))
-
-    # Add task prompt last
-    parts.append(types.Part.from_text(text=f"Complete this accounting task:\n\n{prompt}"))
-    return parts
-
-
-# ---------------------------------------------------------------------------
 # Agent loop
 # ---------------------------------------------------------------------------
 
 def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_token: str) -> dict:
-    """Route: parse → deterministic execution or tool-use fallback."""
+    """Route: OCR → parse → deterministic execution or tool-use fallback."""
     start_time = time.time()
     client = TripletexClient(base_url, session_token)
     path = "fallback"
     total_api_calls = 0
     llm_calls = 0
 
-    # Step 1: Parse prompt
+    # Step 0: OCR — extract text from images via Gemini
+    ocr_text = gemini_ocr(file_contents)
+    if ocr_text:
+        llm_calls += 1
+        # Append OCR text to file_contents as synthetic text entry
+        file_contents.append({
+            "filename": "_ocr_extracted.txt",
+            "text_content": ocr_text,
+            "images": [],
+        })
+
+    # Step 1: Parse prompt via Claude
     task_plan = parse_prompt(prompt, file_contents)
     llm_calls += 1
 
@@ -208,14 +220,14 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
             path = "deterministic"
             total_ms = int((time.time() - start_time) * 1000)
             logger.info(f"result: status=completed path={path} total_api_calls={total_api_calls} "
-                       f"errors_4xx=0 llm_calls={llm_calls} total_time_ms={total_ms}")
+                       f"llm_calls={llm_calls} total_time_ms={total_ms}")
             return {"status": "completed", "path": path}
         fallback_ctx = result["fallback_context"]
         path = "deterministic+fallback"
     else:
         fallback_ctx = FallbackContext(task_plan=task_plan)
 
-    # Step 3: Tool-use fallback
+    # Step 3: Tool-use fallback via Claude
     loop_result = run_tool_loop(prompt, file_contents, client, fallback_ctx)
     total_ms = int((time.time() - start_time) * 1000)
     logger.info(f"result: status=completed path={path} total_api_calls={total_api_calls} "
@@ -225,7 +237,7 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
 
 def run_tool_loop(prompt: str, file_contents: list[dict], client: TripletexClient,
                   fallback_context: FallbackContext | None = None) -> dict:
-    """Run the Gemini tool-use agent loop (fallback path)."""
+    """Run the Claude tool-use agent loop (fallback path)."""
     start_time = time.time()
     reason = "parse_failure"
     if fallback_context:
@@ -233,7 +245,7 @@ def run_tool_loop(prompt: str, file_contents: list[dict], client: TripletexClien
             reason = "execution_error"
         elif fallback_context.task_plan:
             reason = "pattern_mismatch"
-    logger.info(f"fallback: reason={reason} context_refs={len(fallback_context.completed_refs) if fallback_context else 0}")
+    logger.info(f"fallback: reason={reason}")
 
     system_prompt = build_system_prompt()
 
@@ -243,24 +255,25 @@ def run_tool_loop(prompt: str, file_contents: list[dict], client: TripletexClien
         if fallback_context.completed_refs:
             extra.append(f"These entities were already created: {json.dumps(fallback_context.completed_refs)}")
         if fallback_context.failed_action and fallback_context.error:
-            extra.append(f"This action failed: {json.dumps(fallback_context.failed_action)}. Error: {fallback_context.error}. Fix and continue.")
+            extra.append(f"This action failed: {json.dumps(fallback_context.failed_action)}. "
+                        f"Error: {fallback_context.error}. Fix and continue.")
         if fallback_context.task_plan:
             extra.append(f"Parsed task plan for context: {json.dumps(fallback_context.task_plan)}")
         if extra:
             system_prompt += "\n\n## Context from previous attempt\n" + "\n".join(extra)
 
-    user_parts = build_user_content(prompt, file_contents)
+    # Build user message (text only — images already OCR'd)
+    text_parts = []
+    for f in file_contents:
+        text = f.get("text_content", "").strip()
+        if text:
+            text_parts.append(f"[Attached file: {f['filename']}]\n{text}")
+    text_parts.append(f"Complete this accounting task:\n\n{prompt}")
+    user_message = "\n\n".join(text_parts)
 
-    contents: list[types.Content] = [
-        types.Content(role="user", parts=user_parts),
-    ]
+    messages = [{"role": "user", "content": user_message}]
 
-    config = types.GenerateContentConfig(
-        system_instruction=system_prompt,
-        tools=TOOLS,
-        temperature=0.0,
-        max_output_tokens=4096,
-    )
+    claude_client = get_claude_client()
 
     iteration = 0
     for iteration in range(MAX_ITERATIONS):
@@ -271,40 +284,44 @@ def run_tool_loop(prompt: str, file_contents: list[dict], client: TripletexClien
 
         logger.info(f"Agent iteration {iteration + 1}")
 
-        response = genai_client.models.generate_content(
-            model=MODEL,
-            contents=contents,
-            config=config,
+        response = claude_client.messages.create(
+            model=CLAUDE_MODEL,
+            system=system_prompt,
+            messages=messages,
+            tools=TOOLS,
+            max_tokens=4096,
+            temperature=0.0,
         )
 
-        # Append model response to conversation
-        model_content = response.candidates[0].content
-        contents.append(model_content)
+        # Process response content blocks
+        assistant_content = response.content
+        messages.append({"role": "assistant", "content": assistant_content})
 
-        # Check for function calls
-        function_calls = response.function_calls
-        if not function_calls:
+        # Check for tool use
+        tool_use_blocks = [b for b in assistant_content if b.type == "tool_use"]
+        if not tool_use_blocks:
             logger.info(f"Agent completed after {iteration + 1} iterations")
             break
 
-        # Execute all function calls and build response parts
-        response_parts: list[types.Part] = []
-        for fc in function_calls:
-            logger.info(f"  Tool: {fc.name}({json.dumps(fc.args, ensure_ascii=False)[:200]})")
+        # Execute tools and build results
+        tool_results = []
+        for block in tool_use_blocks:
+            logger.info(f"  Tool: {block.name}({json.dumps(block.input, ensure_ascii=False)[:200]})")
 
             try:
-                result = execute_tool(fc.name, fc.args, client)
+                result = execute_tool(block.name, block.input, client)
             except Exception as e:
                 logger.error(f"  Tool error: {e}")
                 result = {"success": False, "error": str(e)}
 
-            logger.info(f"  → {result.get('status_code')} success={result.get('success')}")
+            logger.info(f"  -> {result.get('status_code')} success={result.get('success')}")
 
-            response_parts.append(types.Part.from_function_response(
-                name=fc.name,
-                response=result,
-            ))
+            tool_results.append({
+                "type": "tool_result",
+                "tool_use_id": block.id,
+                "content": json.dumps(result),
+            })
 
-        contents.append(types.Content(role="tool", parts=response_parts))
+        messages.append({"role": "user", "content": tool_results})
 
     return {"status": "completed", "iterations": iteration + 1}

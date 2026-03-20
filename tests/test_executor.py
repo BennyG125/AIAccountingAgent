@@ -4,12 +4,14 @@
 from unittest.mock import MagicMock, patch
 
 _mock_genai_client = MagicMock()
+_mock_claude_client = MagicMock()
 with patch("google.genai.Client", return_value=_mock_genai_client):
-    from executor import (
-        execute_plan, _topological_sort, _build_payload,
-        _resolve_pre_lookups, _resolve_by_search, _auto_batch,
-    )
-    from task_registry import BULK_ENDPOINTS
+    with patch("claude_client.get_claude_client", return_value=_mock_claude_client):
+        from executor import (
+            execute_plan, _topological_sort, _build_payload,
+            _resolve_pre_lookups, _resolve_by_search, _auto_batch,
+        )
+        from task_registry import BULK_ENDPOINTS
 
 
 class TestTopologicalSort:
