@@ -1,45 +1,56 @@
+# file_handler.py
+"""Process file attachments from /solve requests.
+
+Output format per file:
+  {
+    "filename": str,
+    "mime_type": str,
+    "text_content": str,        # extracted text (may be empty)
+    "images": [                  # images for multimodal input
+      {"data": bytes, "mime_type": str}
+    ]
+  }
+
+PDFs: extract text + render pages as PNG images (for scanned docs).
+Images: passthrough as multimodal parts.
+CSV/Text: decode to string.
+"""
+
 import base64
 import logging
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
+PDF_DPI = 150  # resolution for PDF→image conversion
+
 
 def process_files(files: list[dict]) -> list[dict]:
-    """Process attached files from the /solve request.
-
-    PDFs are extracted to text via pymupdf.
-    Images are kept as raw bytes for multimodal Gemini input.
-    Text files are decoded to strings.
-    """
     if not files:
         return []
 
     processed = []
     for f in files:
-        filename = f["filename"]
+        filename = f.get("filename", "unknown")
         raw_bytes = base64.b64decode(f["content_base64"])
         mime_type = f.get("mime_type", "")
 
-        logger.info(f"Processing file: {filename} ({mime_type}, {len(raw_bytes)} bytes)")
+        logger.info(f"Processing: {filename} ({mime_type}, {len(raw_bytes)} bytes)")
 
         entry = {
             "filename": filename,
             "mime_type": mime_type,
-            "raw_bytes": raw_bytes,
+            "text_content": "",
+            "images": [],
         }
 
         if mime_type == "application/pdf":
             entry["text_content"] = _extract_pdf_text(raw_bytes)
+            entry["images"] = _pdf_to_images(raw_bytes)
         elif mime_type.startswith("image/"):
-            # Keep raw bytes — Gemini handles images as multimodal input
-            pass
+            entry["images"] = [{"data": raw_bytes, "mime_type": mime_type}]
         else:
-            # Assume text-like content
-            try:
-                entry["text_content"] = raw_bytes.decode("utf-8")
-            except UnicodeDecodeError:
-                entry["text_content"] = raw_bytes.decode("latin-1")
+            # Text/CSV/other — decode to string
+            entry["text_content"] = _decode_text(raw_bytes)
 
         processed.append(entry)
 
@@ -47,16 +58,38 @@ def process_files(files: list[dict]) -> list[dict]:
 
 
 def _extract_pdf_text(pdf_bytes: bytes) -> str:
-    """Extract text from PDF bytes using pymupdf."""
     try:
         import pymupdf
-
         doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
-        text_parts = []
-        for page in doc:
-            text_parts.append(page.get_text())
+        parts = [page.get_text() for page in doc]
         doc.close()
-        return "\n".join(text_parts)
+        return "\n".join(parts).strip()
     except Exception as e:
-        logger.error(f"PDF extraction failed: {e}")
+        logger.error(f"PDF text extraction failed: {e}")
         return ""
+
+
+def _pdf_to_images(pdf_bytes: bytes) -> list[dict]:
+    """Convert each PDF page to a PNG image for Gemini vision."""
+    images = []
+    try:
+        import pymupdf
+        doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+        for page in doc:
+            pix = page.get_pixmap(dpi=PDF_DPI)
+            images.append({
+                "data": pix.tobytes("png"),
+                "mime_type": "image/png",
+            })
+        doc.close()
+    except Exception as e:
+        logger.error(f"PDF→image conversion failed: {e}")
+    return images
+
+
+def _decode_text(raw_bytes: bytes) -> str:
+    """Decode text bytes, trying UTF-8 first then Latin-1."""
+    try:
+        return raw_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw_bytes.decode("latin-1")
