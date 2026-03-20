@@ -64,6 +64,7 @@ def test_client_put():
             "https://example.com/v2/employee/42",
             auth=("0", "token"),
             json={"firstName": "Kari"},
+            params=None,
         )
         assert result["status_code"] == 200
 

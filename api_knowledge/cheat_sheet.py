@@ -272,9 +272,9 @@ Search: ?invoiceDateFrom=X&invoiceDateTo=X&customerId=X&fields=...
 Get single invoice.
 
 ### PUT /invoice/{id}/:payment
-Register payment on an invoice.
-Body: paymentDate (YYYY-MM-DD), paymentTypeId (int), paidAmount (number),
-      paidAmountCurrency (number)
+Register payment. Use QUERY PARAMETERS (not JSON body):
+?paymentDate=YYYY-MM-DD&paymentTypeId=N&paidAmount=X&paidAmountCurrency=1
+Do NOT put these fields in the request body — they MUST be query parameters.
 
 ### PUT /invoice/{id}/:send
 Send invoice. Body: sendType ("EMAIL"|"EHF"|"EFAKTURA"|"AVTALEGIRO"|"VIPPS"),
