@@ -74,6 +74,16 @@ def execute_plan(client: TripletexClient, task_plan: dict) -> dict:
                 result = client.put(endpoint, params=payload.get("params"))
             elif method == "POST":
                 result = client.post(endpoint, body=payload.get("body"))
+                # Retry without vatType if sandbox rejects it (not VAT-registered)
+                if not result["success"] and result.get("status_code") == 422:
+                    error_msgs = result.get("body", {}).get("validationMessages", [])
+                    if any("mva-kode" in (m.get("message", "") or "").lower() for m in error_msgs):
+                        body = payload.get("body", {})
+                        if "vatType" in body:
+                            logger.info(f"exec: step={step} retrying without vatType (sandbox rejects mva-kode)")
+                            del body["vatType"]
+                            result = client.post(endpoint, body=body)
+                            total_api_calls += 1
             elif method == "PUT":
                 result = client.put(endpoint, body=payload.get("body"), params=payload.get("params"))
             elif method == "GET":

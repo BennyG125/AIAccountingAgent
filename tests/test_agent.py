@@ -45,8 +45,8 @@ class TestSystemPrompt:
 
     def test_includes_known_constants(self):
         prompt = agent_module.build_system_prompt()
-        assert "vatType id=3" in prompt
         assert "id=162" in prompt
+        assert "vatType" in prompt  # VAT guidance present (no hardcoded IDs)
 
 
 class TestGeminiOcr:

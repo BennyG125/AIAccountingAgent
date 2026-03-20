@@ -109,11 +109,9 @@ Today's date is {today}.
 1. Minimize API calls — every extra call hurts your efficiency score.
 2. Do NOT search before creating unless the task says "find" or "modify existing".
 3. Use known constants directly — never look them up:
-   - VAT 25%: vatType id=3
-   - VAT 15%: vatType id=5
-   - VAT 0%: vatType id=6
    - NOK currency: id=1
    - Norway country: id=162
+   - VAT types vary per sandbox. Do NOT hardcode vatType IDs. If a product POST fails with "Ugyldig mva-kode", retry WITHOUT vatType — Tripletex assigns a valid default. For orderLines, vatType is optional.
 4. Create entities in dependency order: department → employee, customer + product → order → invoice → payment.
 5. Use response IDs from create calls directly — do not re-fetch.
 6. Embed orderLines in the order POST body (saves a call).

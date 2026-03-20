@@ -192,6 +192,37 @@ class TestExecutePlan:
         assert "Validation" in ctx.error
 
 
+class TestVatTypeRetry:
+    def test_retries_product_without_vattype_on_mva_error(self):
+        """If product POST fails with 'Ugyldig mva-kode', retry without vatType."""
+        client = MagicMock()
+        client.get.return_value = {
+            "success": True, "status_code": 200,
+            "body": {"values": []},
+        }
+        client.post.side_effect = [
+            # First POST: fails with mva-kode error
+            {"success": False, "status_code": 422, "error": "Validering feilet.",
+             "body": {"validationMessages": [
+                 {"field": "Internt felt (vatTypeId)", "message": "Ugyldig mva-kode."}
+             ]}},
+            # Second POST: succeeds (without vatType)
+            {"success": True, "status_code": 201, "body": {"value": {"id": 42}}},
+        ]
+        plan = {"actions": [
+            {"action": "create", "entity": "product",
+             "fields": {"name": "Test", "priceExcludingVatCurrency": 1500, "vatType": 3},
+             "ref": "p1", "depends_on": {}},
+        ]}
+        result = execute_plan(client, plan)
+        assert result["success"] is True
+        assert result["ref_map"]["p1"] == 42
+        # Should have called POST twice (first with vatType, second without)
+        assert client.post.call_count == 2
+        second_body = client.post.call_args_list[1][1].get("body", client.post.call_args_list[1][0][1] if len(client.post.call_args_list[1][0]) > 1 else {})
+        assert "vatType" not in second_body
+
+
 class TestResolvePreLookups:
     def test_injects_ids_from_get(self):
         client = MagicMock()
