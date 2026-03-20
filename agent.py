@@ -157,6 +157,34 @@ def execute_tool(name: str, args: dict, client: TripletexClient) -> dict:
 # Message building
 # ---------------------------------------------------------------------------
 
+def _serialize_content(content: list) -> list[dict]:
+    """Serialize response content blocks for message history.
+
+    Only include fields the API accepts — model_dump() adds internal Pydantic
+    fields (parsed_output, caller) that Anthropic rejects on the next request.
+    """
+    result = []
+    for block in content:
+        if block.type == "thinking":
+            result.append({
+                "type": "thinking",
+                "thinking": block.thinking,
+                "signature": block.signature,
+            })
+        elif block.type == "text":
+            result.append({"type": "text", "text": block.text})
+        elif block.type == "tool_use":
+            result.append({
+                "type": "tool_use",
+                "id": block.id,
+                "name": block.name,
+                "input": block.input,
+            })
+        else:
+            result.append(block.model_dump())
+    return result
+
+
 def build_user_message(prompt: str, file_contents: list[dict]) -> str:
     """Build the user message from prompt and file contents."""
     parts = []
@@ -229,11 +257,10 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
             logger.info(f"Agent completed after {iteration + 1} iterations")
             break
 
-        # Append assistant response — serialize to dicts so adaptive thinking
-        # metadata (e.g. tool_use.caller) round-trips correctly through the API
+        # Append assistant response — strip internal Pydantic fields
         messages.append({
             "role": "assistant",
-            "content": [b.model_dump() for b in response.content],
+            "content": _serialize_content(response.content),
         })
 
         # Execute tool calls
