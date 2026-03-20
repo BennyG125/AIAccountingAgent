@@ -22,16 +22,34 @@ except ImportError:
     wrap_anthropic = None  # type: ignore[assignment]
 
 
-def _try_wrap_anthropic(client: AnthropicVertex) -> AnthropicVertex:
-    """Attempt to wrap the client with LangSmith tracing.
+class _CompletionsStub:
+    """Stub for AnthropicVertex which lacks a completions attribute.
 
-    wrap_anthropic may fail on AnthropicVertex (lacks 'completions' attribute).
-    Returns the original client on any failure.
+    wrap_anthropic patches client.completions.create, but AnthropicVertex
+    only has messages + beta. This stub lets wrap_anthropic succeed so it
+    can patch messages.create, messages.stream, and beta.messages.create
+    with full automatic tracing (token usage, outputs, streaming).
+    """
+
+    @staticmethod
+    def create(*args, **kwargs):
+        raise NotImplementedError("completions not available on AnthropicVertex")
+
+
+def _try_wrap_anthropic(client: AnthropicVertex) -> AnthropicVertex:
+    """Wrap the client with LangSmith tracing.
+
+    AnthropicVertex lacks 'completions' — we add a stub so wrap_anthropic
+    can patch messages.create and messages.stream (the ones we actually use).
     """
     global LANGSMITH_LLM_WRAPPED
     try:
         if wrap_anthropic is None:
             raise ImportError("langsmith not installed")
+        # AnthropicVertex has messages + beta but not completions.
+        # Add a stub so wrap_anthropic doesn't crash.
+        if not hasattr(client, "completions"):
+            client.completions = _CompletionsStub()  # type: ignore[attr-defined]
         wrapped = wrap_anthropic(client)
         LANGSMITH_LLM_WRAPPED = True
         logger.info("LangSmith: Claude client wrapped for automatic LLM tracing")

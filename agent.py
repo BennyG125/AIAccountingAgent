@@ -16,8 +16,7 @@ from google.genai import types
 from claude_client import get_claude_client, CLAUDE_MODEL
 from prompts import build_system_prompt
 from tripletex_api import TripletexClient
-import claude_client as claude_client_mod
-from observability import traceable, trace_llm_call
+from observability import traceable
 
 logger = logging.getLogger(__name__)
 
@@ -243,7 +242,7 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
 
         logger.info(f"Iteration {iteration + 1}/{MAX_ITERATIONS} ({elapsed:.0f}s elapsed)")
 
-        stream_kwargs = dict(
+        with claude_client.messages.stream(
             model=CLAUDE_MODEL,
             system=[{
                 "type": "text",
@@ -254,17 +253,8 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
             tools=TOOLS,
             max_tokens=16000,
             thinking={"type": "adaptive"},
-        )
-
-        if claude_client_mod.LANGSMITH_LLM_WRAPPED:
-            # wrap_anthropic succeeded — LLM call is auto-traced
-            with claude_client.messages.stream(**stream_kwargs) as stream:
-                response = stream.get_final_message()
-        else:
-            # Manual LLM tracing — wrap_anthropic failed on AnthropicVertex
-            with trace_llm_call(f"claude_iteration_{iteration+1}", inputs={"iteration": iteration + 1}):
-                with claude_client.messages.stream(**stream_kwargs) as stream:
-                    response = stream.get_final_message()
+        ) as stream:
+            response = stream.get_final_message()
 
         # Check if agent is done
         if response.stop_reason == "end_turn":
