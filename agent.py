@@ -229,8 +229,12 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
             logger.info(f"Agent completed after {iteration + 1} iterations")
             break
 
-        # Append assistant response (preserves tool_use + thinking blocks)
-        messages.append({"role": "assistant", "content": response.content})
+        # Append assistant response — serialize to dicts so adaptive thinking
+        # metadata (e.g. tool_use.caller) round-trips correctly through the API
+        messages.append({
+            "role": "assistant",
+            "content": [b.model_dump() for b in response.content],
+        })
 
         # Execute tool calls
         tool_use_blocks = [b for b in response.content if b.type == "tool_use"]
