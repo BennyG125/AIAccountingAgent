@@ -262,6 +262,8 @@ Optional: invoiceNumber (int, 0 = auto-generate), comment (string),
           voucher ({id})
 Note: Order must have orderLines. Include orderLines when creating the order,
 or create them separately with POST /order/orderline before invoicing.
+Note: The company must have a bank account registered before invoices can be created.
+If invoice creation fails with bank account error, this is a company setup issue.
 
 ### GET /invoice
 Search: ?invoiceDateFrom=X&invoiceDateTo=X&customerId=X&fields=...
@@ -337,9 +339,9 @@ Reject a supplier invoice.
 
 ### POST /project
 Create a project.
-Required: name (string), projectManager ({id})
+Required: name (string), projectManager ({id}), startDate (YYYY-MM-DD)
 Optional: number (string, auto if null), description, reference,
-          startDate (YYYY-MM-DD), endDate (YYYY-MM-DD),
+          endDate (YYYY-MM-DD),
           customer ({id}), department ({id}), currency ({id}),
           projectCategory ({id}), mainProject ({id}),
           contact ({id}), deliveryAddress ({...}),
@@ -509,12 +511,15 @@ Search. Params: travelExpenseId, fields
 Create a voucher (journal entry).
 Required: date (YYYY-MM-DD), description (string),
           postings (array of Posting objects)
-Each Posting needs: account ({id}), amount (number)
+Each Posting needs: account ({id}), amount (number), row (integer, MUST be >= 1)
+  Row 0 is reserved for system-generated postings and will be rejected.
+  Number rows sequentially starting from 1.
 Optional posting fields: amountCurrency, currency ({id}), description,
           customer ({id}), supplier ({id}), employee ({id}),
           project ({id}), department ({id}), product ({id}),
           vatType ({id}), date (YYYY-MM-DD)
 IMPORTANT: Postings must balance (sum of amounts = 0). Only gross amounts needed.
+IMPORTANT: Look up real account IDs with GET /ledger/account?number=XXXX — do NOT guess IDs.
 
 ### GET /ledger/voucher
 Search: ?dateFrom=X&dateTo=X&number=X&fields=...
@@ -632,35 +637,39 @@ Update delivery address.
 ## COMMON PATTERNS
 
 ### Create Employee
-POST /employee {firstName, lastName, email, ...}
+1. GET /department → capture dept_id from values.0.id (need an existing department)
+2. POST /employee {firstName, lastName, email, userType: "STANDARD", department: {id: dept_id}}
 
 ### Create Customer + Invoice
-1. POST /customer → get customer_id
-2. POST /product → get product_id (if needed)
+1. POST /customer {name} → capture customer_id
+2. POST /product {name} → capture product_id (if needed)
 3. POST /order {customer: {id: customer_id}, orderDate, deliveryDate,
                 orderLines: [{product: {id: product_id}, count, unitPriceExcludingVatCurrency}]}
-   → get order_id
+   → capture order_id
 4. POST /invoice {invoiceDate, invoiceDueDate, orders: [{id: order_id}]}
 
 ### Register Payment on Invoice
 PUT /invoice/{id}/:payment {paymentDate, paymentTypeId, paidAmount}
 
 ### Create Travel Expense with Costs
-1. POST /travelExpense {employee: {id}, title, ...} → get expense_id
-2. POST /travelExpense/cost {travelExpense: {id: expense_id}, ...}
+1. POST /travelExpense {employee: {id}, title} → capture expense_id
+2. POST /travelExpense/cost {travelExpense: {id: expense_id}, date, paymentType: {id},
+   amountCurrencyIncVat: amount}
 
 ### Create Project with Participants
-1. POST /project {name, projectManager: {id}, ...} → get project_id
+1. POST /project {name, projectManager: {id}, startDate} → capture project_id
 2. POST /project/participant {project: {id: project_id}, employee: {id}}
 
 ### Create Department
 POST /department {name, departmentNumber}
 
 ### Create Voucher (Journal Entry)
-POST /ledger/voucher {date, description, postings: [
-  {account: {id: debit_account_id}, amount: 1000},
-  {account: {id: credit_account_id}, amount: -1000}
-]}
+1. GET /ledger/account?number=1000 → capture debit_account_id from values.0.id
+2. GET /ledger/account?number=3000 → capture credit_account_id from values.0.id
+3. POST /ledger/voucher {date, description, postings: [
+     {account: {id: debit_account_id}, amount: 1000, row: 1},
+     {account: {id: credit_account_id}, amount: -1000, row: 2}
+   ]}
 
 ### Tips
 - Norwegian chars (æ, ø, å) work fine — send as UTF-8
@@ -671,4 +680,6 @@ POST /ledger/voucher {date, description, postings: [
 - departmentNumber is a STRING, not int
 - When creating orders, you can embed orderLines directly in the POST body
 - Invoice requires at least one order with at least one order line
+- For voucher postings, row must be >= 1 (row 0 is system-reserved)
+- Look up account IDs with GET /ledger/account?number=XXXX, never guess them
 """
