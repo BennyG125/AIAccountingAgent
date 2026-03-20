@@ -383,6 +383,65 @@ class TestActionDispatch:
         assert "/list" in call_args[0][0] or "/list" in str(call_args)
 
 
+class TestProjectManagerEntitlements:
+    def test_grants_entitlements_before_project_create(self):
+        """PM entitlements should be granted before project POST."""
+        client = MagicMock()
+        client.get.return_value = {
+            "success": True, "status_code": 200,
+            "body": {"values": []},
+        }
+        client.post.return_value = {
+            "success": True, "status_code": 201,
+            "body": {"value": {"id": 1}},
+        }
+        client.put.return_value = {
+            "success": True, "status_code": 200,
+            "body": {},
+        }
+        plan = {"actions": [
+            {"action": "create", "entity": "project",
+             "fields": {"name": "Test Project", "projectManager": 42},
+             "ref": "proj1", "depends_on": {}},
+        ]}
+        result = execute_plan(client, plan)
+        assert result["success"] is True
+        # Verify PUT was called for entitlements
+        put_calls = client.put.call_args_list
+        assert any("/employee/entitlement/:grantEntitlementsByTemplate" in str(call) for call in put_calls)
+
+    def test_grants_entitlements_with_depends_on(self):
+        """PM entitlements should work when projectManager comes from depends_on."""
+        client = MagicMock()
+        client.get.return_value = {
+            "success": True, "status_code": 200,
+            "body": {"values": []},
+        }
+        client.post.side_effect = [
+            {"success": True, "status_code": 201, "body": {"value": {"id": 55}}},  # employee
+            {"success": True, "status_code": 201, "body": {"value": {"id": 1}}},   # project
+        ]
+        client.put.return_value = {
+            "success": True, "status_code": 200,
+            "body": {},
+        }
+        plan = {"actions": [
+            {"action": "create", "entity": "employee",
+             "fields": {"firstName": "Test", "lastName": "PM"},
+             "ref": "emp1", "depends_on": {}},
+            {"action": "create", "entity": "project",
+             "fields": {"name": "Test Project"},
+             "ref": "proj1", "depends_on": {"projectManager": "emp1"}},
+        ]}
+        result = execute_plan(client, plan)
+        assert result["success"] is True
+        put_calls = client.put.call_args_list
+        entitlement_call = [c for c in put_calls if "grantEntitlementsByTemplate" in str(c)]
+        assert len(entitlement_call) == 1
+        # Verify employeeId=55 was used
+        assert "55" in str(entitlement_call[0])
+
+
 class TestCheckExisting:
     def test_reuses_existing_department(self):
         """If department with same number exists, reuse it."""

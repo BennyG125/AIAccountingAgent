@@ -54,6 +54,17 @@ def execute_plan(client: TripletexClient, task_plan: dict) -> dict:
                     continue
 
             payload = _build_payload(action, ref_map)
+
+            # Grant PM entitlements before project creation
+            if action["entity"] == "project" and "projectManager" in payload.get("body", {}):
+                pm = payload["body"]["projectManager"]
+                pm_id = pm.get("id") if isinstance(pm, dict) else pm
+                if pm_id:
+                    logger.info(f"exec: granting PM entitlements to employee {pm_id}")
+                    client.put("/employee/entitlement/:grantEntitlementsByTemplate",
+                               params={"employeeId": str(pm_id)})
+                    total_api_calls += 1
+
             method = payload["method"]
             endpoint = payload["endpoint"]
             logger.info(f"exec: step={step} method={method} endpoint={endpoint} ref={action['ref']}")
