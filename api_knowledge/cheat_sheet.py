@@ -682,4 +682,260 @@ POST /department {name, departmentNumber}
 - Invoice requires at least one order with at least one order line
 - For voucher postings, row must be >= 1 (row 0 is system-reserved)
 - Look up account IDs with GET /ledger/account?number=XXXX, never guess them
+
+---
+
+## ACTIVITY
+
+### POST /activity
+Create an activity (for timesheets/projects).
+Fields: name (string), number (string), description,
+  activityType ("GENERAL_ACTIVITY"|"PROJECT_GENERAL_ACTIVITY"|"PROJECT_SPECIFIC_ACTIVITY"|"TASK"),
+  isChargeable (boolean), rate (number)
+Note: PROJECT_SPECIFIC_ACTIVITY must be created via project/projectActivity.
+
+### GET /activity
+Search: ?name=X&number=X&isProjectActivity=true&isGeneral=true&isChargeable=true&isTask=false&fields=...
+
+### GET /activity/>forTimeSheet
+Find activities valid for timesheet on a date.
+Params: projectId, employeeId, date (YYYY-MM-DD), fields
+
+---
+
+## TIMESHEET ENTRY
+
+### POST /timesheet/entry
+Create a timesheet entry. One entry per employee/date/activity/project combo.
+Fields: activity ({id}), employee ({id}), project ({id}),
+  date (YYYY-MM-DD), hours (number), comment (string)
+
+### PUT /timesheet/entry/{id}
+Update entry. Fields set to 0 or absent will be nulled.
+
+### GET /timesheet/entry
+Search: ?employeeId=X&projectId=X&activityId=X&dateFrom=X&dateTo=X&fields=...
+
+### DELETE /timesheet/entry/{id}
+Delete entry. Query param: version (required).
+
+### GET /timesheet/entry/>totalHours
+Get total hours for employee in period. Params: employeeId, startDate, endDate
+
+### Common Pattern — Create Timesheet Entry
+1. GET /activity or GET /activity/>forTimeSheet → capture activity_id
+2. POST /timesheet/entry {activity: {id: activity_id}, employee: {id}, project: {id}, date: "YYYY-MM-DD", hours: 7.5}
+
+---
+
+## BANK RECONCILIATION
+
+### POST /bank/reconciliation
+Create a bank reconciliation.
+Fields: account ({id}), accountingPeriod ({id}),
+  type ("MANUAL"|"AUTOMATIC"), bankAccountClosingBalanceCurrency (number)
+
+### GET /bank/reconciliation
+Search: ?accountId=X&accountingPeriodId=X&fields=...
+
+### GET /bank/reconciliation/>last
+Get last created reconciliation. Params: accountId
+
+### PUT /bank/reconciliation/{id}
+Update reconciliation (e.g. close it with isClosed: true).
+
+### DELETE /bank/reconciliation/{id}
+Delete reconciliation.
+
+### POST /bank/reconciliation/match
+Create a match between bank transactions and postings.
+Fields: bankReconciliation ({id}), type ("MANUAL"|"APPROVED_SUGGESTION"|"ADJUSTMENT"),
+  transactions (array of {id}), postings (array of {id})
+
+### GET /bank/reconciliation/match
+Search: ?bankReconciliationId=X&approved=true&fields=...
+
+### DELETE /bank/reconciliation/match/{id}
+Delete a match.
+
+---
+
+## BALANCE SHEET
+
+### GET /balanceSheet
+Get balance sheet (saldobalanse). Returns rows with account balances.
+Required params: dateFrom (YYYY-MM-DD), dateTo (YYYY-MM-DD)
+Optional: accountNumberFrom, accountNumberTo, customerId, employeeId,
+  departmentId, projectId, includeSubProjects (boolean),
+  includeActiveAccountsWithoutMovements (boolean)
+Response: {rows: [...], sumBalanceIn, sumBalanceChange, sumBalanceOut}
+
+---
+
+## ASSET
+
+### POST /asset
+Create a fixed asset.
+Fields: name (string), description, dateOfAcquisition (YYYY-MM-DD),
+  acquisitionCost (number), account ({id}), lifetime (integer, months),
+  depreciationAccount ({id}), depreciationMethod ("STRAIGHT_LINE"|"TAX_RELATED"|"MANUAL"|"CUSTOMIZED_AMOUNT"|"NO_DEPRECIATION"),
+  depreciationFrom (YYYY-MM-DD), department ({id}), project ({id})
+
+### PUT /asset/{id}
+Update asset.
+
+### GET /asset
+Search: ?name=X&description=X&fields=...
+
+### DELETE /asset/{id}
+Delete asset. Check /asset/canDelete/{id} first.
+
+---
+
+## INCOMING INVOICE
+
+### POST /incomingInvoice
+Create a supplier invoice. [BETA]
+Body (IncomingInvoiceAggregateExternalWrite):
+  invoiceHeader: {vendorId (int), invoiceDate (YYYY-MM-DD), dueDate (YYYY-MM-DD),
+    currencyId (int), invoiceAmount (number, incl VAT), description,
+    invoiceNumber (string), voucherTypeId (int), purchaseOrderId (int)}
+  orderLines: array (optional)
+  version: integer
+Query param: sendTo (optional)
+
+### GET /incomingInvoice/search
+Search: ?vendorId=X&invoiceDateFrom=X&invoiceDateTo=X&invoiceNumber=X&status=X&fields=...
+
+### GET /incomingInvoice/{voucherId}
+Get invoice by voucher ID.
+
+### POST /incomingInvoice/{voucherId}/addPayment
+Register payment on incoming invoice.
+Body: paymentDate (YYYY-MM-DD), amountCurrency (number),
+  creditorIbanOrBban (string), kidOrReceiverReference (string),
+  useDefaultPaymentType (boolean), partialPayment (boolean)
+
+---
+
+## PURCHASE ORDER
+
+### POST /purchaseOrder
+Create purchase order. Requires Logistics Basic module.
+Fields: supplier ({id}), deliveryDate (YYYY-MM-DD),
+  project ({id}), department ({id}), ourContact ({id}),
+  receiverEmail, comments, currency ({id}), isClosed (boolean)
+
+### GET /purchaseOrder
+Search: ?supplierId=X&number=X&deliveryDateFrom=X&deliveryDateTo=X&isClosed=false&fields=...
+
+### PUT /purchaseOrder/{id}
+Update purchase order.
+
+### DELETE /purchaseOrder/{id}
+Delete purchase order.
+
+### POST /purchaseOrder/orderline
+Create purchase order line.
+Fields: purchaseOrder ({id}), product ({id}), description,
+  count (number), unitCostCurrency (number), discount (number %)
+
+### PUT /purchaseOrder/{id}/:send
+Send PO. Query param: sendType ("EMAIL"|"FTP")
+
+---
+
+## DIVISION
+
+### POST /division
+Create a division (organizational unit for employment).
+Fields: name (string), startDate (YYYY-MM-DD), endDate,
+  organizationNumber (string), municipality ({id})
+
+### GET /division
+Search: ?query=X&fields=...
+
+### PUT /division/{id}
+Update division.
+
+---
+
+## PROJECT HOURLY RATES
+
+### POST /project/hourlyRates
+Create project hourly rate.
+Fields: project ({id}), startDate (YYYY-MM-DD),
+  hourlyRateModel ("TYPE_PREDEFINED_HOURLY_RATES"|"TYPE_PROJECT_SPECIFIC_HOURLY_RATES"|"TYPE_FIXED_HOURLY_RATE"),
+  fixedRate (number — when model is TYPE_FIXED_HOURLY_RATE),
+  projectSpecificRates (array — when model is TYPE_PROJECT_SPECIFIC_HOURLY_RATES),
+  showInProjectOrder (boolean)
+
+### GET /project/hourlyRates
+Search: ?projectId=X&type=X&startDateFrom=X&startDateTo=X&fields=...
+
+### POST /project/hourlyRates/projectSpecificRates
+Create specific rate for employee/activity combo.
+Fields: projectHourlyRate ({id}), employee ({id}), activity ({id}),
+  hourlyRate (number)
+
+---
+
+## PROJECT ORDER LINE
+
+### POST /project/orderline
+Create project order line. [BETA]
+Fields: project ({id}), product ({id}), description (string),
+  count (number), unitPriceExcludingVatCurrency (number),
+  unitCostCurrency (number), vatType ({id}), discount (number %),
+  date (YYYY-MM-DD), isChargeable (boolean), markup (number %)
+
+### GET /project/orderline
+Search: ?projectId=X&isBudget=false&fields=...
+
+### PUT /project/orderline/{id}
+Update order line.
+
+### DELETE /project/orderline/{id}
+Delete order line.
+
+---
+
+## PROJECT SETTINGS (via PUT /project/{id})
+
+To configure fixed-price or price-ceiling projects, use PUT /project/{id}:
+  isFixedPrice: true → makes it a fixed-price project
+  fixedprice: (number) → the fixed price amount
+  isPriceCeiling: true → enables price ceiling on hourly-rate projects
+  priceCeilingAmount: (number) → ceiling amount
+Include version field. These are regular project fields, not a separate endpoint.
+
+---
+
+## INVENTORY
+
+### POST /inventory
+Create an inventory (warehouse).
+Fields: name (string), number (string), isMainInventory (boolean),
+  isInactive (boolean), description, email, phone, address ({...})
+
+### GET /inventory
+Search: ?name=X&isMainInventory=true&isInactive=false&fields=...
+
+### PUT /inventory/{id}
+Update inventory.
+
+### DELETE /inventory/{id}
+Delete inventory.
+
+### POST /inventory/location
+Create inventory location within a warehouse. Requires Logistics Basic.
+Fields: inventory ({id}), name (string), isInactive (boolean)
+
+### GET /inventory/location
+Search: ?warehouseId=X&name=X&isInactive=false&fields=...
+
+### Common Pattern — Set Up Inventory
+1. POST /inventory {name: "Main Warehouse", isMainInventory: true} → capture inventory_id
+2. POST /inventory/location {inventory: {id: inventory_id}, name: "Shelf A"}
+3. PUT /product/{id} {isStockItem: true} to enable stock tracking on a product
 """
