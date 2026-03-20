@@ -1,8 +1,8 @@
 # Parse Fix + Registry Expansion — Design Spec
 
-**Goal:** Fix the deterministic parse (empty `fields` bug) and expand the entity registry to cover all competition task categories, including update/delete/action patterns.
+**Goal:** Fix the deterministic parse (empty `fields` bug) and expand the entity registry to cover the full Tripletex API surface, including update/delete/action patterns — not just the 7 known competition categories.
 
-**Context:** The deterministic execution layer (Tasks 1-4, branch `feat/tool-use-agent`) works end-to-end but Gemini returns empty `fields` objects because the JSON schema lacks guidance. Additionally, the registry only covers 12 create-only entity types, missing 8 entity types and all action patterns needed for the full competition task set.
+**Context:** The deterministic execution layer (Tasks 1-4, branch `feat/tool-use-agent`) works end-to-end but Gemini returns empty `fields` objects because the JSON schema lacks guidance. Additionally, the registry only covers 12 create-only entity types. The competition has 30 tasks across 3 tiers with 56 variants each — Tier 3 is undocumented and could involve any Tripletex endpoint. We need near-complete API coverage to avoid surprises.
 
 ### Migration: consolidating lookup mechanisms
 
@@ -113,6 +113,24 @@ For voucher reversal:
 
 For employee admin/entitlements:
 - action="grant_entitlements", search_fields={fields to find the employee}, fields={entitlementTemplate}
+
+For travel expense workflow:
+- action="approve_travel_expense", search_fields={fields to find the travel expense}, fields={}
+- action="deliver_travel_expense", search_fields={fields to find the travel expense}, fields={}
+
+For supplier invoice actions:
+- action="approve_supplier_invoice", search_fields={fields to find the supplier invoice}, fields={}
+- action="reject_supplier_invoice", search_fields={fields to find the supplier invoice}, fields={}
+- action="pay_supplier_invoice", search_fields={fields to find the supplier invoice}, fields={paymentType, amount, paymentDate}
+
+For invoice reminder:
+- action="create_reminder", search_fields={fields to find the invoice}, fields={}
+
+For company updates (singleton — no search needed):
+- action="update", entity="company", search_fields={}, fields={fields to change}
+
+For salary:
+- action="create", entity="salary_transaction", fields={date, month, year, payslips}
 ```
 
 ---
@@ -143,11 +161,12 @@ For employee admin/entitlements:
 
 Also remove `LOOKUP_CONSTANTS` dict entirely — `nok`, `norway`, and VAT IDs stay in `KNOWN_CONSTANTS`.
 
-### New entity types (8 additions → 20 total)
+### New entity types (18 additions → 30 total)
 
 ```python
 # task_registry.py additions
 
+# --- Employee ---
 "employee_employment": {
     "endpoint": "/employee/employment",
     "method": "POST",
@@ -162,18 +181,46 @@ Also remove `LOOKUP_CONSTANTS` dict entirely — `nok`, `norway`, and VAT IDs st
     "defaults": {},
     "auto_generate": ["date"],
 },
+
+# --- Customer/Supplier ---
 "supplier": {
     "endpoint": "/supplier",
     "method": "POST",
     "required": ["name"],
     "defaults": {},
 },
+"customer_category": {
+    "endpoint": "/customer/category",
+    "method": "POST",
+    "required": ["name", "number", "type"],
+    "defaults": {},
+},
+
+# --- Product ---
+"product_unit": {
+    "endpoint": "/product/unit",
+    "method": "POST",
+    "required": ["name", "nameShort", "commonCode"],
+    "defaults": {},
+},
+
+# --- Order ---
+"order_line": {
+    "endpoint": "/order/orderline",
+    "method": "POST",
+    "required": ["order", "product"],
+    "defaults": {},
+},
+
+# --- Project ---
 "project_participant": {
     "endpoint": "/project/participant",
     "method": "POST",
     "required": ["project", "employee"],
     "defaults": {},
 },
+
+# --- Travel Expense sub-types ---
 "travel_expense_per_diem": {
     "endpoint": "/travelExpense/perDiemCompensation",
     "method": "POST",
@@ -204,11 +251,42 @@ Also remove `LOOKUP_CONSTANTS` dict entirely — `nok`, `norway`, and VAT IDs st
         "rateCategory": "/travelExpense/rateCategory",
     },
 },
-"order_line": {
-    "endpoint": "/order/orderline",
+
+# --- Ledger ---
+"ledger_account": {
+    "endpoint": "/ledger/account",
     "method": "POST",
-    "required": ["order", "product"],
+    "required": ["number", "name"],
     "defaults": {},
+},
+
+# --- Salary ---
+"salary_transaction": {
+    "endpoint": "/salary/transaction",
+    "method": "POST",
+    "required": ["date", "month", "year"],
+    "defaults": {},
+    "auto_generate": ["date"],
+},
+
+# --- Delivery Address ---
+"delivery_address": {
+    "endpoint": "/deliveryAddress",
+    "method": "PUT",
+    "required": [],
+    "defaults": {},
+},
+
+# --- Company ---
+# Note: company is a singleton — update only, no create/delete.
+# Handled via the "update" action pattern on entity "company".
+# We register it so SEARCH_PARAMS and the pattern matcher recognize it.
+"company": {
+    "endpoint": "/company",
+    "method": "PUT",
+    "required": [],
+    "defaults": {},
+    "singleton": True,  # No search needed, GET /company/{id} with known ID
 },
 ```
 
@@ -224,6 +302,7 @@ schema in `ENTITY_SCHEMAS` provides the search endpoint.
 # task_registry.py — new section
 
 ACTION_SCHEMAS = {
+    # --- Generic actions (work on any entity in ENTITY_SCHEMAS) ---
     "update": {
         "flow": "search_put",
         "description": "Search for entity by search_fields, then PUT with merged fields",
@@ -232,6 +311,8 @@ ACTION_SCHEMAS = {
         "flow": "search_delete",
         "description": "Search for entity by search_fields, then DELETE",
     },
+
+    # --- Invoice actions ---
     "send_invoice": {
         "entity": "invoice",
         "flow": "search_action",
@@ -244,12 +325,22 @@ ACTION_SCHEMAS = {
         "action_endpoint": "/invoice/{id}/:createCreditNote",
         "action_method": "PUT",
     },
+    "create_reminder": {
+        "entity": "invoice",
+        "flow": "search_action",
+        "action_endpoint": "/invoice/{id}/:createReminder",
+        "action_method": "PUT",
+    },
+
+    # --- Voucher actions ---
     "reverse_voucher": {
         "entity": "voucher",
         "flow": "search_action",
         "action_endpoint": "/ledger/voucher/{id}/:reverse",
         "action_method": "PUT",
     },
+
+    # --- Employee actions ---
     "grant_entitlements": {
         "entity": "employee",
         "flow": "search_action",
@@ -258,6 +349,50 @@ ACTION_SCHEMAS = {
         "action_params_from_search": {"employeeId": "id"},
         # Note: this endpoint uses query params, not {id} in path.
         # The executor passes employeeId as a query param from the searched entity's id.
+    },
+
+    # --- Travel expense workflow actions ---
+    "approve_travel_expense": {
+        "entity": "travel_expense",
+        "flow": "search_action",
+        "action_endpoint": "/travelExpense/:approve",
+        "action_method": "PUT",
+        "body_from_search": True,
+        # Body is a list of travel expense IDs: [{"id": found_id}]
+    },
+    "deliver_travel_expense": {
+        "entity": "travel_expense",
+        "flow": "search_action",
+        "action_endpoint": "/travelExpense/:deliver",
+        "action_method": "PUT",
+        "body_from_search": True,
+    },
+    "unapprove_travel_expense": {
+        "entity": "travel_expense",
+        "flow": "search_action",
+        "action_endpoint": "/travelExpense/:unapprove",
+        "action_method": "PUT",
+        "body_from_search": True,
+    },
+
+    # --- Supplier invoice actions ---
+    "approve_supplier_invoice": {
+        "entity": "supplier_invoice",
+        "flow": "search_action",
+        "action_endpoint": "/supplierInvoice/{id}/:approve",
+        "action_method": "PUT",
+    },
+    "reject_supplier_invoice": {
+        "entity": "supplier_invoice",
+        "flow": "search_action",
+        "action_endpoint": "/supplierInvoice/{id}/:reject",
+        "action_method": "PUT",
+    },
+    "pay_supplier_invoice": {
+        "entity": "supplier_invoice",
+        "flow": "search_action",
+        "action_endpoint": "/supplierInvoice/{id}/:addPayment",
+        "action_method": "POST",
     },
 }
 ```
@@ -279,6 +414,14 @@ SEARCH_PARAMS = {
     "project": {"name": "name", "number": "number"},
     "voucher": {"number": "number", "dateFrom": "dateFrom", "dateTo": "dateTo"},
     "travel_expense": {"employeeId": "employeeId"},
+    "customer_category": {"name": "name", "number": "number"},
+    "product_unit": {"name": "name", "nameShort": "nameShort"},
+    "supplier_invoice": {},  # search by supplierInvoice GET params
+    "ledger_account": {"number": "number", "name": "name"},
+    "salary_transaction": {},  # rare — fallback handles complex search
+    "delivery_address": {},  # searched via GET /deliveryAddress
+    "employee_employment": {"employeeId": "employeeId"},
+    "company": {},  # singleton — GET /company/{id} with known ID
 }
 ```
 
@@ -286,28 +429,45 @@ SEARCH_PARAMS = {
 
 ```python
 DEPENDENCIES = {
-    # existing
+    # --- Core entities (no deps) ---
     "department": [],
-    "employee": ["department"],
     "customer": [],
     "product": [],
+    "supplier": [],
+    "customer_category": [],
+    "product_unit": [],
+    "ledger_account": [],
+    "voucher": [],
+    "company": [],
+    "delivery_address": [],
+
+    # --- Employee chain ---
+    "employee": ["department"],
+    "employee_employment": ["employee"],
+    "employee_employment_details": ["employee_employment"],
+
+    # --- Customer chain ---
     "contact": ["customer"],
+
+    # --- Order → Invoice → Payment chain ---
     "order": ["customer", "product"],
     "order_line": ["order", "product"],
     "invoice": ["order"],
     "register_payment": ["invoice"],
+
+    # --- Travel expense chain ---
     "travel_expense": ["employee"],
     "travel_expense_cost": ["travel_expense"],
-    "project": ["employee"],
-    "voucher": [],
-    # new
-    "supplier": [],
-    "employee_employment": ["employee"],
-    "employee_employment_details": ["employee_employment"],
-    "project_participant": ["project", "employee"],
     "travel_expense_per_diem": ["travel_expense"],
     "travel_expense_mileage": ["travel_expense"],
     "travel_expense_accommodation": ["travel_expense"],
+
+    # --- Project chain ---
+    "project": ["employee"],
+    "project_participant": ["project", "employee"],
+
+    # --- Salary ---
+    "salary_transaction": [],
 }
 ```
 
@@ -437,8 +597,13 @@ elif action_type in ACTION_SCHEMAS:
             param: found[source_field]
             for param, source_field in action_schema["action_params_from_search"].items()
         }
+    # Handle body_from_search (e.g., travel expense approve/deliver takes list of IDs)
+    if action_schema.get("body_from_search"):
+        body = [{"id": found["id"]}]
     if action_schema["action_method"] == "PUT":
         result = client.put(endpoint, body=body, params=params)
+    elif action_schema["action_method"] == "POST":
+        result = client.post(endpoint, body=body)
     elif action_schema["action_method"] == "DELETE":
         result = client.delete(endpoint)
 ```
@@ -449,9 +614,20 @@ Replaces the existing function in `planner.py`:
 
 ```python
 DETERMINISTIC_ACTIONS = {
+    # Creates
     "create", "register_payment", "lookup",
+    # Generic modifications
     "update", "delete",
-    "send_invoice", "create_credit_note", "reverse_voucher", "grant_entitlements",
+    # Invoice actions
+    "send_invoice", "create_credit_note", "create_reminder",
+    # Voucher actions
+    "reverse_voucher",
+    # Employee actions
+    "grant_entitlements",
+    # Travel expense workflow
+    "approve_travel_expense", "deliver_travel_expense", "unapprove_travel_expense",
+    # Supplier invoice actions
+    "approve_supplier_invoice", "reject_supplier_invoice", "pay_supplier_invoice",
 }
 
 def is_known_pattern(task_plan: dict | None) -> bool:
@@ -532,57 +708,93 @@ New tests replace them:
 
 | Endpoint | Registry Entity | Det. Path | Fallback |
 |---|---|---|---|
+| **Department** | | | |
 | POST /department | `department` | create | yes |
 | PUT /department/{id} | `department` | update | yes |
 | DELETE /department/{id} | `department` | delete | yes |
+| **Employee** | | | |
 | POST /employee | `employee` | create | yes |
 | PUT /employee/{id} | `employee` | update | yes |
 | POST /employee/employment | `employee_employment` | create | yes |
+| PUT /employee/employment/{id} | `employee_employment` | update | yes |
 | POST /employee/employment/details | `employee_employment_details` | create | yes |
 | PUT /employee/entitlement/:grant... | — | grant_entitlements | yes |
+| **Customer** | | | |
 | POST /customer | `customer` | create | yes |
 | PUT /customer/{id} | `customer` | update | yes |
 | DELETE /customer/{id} | `customer` | delete | yes |
+| POST /customer/category | `customer_category` | create | yes |
+| **Contact** | | | |
 | POST /contact | `contact` | create | yes |
 | PUT /contact/{id} | `contact` | update | yes |
+| **Product** | | | |
 | POST /product | `product` | create | yes |
 | PUT /product/{id} | `product` | update | yes |
 | DELETE /product/{id} | `product` | delete | yes |
+| POST /product/unit | `product_unit` | create | yes |
+| **Supplier** | | | |
 | POST /supplier | `supplier` | create | yes |
 | PUT /supplier/{id} | `supplier` | update | yes |
 | DELETE /supplier/{id} | `supplier` | delete | yes |
+| **Supplier Invoice** | | | |
+| POST /supplierInvoice/{id}/:addPayment | — | pay_supplier_invoice | yes |
+| PUT /supplierInvoice/{id}/:approve | — | approve_supplier_invoice | yes |
+| PUT /supplierInvoice/{id}/:reject | — | reject_supplier_invoice | yes |
+| **Order** | | | |
 | POST /order | `order` | create | yes |
 | PUT /order/{id} | `order` | update | yes |
 | DELETE /order/{id} | `order` | delete | yes |
 | POST /order/orderline | `order_line` | create | yes |
+| **Invoice** | | | |
 | POST /invoice | `invoice` | create | yes |
 | PUT /invoice/{id}/:payment | `register_payment` | create | yes |
 | PUT /invoice/{id}/:send | — | send_invoice | yes |
 | PUT /invoice/{id}/:createCreditNote | — | create_credit_note | yes |
+| PUT /invoice/{id}/:createReminder | — | create_reminder | yes |
+| **Travel Expense** | | | |
 | POST /travelExpense | `travel_expense` | create | yes |
 | DELETE /travelExpense/{id} | `travel_expense` | delete | yes |
+| PUT /travelExpense/:approve | — | approve_travel_expense | yes |
+| PUT /travelExpense/:deliver | — | deliver_travel_expense | yes |
+| PUT /travelExpense/:unapprove | — | unapprove_travel_expense | yes |
 | POST /travelExpense/cost | `travel_expense_cost` | create | yes |
 | POST /travelExpense/perDiemCompensation | `travel_expense_per_diem` | create | yes |
 | POST /travelExpense/mileageAllowance | `travel_expense_mileage` | create | yes |
 | POST /travelExpense/accommodationAllowance | `travel_expense_accommodation` | create | yes |
+| **Project** | | | |
 | POST /project | `project` | create | yes |
 | PUT /project/{id} | `project` | update | yes |
 | DELETE /project/{id} | `project` | delete | yes |
 | POST /project/participant | `project_participant` | create | yes |
+| **Ledger / Voucher** | | | |
 | POST /ledger/voucher | `voucher` | create | yes |
 | PUT /ledger/voucher/{id}/:reverse | — | reverse_voucher | yes |
 | DELETE /ledger/voucher/{id} | `voucher` | delete | yes |
-| GET /ledger/account | — | (pre-lookup) | yes |
+| POST /ledger/account | `ledger_account` | create | yes |
+| PUT /ledger/account/{id} | `ledger_account` | update | yes |
+| **Company** | | | |
+| PUT /company | `company` | update | yes |
+| **Salary** | | | |
+| POST /salary/transaction | `salary_transaction` | create | yes |
+| **Delivery Address** | | | |
+| PUT /deliveryAddress/{id} | `delivery_address` | update | yes |
+| **Pre-lookups (GET, cached per-request)** | | | |
 | GET /travelExpense/costCategory | — | (pre-lookup) | yes |
 | GET /travelExpense/paymentType | — | (pre-lookup) | yes |
 | GET /travelExpense/rateCategory | — | (pre-lookup) | yes |
 | GET /travelExpense/rate | — | (pre-lookup) | yes |
 | GET /invoice/paymentType | — | (pre-lookup) | yes |
+| GET /department | — | (pre-lookup) | yes |
+| **Fallback only (read-only / rare)** | | | |
 | GET /country, /currency, /municipality | — | — | yes |
-| POST /salary/transaction | — | — | yes |
-| GET /company, PUT /company | — | — | yes |
+| GET /salary/type, /salary/payslip | — | — | yes |
+| GET /company/salesmodules | — | — | yes |
+| POST /ledger/voucher/{id}/attachment | — | — | yes (multipart) |
+| POST /*/list (bulk creates) | — | — | yes |
+| All GET single-entity and list endpoints | — | — | yes |
 
-**Coverage: 35 endpoints deterministic, all endpoints via fallback.**
+**Coverage: ~65 endpoint patterns deterministic, all 99 endpoints via fallback.**
+**Fallback-only: read-only GETs, bulk/list creates, voucher attachments (multipart), sales modules.**
 
 ---
 
@@ -591,7 +803,7 @@ New tests replace them:
 | File | Action | What changes |
 |---|---|---|
 | `planner.py` | Modify | Schema description + search_fields, few-shot examples, action types in prompt |
-| `task_registry.py` | Modify | 8 new entities, ACTION_SCHEMAS, SEARCH_PARAMS, pre_lookups, updated DEPENDENCIES |
+| `task_registry.py` | Modify | 18 new entities (→30 total), ACTION_SCHEMAS (15 actions), SEARCH_PARAMS, pre_lookups, updated DEPENDENCIES |
 | `executor.py` | Modify | `_resolve_pre_lookups()`, `_resolve_by_search()`, action dispatch in execute_plan |
 | `tests/test_task_registry.py` | Modify | Tests for new entities, ACTION_SCHEMAS, SEARCH_PARAMS |
 | `tests/test_planner.py` | Modify | Tests for updated schema, action patterns in is_known_pattern |
@@ -608,9 +820,9 @@ New tests replace them:
 - Verify search_fields populated for update/delete actions
 
 ### Registry tests (test_task_registry.py)
-- 20 entities have required keys (endpoint, method, required)
+- 30 entities have required keys (endpoint, method, required)
 - No DAG cycles in expanded DEPENDENCIES
-- ACTION_SCHEMAS keys are valid, each has flow + action_endpoint/action_method
+- ACTION_SCHEMAS: 15 action types, each has flow + action_endpoint/action_method (where applicable)
 - SEARCH_PARAMS covers all entities that support update/delete
 - `pre_lookups` replaces old `lookup_constants_inject` and `lookup_defaults` — verify neither exists
 
