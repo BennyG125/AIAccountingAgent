@@ -16,6 +16,7 @@ from google.genai import types
 from claude_client import get_claude_client, CLAUDE_MODEL
 from prompts import build_system_prompt
 from tripletex_api import TripletexClient
+from observability import traceable
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +103,7 @@ TOOLS = [
 # Gemini OCR
 # ---------------------------------------------------------------------------
 
+@traceable(run_type="llm", name="gemini_ocr")
 def gemini_ocr(file_contents: list[dict]) -> str:
     """Use Gemini to extract text from images. Returns OCR text or empty string."""
     image_parts = []
@@ -132,6 +134,7 @@ def gemini_ocr(file_contents: list[dict]) -> str:
 # Tool execution
 # ---------------------------------------------------------------------------
 
+@traceable(run_type="tool", name="execute_tool")
 def execute_tool(name: str, args: dict, client: TripletexClient) -> dict:
     """Execute a single tool call against the Tripletex API."""
     try:
@@ -203,6 +206,7 @@ def build_user_message(prompt: str, file_contents: list[dict]) -> str:
 # Main agent entry point
 # ---------------------------------------------------------------------------
 
+@traceable(name="run_agent")
 def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_token: str) -> dict:
     """Run the pure Claude agentic loop.
 

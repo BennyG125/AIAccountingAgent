@@ -8,8 +8,11 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 
+import hashlib
+
 from agent import run_agent
 from file_handler import process_files
+from observability import traceable
 from tripletex_api import TripletexClient
 
 load_dotenv()
@@ -79,6 +82,20 @@ def _preconfigure_bank_account(base_url: str, session_token: str) -> None:
         logger.warning(f"Bank pre-config failed (non-fatal): {e}")
 
 
+@traceable(name="handle_accounting_task")
+def _handle_task(prompt: str, files: list, base_url: str, session_token: str,
+                 metadata: dict | None = None) -> dict | None:
+    """Core task handler — wrapped with LangSmith tracing.
+
+    Args:
+        metadata: Competition metadata (prompt_hash, prompt_preview, file_count).
+                  Captured by @traceable as a trace input for LangSmith filtering.
+    """
+    file_contents = process_files(files)
+    _preconfigure_bank_account(base_url, session_token)
+    return run_agent(prompt, file_contents, base_url, session_token)
+
+
 @app.post("/")
 @app.post("/solve")
 async def solve(request: Request):
@@ -101,9 +118,12 @@ async def solve(request: Request):
 
     result = None
     try:
-        file_contents = process_files(files)
-        _preconfigure_bank_account(base_url, session_token)
-        result = run_agent(prompt, file_contents, base_url, session_token)
+        metadata = {
+            "prompt_hash": hashlib.sha256(prompt.encode()).hexdigest()[:8],
+            "prompt_preview": prompt[:80],
+            "file_count": len(files),
+        }
+        result = _handle_task(prompt, files, base_url, session_token, metadata=metadata)
         logger.info(f"Agent: {result}")
     except Exception as e:
         logger.error(f"Agent error: {e}", exc_info=True)
