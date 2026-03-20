@@ -221,15 +221,14 @@ def execute_plan(client: Any, plan: dict) -> dict:
         raw_endpoint = step.get("endpoint", "")
 
         # -- 1-3: Substitute variables --
+        endpoint = raw_endpoint  # default before substitution
         try:
             endpoint = _substitute_value(raw_endpoint, variables)
             body = _substitute_value(step.get("body"), variables) if "body" in step else None
             params = _substitute_value(step.get("params"), variables) if "params" in step else None
         except ValueError as e:
             logger.error(f"Step {i}: substitution error: {e}")
-            # Use raw endpoint if substitution failed before endpoint resolved
-            ep = endpoint if "endpoint" in dir() and isinstance(endpoint, str) else raw_endpoint
-            results.append(_build_result(i, method, ep, False, error=str(e)))
+            results.append(_build_result(i, method, endpoint, False, error=str(e)))
             return {
                 "success": False,
                 "variables": variables,
@@ -246,7 +245,7 @@ def execute_plan(client: Any, plan: dict) -> dict:
         try:
             response = _dispatch(client, method, endpoint, body, params)
             _validate_client_response(response)
-        except (ValueError, Exception) as e:
+        except Exception as e:
             logger.error(f"Step {i}: dispatch/validation error: {e}")
             results.append(_build_result(i, method, endpoint, False, error=str(e)))
             return {
