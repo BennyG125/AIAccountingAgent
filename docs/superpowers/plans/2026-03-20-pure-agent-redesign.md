@@ -1,14 +1,29 @@
-# Pure Agent Redesign — Implementation Plan
+# Pure Agent Redesign — Implementation Plan (v2)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the two-path deterministic+fallback architecture with a single Claude Opus 4.6 agentic loop using 4 REST tools and a recipe-enhanced system prompt.
+**Goal:** Replace the two-path deterministic+fallback architecture with a single Claude Opus 4.6 agentic loop using 4 REST tools and a recipe-enhanced system prompt. Cover all 12 observed competition task types + anticipated Tier 3.
 
-**Architecture:** Single Claude agentic loop with streaming, adaptive thinking, and prompt caching. Gemini retained for OCR only. System prompt contains full API reference, step-by-step recipes for known flows, and guidance for unknown Tier 3 tasks.
+**Architecture:** Single Claude agentic loop with streaming, adaptive thinking, and prompt caching. Gemini retained for OCR only. System prompt imports the 941-line cheat sheet from `api_knowledge/cheat_sheet.py` and adds rules + recipes for all known and anticipated task categories.
 
-**Tech Stack:** Python 3.11, FastAPI, anthropic[vertex] (AnthropicVertex), google-genai (Gemini OCR), Docker, Cloud Run
+**Tech Stack:** Python 3.11 (Docker) / 3.13 (local), FastAPI, anthropic[vertex] (AnthropicVertex), google-genai (Gemini OCR), Docker, Cloud Run (europe-north1)
 
 **Spec:** `docs/superpowers/specs/2026-03-20-pure-agent-redesign.md`
+
+**Ground Truth:** `docs/analysis/competition-ground-truth.md` — 25 real competition requests, 12 task types
+
+---
+
+## What Changed Since v1
+
+| Issue | v1 Plan | v2 Fix |
+|-------|---------|--------|
+| Deletes api_knowledge/ | Duplicated API ref in prompts.py (~300 lines) | **Keep** api_knowledge/cheat_sheet.py (941 lines), import it |
+| Recipes incomplete | 10 recipes for basic flows | **16 recipes** covering all 12 competition task types + 4 Tier 3 |
+| Missing executor behaviors | vatType retry, PM entitlements lost | Explicit gotchas/recipes in system prompt |
+| main.py changes | "Simplify, minimal changes" | **Keep as-is** — already correct with GCS logging |
+| System prompt size | "~3000 tokens" | **~6000 tokens** (cheat sheet ~4K + rules/recipes ~2K) |
+| Tests reference old routing | Plan rewrites all tests | Preserve working tests, only rewrite routing tests |
 
 ---
 
@@ -16,27 +31,33 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `prompts.py` | **Create** | System prompt: API reference, recipes, rules, constants |
-| `agent.py` | **Rewrite** | Claude agentic loop (streaming, timeout, tools, OCR) |
-| `main.py` | **Simplify** | FastAPI endpoint — parse payload, call agent, return completed |
-| `tripletex_api.py` | **Keep** | Tripletex HTTP wrapper (unchanged) |
-| `file_handler.py` | **Keep** | PDF/image/text processing (unchanged) |
-| `claude_client.py` | **Keep** | AnthropicVertex cached client (unchanged) |
-| `planner.py` | **Delete** | Replaced by Claude's reasoning |
-| `executor.py` | **Delete** | Replaced by tool-use loop |
-| `task_registry.py` | **Delete** | Replaced by system prompt recipes |
-| `api_knowledge/` | **Delete** | Merged into prompts.py |
-| `tests/test_agent.py` | **Rewrite** | Tests for new agent loop |
-| `tests/test_prompts.py` | **Create** | Tests for system prompt construction |
-| `tests/test_planner.py` | **Delete** | No planner in new architecture |
-| `tests/test_executor.py` | **Delete** | No executor in new architecture |
-| `tests/test_task_registry.py` | **Delete** | No registry in new architecture |
+| `prompts.py` | **Create** | Rules, recipes, gotchas. Imports cheat sheet from api_knowledge. |
+| `agent.py` | **Rewrite** | Claude agentic loop (streaming, timeout, tools, OCR). No planner/executor. |
+| `main.py` | **Keep as-is** | Already correct: GCS logging, bank pre-config, both POST routes. |
+| `tripletex_api.py` | **Keep** | Unchanged. |
+| `file_handler.py` | **Keep** | Unchanged. |
+| `claude_client.py` | **Keep** | Unchanged. |
+| `api_knowledge/cheat_sheet.py` | **Keep** | 941-line API reference. Actively updated. Imported by prompts.py. |
+| `api_knowledge/__init__.py` | **Keep** | Package init. |
+| `planner.py` | **Delete** | Replaced by Claude's own reasoning. |
+| `executor.py` | **Delete** | Replaced by tool-use loop. |
+| `task_registry.py` | **Delete** | Replaced by system prompt recipes. |
+| `tests/test_agent.py` | **Rewrite** | New tests for pure agent loop (no routing, no FallbackContext). |
+| `tests/test_prompts.py` | **Create** | Tests for system prompt construction. |
+| `tests/test_main.py` | **Keep** | Already works — mocks `run_agent` which keeps same signature. |
+| `tests/test_planner.py` | **Delete** | No planner. |
+| `tests/test_executor.py` | **Delete** | No executor. |
+| `tests/test_task_registry.py` | **Delete** | No registry. |
+| `tests/test_file_handler.py` | **Keep** | Unchanged. |
+| `tests/test_tripletex_api.py` | **Keep** | Unchanged. |
+| `tests/competition_tasks/` | **Keep** | 23 JSON fixtures for smoke testing. |
+| `smoke_test.py` | **Keep** | May need minor updates if import paths change. |
 
 ---
 
-## Task 1: Create prompts.py — The System Prompt
+## Task 1: Create prompts.py — Rules + Recipes
 
-The system prompt is the brain of the agent. It contains the full API reference (migrated from `api_knowledge/cheat_sheet.py`), task-category recipes, scoring rules, and Tier 3 guidance.
+The system prompt is the brain of the agent. It imports the full API reference from `api_knowledge/cheat_sheet.py` and adds: scoring rules, known constants, recipes for all 12+ task types, critical gotchas from executor.py, and Tier 3 exploration guidance.
 
 **Files:**
 - Create: `prompts.py`
@@ -46,66 +67,132 @@ The system prompt is the brain of the agent. It contains the full API reference 
 
 ```python
 # tests/test_prompts.py
+"""Tests for system prompt construction."""
 from prompts import build_system_prompt
 
 
-def test_system_prompt_contains_api_reference():
-    """System prompt includes the Tripletex API reference."""
-    prompt = build_system_prompt()
-    assert "POST /employee" in prompt
-    assert "POST /customer" in prompt
-    assert "POST /invoice" in prompt
-    assert "POST /order" in prompt
-    assert "POST /travelExpense" in prompt
-    assert "POST /ledger/voucher" in prompt
+class TestSystemPromptStructure:
+    def test_contains_api_reference(self):
+        """System prompt includes the full Tripletex API cheat sheet."""
+        prompt = build_system_prompt()
+        # Core endpoints from cheat sheet
+        assert "POST /employee" in prompt
+        assert "POST /customer" in prompt
+        assert "POST /invoice" in prompt
+        assert "POST /order" in prompt
+        assert "POST /travelExpense" in prompt
+        assert "POST /ledger/voucher" in prompt
+        # Tier 3 endpoints from expanded cheat sheet
+        assert "POST /bank/reconciliation" in prompt
+        assert "POST /timesheet/entry" in prompt
+        assert "POST /asset" in prompt
+        assert "POST /incomingInvoice" in prompt
+        assert "POST /purchaseOrder" in prompt
+        assert "POST /inventory" in prompt
+
+    def test_contains_today_date(self):
+        from datetime import date
+        prompt = build_system_prompt()
+        assert date.today().isoformat() in prompt
+
+    def test_contains_known_constants(self):
+        prompt = build_system_prompt()
+        assert "162" in prompt  # Norway country ID
+        assert "NOK" in prompt
+
+    def test_contains_scoring_rules(self):
+        prompt = build_system_prompt()
+        assert "4xx" in prompt or "error" in prompt.lower()
+        assert "minimize" in prompt.lower() or "efficiency" in prompt.lower()
+
+    def test_contains_payment_gotcha(self):
+        """Payment registration uses QUERY PARAMS, not body."""
+        prompt = build_system_prompt()
+        assert "QUERY" in prompt
+        assert ":payment" in prompt
+
+    def test_contains_vattype_retry_guidance(self):
+        """vatType retry pattern from executor.py is preserved."""
+        prompt = build_system_prompt()
+        assert "Ugyldig" in prompt or "vatType" in prompt
+
+    def test_contains_pm_entitlements_guidance(self):
+        """Project manager entitlements pattern from executor.py is preserved."""
+        prompt = build_system_prompt()
+        assert "grantEntitlementsByTemplate" in prompt or "entitlement" in prompt.lower()
 
 
-def test_system_prompt_contains_recipes():
-    """System prompt includes step-by-step recipes for known flows."""
-    prompt = build_system_prompt()
-    assert "Recipe" in prompt or "recipe" in prompt
-    # Invoice flow recipe
-    assert "orderLines" in prompt
-    assert ":payment" in prompt
-    # Employee recipe
-    assert "userType" in prompt
-    assert "department" in prompt
+class TestRecipeCoverage:
+    """Verify recipes exist for all 12 observed competition task types."""
+
+    def test_recipe_create_customer(self):
+        assert "POST /customer" in build_system_prompt()
+
+    def test_recipe_create_employee(self):
+        prompt = build_system_prompt()
+        assert "userType" in prompt
+        assert "GET /department" in prompt
+
+    def test_recipe_create_supplier(self):
+        assert "POST /supplier" in build_system_prompt()
+
+    def test_recipe_create_departments_batch(self):
+        prompt = build_system_prompt()
+        assert "department" in prompt.lower()
+
+    def test_recipe_create_invoice(self):
+        prompt = build_system_prompt()
+        assert "orderLines" in prompt
+        assert "invoiceDueDate" in prompt
+
+    def test_recipe_create_project(self):
+        prompt = build_system_prompt()
+        assert "projectManager" in prompt
+
+    def test_recipe_register_payment(self):
+        prompt = build_system_prompt()
+        assert "paymentTypeId" in prompt
+        assert "paidAmount" in prompt
+
+    def test_recipe_run_salary(self):
+        prompt = build_system_prompt()
+        assert "salary" in prompt.lower()
+
+    def test_recipe_fixed_price_project(self):
+        prompt = build_system_prompt()
+        assert "isFixedPrice" in prompt or "fixedprice" in prompt
+
+    def test_recipe_register_supplier_invoice(self):
+        prompt = build_system_prompt()
+        assert "supplierInvoice" in prompt or "incomingInvoice" in prompt
+
+    def test_recipe_create_order(self):
+        prompt = build_system_prompt()
+        assert "POST /order" in prompt
+
+    def test_recipe_custom_dimension(self):
+        prompt = build_system_prompt()
+        assert "dimension" in prompt.lower() or "salesmodule" in prompt.lower()
+
+    def test_recipe_tier3_bank_reconciliation(self):
+        prompt = build_system_prompt()
+        assert "reconciliation" in prompt.lower()
+
+    def test_recipe_tier3_guidance(self):
+        prompt = build_system_prompt()
+        assert "fields=*" in prompt
 
 
-def test_system_prompt_contains_rules():
-    """System prompt includes scoring-aware rules."""
-    prompt = build_system_prompt()
-    assert "4xx" in prompt or "error" in prompt.lower()
-    assert "minimize" in prompt.lower() or "efficiency" in prompt.lower()
-
-
-def test_system_prompt_contains_constants():
-    """System prompt includes known constants."""
-    prompt = build_system_prompt()
-    assert "NOK" in prompt
-    assert "162" in prompt  # Norway country ID
-
-
-def test_system_prompt_contains_date():
-    """System prompt includes today's date."""
-    from datetime import date
-    prompt = build_system_prompt()
-    assert date.today().isoformat() in prompt
-
-
-def test_system_prompt_contains_gotchas():
-    """System prompt includes common gotchas."""
-    prompt = build_system_prompt()
-    # Payment registration uses query params, not body
-    assert "QUERY" in prompt or "query" in prompt
-    # Object refs are {id: N}
-    assert '{"id"' in prompt or "{id:" in prompt
-
-
-def test_system_prompt_contains_tier3_guidance():
-    """System prompt includes guidance for unknown task types."""
-    prompt = build_system_prompt()
-    assert "fields=*" in prompt or "?fields=" in prompt
+class TestPromptImportsCheatSheet:
+    def test_cheat_sheet_is_imported_not_duplicated(self):
+        """prompts.py imports from api_knowledge, not a copy."""
+        import prompts
+        # Verify it references the cheat sheet module
+        from api_knowledge.cheat_sheet import TRIPLETEX_API_CHEAT_SHEET
+        prompt = build_system_prompt()
+        # Cheat sheet content should be in the prompt
+        assert "EMPLOYEE EMPLOYMENT" in prompt  # Deep content from cheat sheet
+        assert "BANK RECONCILIATION" in prompt  # Tier 3 content
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -115,239 +202,27 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'prompts'`
 
 - [ ] **Step 3: Write prompts.py**
 
-Create `prompts.py` with the following content. The API reference section is migrated from `api_knowledge/cheat_sheet.py` and the rules/recipes are expanded from `agent.py:build_system_prompt()`.
-
 ```python
 # prompts.py
 """System prompt for the Claude accounting agent.
 
-This is the brain of the agent. It contains:
-- Role and scoring rules
-- Full Tripletex API reference (from sandbox testing)
-- Step-by-step recipes for known task categories
-- Common gotchas and Tier 3 guidance
+Imports the full API reference from api_knowledge/cheat_sheet.py (941 lines,
+actively maintained, covers all Tier 1-3 endpoints).
+
+Adds: scoring rules, known constants, recipes for all observed competition
+task types, critical gotchas from the old executor, and Tier 3 guidance.
 """
 
 from datetime import date
 
-# ---------------------------------------------------------------------------
-# API reference — migrated from api_knowledge/cheat_sheet.py
-# ---------------------------------------------------------------------------
-
-API_REFERENCE = """
-## Tripletex v2 API — Endpoint Reference
-
-### Authentication
-- Basic Auth: username = "0", password = session_token
-- All requests go through the provided base_url (includes /v2)
-
-### Response Format
-- Single entity: {"value": {<entity>}}
-- List: {"fullResultSize": N, "values": [{...}, ...]}
-- POST returns the created entity with its assigned ID inside "value"
-- Errors: {"status": 4xx, "message": "..."}
-
-### Query Parameters (all GET list endpoints)
-- fields: comma-separated names, * for all (e.g. ?fields=id,name)
-- from: pagination offset (default 0), count: page size (default 1000)
-
-### Object References
-References to other entities are always objects: {"id": <int>}
-Example: "department": {"id": 42}  — NEVER bare integers.
-
-### Date Format
-All dates: YYYY-MM-DD strings.
-
----
-
-## DEPARTMENT
-POST /department — Required: name (string), departmentNumber (string — NOT int)
-  Optional: departmentManager ({id})
-GET /department — Search: ?name=X&departmentNumber=X
-PUT /department/{id} — Update (include version field)
-DELETE /department/{id}
-
-## EMPLOYEE
-POST /employee — Required: firstName, lastName, userType ("STANDARD"|"EXTENDED"|"NO_ACCESS"), department ({id})
-  Optional: email, phoneNumberMobile, dateOfBirth, nationalIdentityNumber, employeeNumber,
-            bankAccountNumber, address ({addressLine1, city, postalCode, country: {id}}),
-            employeeCategory ({id}), employments (array)
-  NOTE: No "isAdministrator" field — admin access is via entitlements.
-  NOTE: If task doesn't specify department, GET /department and use first one.
-GET /employee — Search: ?firstName=X&lastName=X&email=X&employeeNumber=X
-PUT /employee/{id} — Update (include version)
-POST /employee/list — Bulk create
-
-POST /employee/employment — Required: employee ({id}), startDate
-  Optional: endDate, taxDeductionCode, isMainEmployer, employmentDetails (array)
-POST /employee/employment/details — Required: employment ({id}), date
-  Optional: employmentType, annualSalary, hourlyWage, occupationCode ({id})
-GET /employee/employment — Params: employeeId
-PUT /employee/employment/{id}
-
-GET /employee/entitlement — Params: employeeId
-PUT /employee/entitlement/:grantEntitlementsByTemplate — Grant roles/permissions
-
-## CUSTOMER
-POST /customer — Required: name
-  Optional: email, phoneNumber, organizationNumber, customerNumber, invoiceEmail,
-            physicalAddress, postalAddress, deliveryAddress,
-            accountManager ({id}), department ({id}), currency ({id}),
-            invoiceSendMethod ("EMAIL"|"EHF"|"EFAKTURA"|"PAPER"|"MANUAL"),
-            category1 ({id}), category2 ({id}), category3 ({id}),
-            isPrivateIndividual (boolean), language ("NO"|"EN")
-GET /customer — Search: ?name=X&email=X&customerNumber=X&organizationNumber=X
-PUT /customer/{id} — Update (include version)
-DELETE /customer/{id}
-POST /customer/list — Bulk create
-
-POST /customer/category — Fields: name, number, description, type (int)
-GET /customer/category
-
-## CONTACT
-POST /contact — Fields: firstName, lastName, email, phoneNumberMobile, customer ({id})
-GET /contact — Search: ?firstName=X&lastName=X&customerId=X
-PUT /contact/{id}
-POST /contact/list — Bulk create
-
-## SUPPLIER
-POST /supplier — Required: name
-  Optional: email, phoneNumber, organizationNumber, supplierNumber,
-            physicalAddress, postalAddress, accountManager ({id}), currency ({id}),
-            category1 ({id}), category2 ({id}), category3 ({id})
-GET /supplier — Search: ?name=X&organizationNumber=X&supplierNumber=X
-PUT /supplier/{id} — Update (include version)
-DELETE /supplier/{id}
-
-## PRODUCT
-POST /product — Required: name
-  Optional: number (string), priceExcludingVatCurrency, priceIncludingVatCurrency,
-            vatType ({id}), productUnit ({id}), account ({id}),
-            department ({id}), supplier ({id}), currency ({id}), description
-GET /product — Search: ?name=X&number=X
-PUT /product/{id} — Update (include version)
-DELETE /product/{id}
-POST /product/list — Bulk create
-
-GET /product/unit — Search: ?name=X&nameShort=X
-
-## ORDER
-POST /order — Required: customer ({id}), deliveryDate, orderDate
-  Optional: orderLines (array — EMBED HERE to save calls),
-            receiverEmail, reference, department ({id}), project ({id}),
-            currency ({id}), invoicesDueIn, invoicesDueInType
-  OrderLine fields: product ({id}), count, unitPriceExcludingVatCurrency, vatType ({id}), description
-GET /order — Search: ?customerName=X&number=X
-PUT /order/{id}
-DELETE /order/{id}
-
-POST /order/orderline — Create single orderline: order ({id}), product ({id}), count, unitPriceExcludingVatCurrency
-POST /order/orderline/list — Bulk create orderlines
-
-## INVOICE
-POST /invoice — Required: invoiceDate, invoiceDueDate, orders (array of {id})
-  Optional: comment, customer ({id}), invoiceNumber (0=auto)
-  NOTE: Order must have orderLines. Company must have bank account on ledger 1920.
-GET /invoice — Search: ?invoiceDateFrom=X&invoiceDateTo=X&customerId=X
-GET /invoice/{id}
-
-PUT /invoice/{id}/:payment — QUERY PARAMS ONLY (NOT body):
-  ?paymentDate=YYYY-MM-DD&paymentTypeId=N&paidAmount=X&paidAmountCurrency=1
-PUT /invoice/{id}/:send — Body: sendType ("EMAIL"|"EHF"|"EFAKTURA"), overrideEmailAddress
-PUT /invoice/{id}/:createCreditNote
-PUT /invoice/{id}/:createReminder
-
-GET /invoice/paymentType — List payment types
-
-## SUPPLIER INVOICE
-GET /supplierInvoice — Search supplier invoices
-POST /supplierInvoice/{id}/:addPayment — Body: paymentType, amount, paymentDate
-PUT /supplierInvoice/{id}/:approve
-PUT /supplierInvoice/{id}/:reject
-
-## PROJECT
-POST /project — Required: name, projectManager ({id}), startDate
-  Optional: description, endDate, customer ({id}), department ({id}),
-            number, isInternal, isClosed, participants (array)
-GET /project — Search: ?name=X&number=X&projectManagerId=X
-PUT /project/{id}
-DELETE /project/{id}
-
-POST /project/participant — Fields: project ({id}), employee ({id}), adminAccess
-POST /project/participant/list — Bulk add participants
-
-## TRAVEL EXPENSE
-POST /travelExpense — Required: employee ({id}), title
-  Optional: project ({id}), department ({id}),
-            costs (array — can embed), perDiemCompensations (array — can embed)
-  NOTE: mileageAllowances and accommodationAllowances are READ-ONLY here —
-        create them via their own POST endpoints below.
-GET /travelExpense — Search: ?employeeId=X&departmentId=X
-DELETE /travelExpense/{id}
-PUT /travelExpense/:approve — Body: list of IDs
-PUT /travelExpense/:deliver
-PUT /travelExpense/:unapprove
-
-POST /travelExpense/cost — Fields: travelExpense ({id}), date, costCategory ({id}),
-  paymentType ({id}), currency ({id}), amountCurrencyIncVat
-GET /travelExpense/cost — Params: travelExpenseId
-GET /travelExpense/costCategory — List cost categories
-GET /travelExpense/paymentType — List payment types
-
-POST /travelExpense/perDiemCompensation — Fields: travelExpense ({id}), rateCategory ({id}),
-  rateType ({id}), countryCode, location, count, overnightAccommodation
-GET /travelExpense/perDiemCompensation — Params: travelExpenseId
-GET /travelExpense/rateCategory — List rate categories
-GET /travelExpense/rate — List rates
-
-POST /travelExpense/mileageAllowance — Fields: travelExpense ({id}), rateCategory ({id}),
-  rateType ({id}), date, departureLocation, destination, km
-GET /travelExpense/mileageAllowance — Params: travelExpenseId
-
-POST /travelExpense/accommodationAllowance — Fields: travelExpense ({id}),
-  rateCategory ({id}), rateType ({id}), location, count
-GET /travelExpense/accommodationAllowance — Params: travelExpenseId
-
-## LEDGER / VOUCHER
-POST /ledger/voucher — Required: date, description, postings (array)
-  Each posting: account ({id}), amount, row (integer >= 1, row 0 is system-reserved)
-  Optional posting fields: currency ({id}), customer ({id}), supplier ({id}),
-    employee ({id}), project ({id}), department ({id}), vatType ({id})
-  IMPORTANT: Postings MUST balance (sum of amounts = 0). Only gross amounts needed.
-  IMPORTANT: Look up account IDs with GET /ledger/account?number=XXXX — never guess.
-GET /ledger/voucher — Search: ?dateFrom=X&dateTo=X&number=X
-DELETE /ledger/voucher/{id}
-PUT /ledger/voucher/{id}/:reverse
-
-GET /ledger/account — Search: ?number=X&name=X
-POST /ledger/account — Fields: number (int), name
-GET /ledger/posting — Search: ?dateFrom=X&dateTo=X
-GET /ledger/vatType — Search VAT types
-
-## SALARY
-GET /salary/type — List salary types
-POST /salary/transaction — Fields: date, month, year, payslips (array)
-GET /salary/payslip — Params: employeeId, yearFrom, yearTo
-
-## COMPANY
-GET /company/{id} — Company info
-PUT /company — Update company
-GET /company/salesmodules — Active modules
-POST /company/salesmodules — Activate module
-
-## REFERENCE
-GET /country — Params: code (e.g. "NO")
-GET /currency — Params: code (e.g. "NOK")
-GET /municipality
-GET /deliveryAddress
-"""
+from api_knowledge.cheat_sheet import TRIPLETEX_API_CHEAT_SHEET
 
 
 def build_system_prompt() -> str:
     """Build the complete system prompt for the Claude accounting agent."""
     today = date.today().isoformat()
 
-    return f"""You are an expert AI accounting agent for the Tripletex system. Your job is to complete accounting tasks by making API calls using the provided tools.
+    return f"""You are an expert AI accounting agent for the Tripletex system. Your job is to complete accounting tasks by making API calls using the provided tools. Tasks may be in Norwegian, English, Spanish, Portuguese, German, or French.
 
 Today's date: {today}
 
@@ -363,112 +238,207 @@ Today's date: {today}
 - NOK currency: {{"id": 1}}
 - Norway country: {{"id": 162}}
 - VAT 25%: {{"id": 3}}, VAT 15%: {{"id": 5}}, VAT 0%: {{"id": 6}}
-  (If a vatType fails, retry WITHOUT it — Tripletex assigns a valid default)
+  BUT: vatType IDs vary per sandbox. If a product POST fails with "Ugyldig mva-kode",
+  retry WITHOUT vatType — Tripletex assigns a valid default. For orderLines, vatType is optional.
 
 ## Critical Gotchas
-- Payment registration: PUT /invoice/{{id}}/:payment uses QUERY PARAMS, NOT request body.
+- **Payment registration**: PUT /invoice/{{id}}/:payment uses QUERY PARAMS, NOT body.
   Params: ?paymentDate=YYYY-MM-DD&paymentTypeId=N&paidAmount=X&paidAmountCurrency=1
-- Object refs are ALWAYS {{"id": <int>}}, never bare integers.
-- departmentNumber is a STRING, not an int.
-- orderLines MUST be embedded in the order POST body.
-- Voucher postings MUST balance (sum of amounts = 0). Rows start at 1 (row 0 is system-reserved).
-- Look up ledger account IDs with GET /ledger/account?number=XXXX — never guess.
-- The Tripletex account starts EMPTY. Create prerequisites before dependents.
-- Always include the "version" field when doing PUT updates.
-- If task mentions attached files, extract data (amounts, dates, names) from the file content provided.
+- **Object refs** are ALWAYS {{"id": <int>}}, never bare integers.
+- **departmentNumber** is a STRING, not an int.
+- **orderLines** MUST be embedded in the order POST body (saves calls).
+- **Voucher postings** MUST balance (sum of amounts = 0). Rows start at 1 (row 0 is reserved).
+- **Ledger account IDs**: Look up with GET /ledger/account?number=XXXX — never guess IDs.
+- **Fresh account**: Tripletex starts EMPTY. Create prerequisites before dependents.
+- **PUT updates**: Always include the "version" field from the GET response.
+- **vatType retry**: If POST /product fails with "Ugyldig mva-kode", retry WITHOUT vatType.
+- **PM entitlements**: Before creating a project, the projectManager employee may need
+  entitlements granted via PUT /employee/entitlement/:grantEntitlementsByTemplate.
+  If project creation fails with a permissions error, grant entitlements first then retry.
+- **Bank account**: Invoices require a bank account on ledger 1920. This is pre-configured
+  automatically, but if invoice creation fails with a bank account error, use:
+  GET /ledger/account?number=1920 → PUT /ledger/account/{{id}} with bankAccountNumber.
+- **Supplier invoice vs incoming invoice**: "Register supplier invoice" may use either
+  POST /incomingInvoice (newer API) or POST /supplierInvoice flow. Check what the prompt
+  describes and use the appropriate endpoint.
 
-## Recipes (Optimal Sequences for Known Tasks)
+## Recipes for Known Task Types
 
-### Employee
-1. GET /department (find existing department, use first result)
+### 1. Create Customer (Tier 1)
+POST /customer {{name, email, phoneNumber, organizationNumber, physicalAddress, ...}}
+Include all fields mentioned in the prompt. Address uses country: {{"id": 162}} for Norway.
+
+### 2. Create Employee (Tier 1)
+1. GET /department → capture first department ID (or create one if none exist)
 2. POST /employee {{firstName, lastName, email, userType: "STANDARD", department: {{id}}}}
+Include dateOfBirth, phoneNumberMobile, address if mentioned. No "isAdministrator" field exists.
 
-### Customer
-POST /customer {{name, email, phoneNumber, organizationNumber, ...}}
-
-### Supplier
+### 3. Create Supplier (Tier 1)
 POST /supplier {{name, email, phoneNumber, organizationNumber, ...}}
+Same structure as customer but uses /supplier endpoint.
 
-### Product
-POST /product {{name, number, priceExcludingVatCurrency, vatType: {{id: 3}}}}
+### 4. Create Departments — Batch (Tier 1)
+For multiple departments, make one POST /department per department.
+Each needs: name (string), departmentNumber (string — NOT int).
+Number departments sequentially ("100", "200", "300") unless prompt specifies.
 
-### Invoice Flow (customer → product → order → invoice)
-1. POST /customer {{name}} → capture customer_id
-2. POST /product {{name, priceExcludingVatCurrency}} → capture product_id
+### 5. Create Invoice — Multi-Product (Tier 2, HIGHEST PRIORITY — 16% of competition)
+1. POST /customer {{name, organizationNumber}} → capture customer_id
+2. For EACH product: POST /product {{name, priceExcludingVatCurrency}} → capture product_id
+   (If vatType fails, retry without it)
 3. POST /order {{customer: {{id: customer_id}}, orderDate: "{today}", deliveryDate: "{today}",
-   orderLines: [{{product: {{id: product_id}}, count: 1, unitPriceExcludingVatCurrency: price}}]}}
-   → capture order_id
-4. POST /invoice {{invoiceDate: "{today}", invoiceDueDate: "30 days later", orders: [{{id: order_id}}]}}
-   → capture invoice_id
+   orderLines: [
+     {{product: {{id: p1_id}}, count: 1, unitPriceExcludingVatCurrency: price1}},
+     {{product: {{id: p2_id}}, count: 1, unitPriceExcludingVatCurrency: price2}},
+     ...
+   ]}} → capture order_id
+4. POST /invoice {{invoiceDate: "{today}", invoiceDueDate: "30 days later",
+   orders: [{{id: order_id}}]}} → capture invoice_id
+5. If prompt says "send": PUT /invoice/{{invoice_id}}/:send — Body: {{"sendType": "EMAIL"}}
+CRITICAL: Use UNIQUE product names/numbers. If the prompt gives specific names/prices, use them exactly.
 
-### Payment Registration
-PUT /invoice/{{invoice_id}}/:payment?paymentDate={today}&paymentTypeId=0&paidAmount=X&paidAmountCurrency=1
-(paymentTypeId 0 = default. Or GET /invoice/paymentType to find the right one.)
+### 6. Register Payment (Tier 2)
+Full flow: create customer → products → order → invoice → payment.
+1. Follow Invoice recipe above → capture invoice_id and total amount
+2. GET /invoice/paymentType → find appropriate payment type ID
+3. PUT /invoice/{{invoice_id}}/:payment?paymentDate={today}&paymentTypeId=N&paidAmount=TOTAL&paidAmountCurrency=1
+CRITICAL: Payment uses QUERY PARAMS on PUT, NOT a request body.
 
-### Send Invoice
-PUT /invoice/{{invoice_id}}/:send — Body: {{"sendType": "EMAIL"}}
+### 7. Create Project (Tier 2)
+1. POST /customer {{name, organizationNumber}} → capture customer_id
+2. GET /department → capture dept_id (or create if needed)
+3. POST /employee {{firstName: "PM Name", lastName: "...", userType: "STANDARD", department: {{id: dept_id}}}} → capture pm_id
+   (Or search for existing employee if prompt references one)
+4. POST /project {{name, projectManager: {{id: pm_id}}, startDate: "{today}",
+   customer: {{id: customer_id}}, description, ...}} → capture project_id
+5. If prompt mentions participants: POST /project/participant {{project: {{id}}, employee: {{id}}}}
 
-### Credit Note
-PUT /invoice/{{invoice_id}}/:createCreditNote
+### 8. Fixed-Price Project (Tier 2)
+1. Follow Create Project recipe → capture project_id
+2. GET /project/{{project_id}} → capture version
+3. PUT /project/{{project_id}} {{id: project_id, version: V, isFixedPrice: true, fixedprice: AMOUNT}}
+The fixedprice is set via PUT on the project, not a separate endpoint.
 
-### Travel Expense
-1. POST /travelExpense {{employee: {{id}}, title}} → capture expense_id
-2. GET /travelExpense/costCategory → find correct category
-3. GET /travelExpense/paymentType → find payment type
-4. POST /travelExpense/cost {{travelExpense: {{id: expense_id}}, date, costCategory: {{id}}, paymentType: {{id}}, amountCurrencyIncVat}}
+### 9. Run Salary (Tier 2)
+1. Search or create employee: GET /employee?email=X or POST /employee
+2. GET /employee/employment?employeeId=ID → check for existing employment
+3. If no employment: POST /employee/employment {{employee: {{id}}, startDate: "{today}"}}
+4. POST /employee/employment/details {{employment: {{id}}, date: "{today}",
+   annualSalary: AMOUNT, employmentType: "ORDINARY"}}
+5. GET /salary/type → find salary type IDs for base salary + additions
+6. POST /salary/transaction {{date: "{today}", month: CURRENT_MONTH, year: CURRENT_YEAR,
+   payslips: [{{employee: {{id}}, date: "{today}", specifications: [
+     {{salaryType: {{id}}, rate: AMOUNT, count: 1}}
+   ]}}]}}
+NOTE: The salary API is complex. If the above fails, read the error message carefully.
+Use GET /salary/type?fields=* to discover available salary types and their structure.
 
-For mileage: GET /travelExpense/rateCategory, then POST /travelExpense/mileageAllowance
-For per diem: GET /travelExpense/rateCategory + rate, then POST /travelExpense/perDiemCompensation
-For accommodation: POST /travelExpense/accommodationAllowance
+### 10. Register Supplier Invoice (Tier 2)
+1. POST /supplier {{name, organizationNumber}} → capture supplier_id
+2. POST /incomingInvoice {{
+     invoiceHeader: {{vendorId: supplier_id, invoiceDate: "YYYY-MM-DD",
+       dueDate: "YYYY-MM-DD", currencyId: 1, invoiceAmount: AMOUNT,
+       description: "...", invoiceNumber: "INV-XXX"}},
+     version: 0
+   }}
+Alternative: Some prompts may reference existing supplier invoices. Use GET /supplierInvoice to search.
+For approval: PUT /supplierInvoice/{{id}}/:approve
 
-### Project
-1. POST /project {{name, projectManager: {{id}}, startDate: "{today}"}} → capture project_id
-2. POST /project/participant {{project: {{id: project_id}}, employee: {{id}}}}
+### 11. Create Order (Tier 2)
+1. POST /customer {{name, organizationNumber}} → capture customer_id
+2. For each product: POST /product {{name, priceExcludingVatCurrency}} → capture product_ids
+3. POST /order {{customer: {{id}}, orderDate: "{today}", deliveryDate: "{today}",
+   orderLines: [{{product: {{id}}, count, unitPriceExcludingVatCurrency}}]}}
 
-### Department
-POST /department {{name, departmentNumber: "string"}}
+### 12. Custom Dimension + Voucher (Tier 2)
+1. GET /company/salesmodules → check available modules
+2. POST /company/salesmodules to activate the dimension module if needed
+3. The "custom dimension" likely involves creating custom fields or categories.
+   Explore with GET requests using ?fields=* to discover the dimension API.
+4. If the task includes posting a voucher with the dimension:
+   - GET /ledger/account?number=XXXX for each account
+   - POST /ledger/voucher with postings that include the dimension reference
 
-### Voucher (Journal Entry)
-1. GET /ledger/account?number=XXXX → capture debit_account_id
-2. GET /ledger/account?number=YYYY → capture credit_account_id
-3. POST /ledger/voucher {{date: "{today}", description, postings: [
-     {{account: {{id: debit_id}}, amount: X, row: 1}},
-     {{account: {{id: credit_id}}, amount: -X, row: 2}}
-   ]}}
+### Tier 3 Recipes (anticipated — opens Saturday)
 
-## Handling Unknown Tasks (Tier 3)
+### 13. Bank Reconciliation from CSV
+1. Parse the CSV data from the prompt/attachment
+2. GET /ledger/account?number=1920 (or the bank account specified) → account_id
+3. GET /bank/reconciliation/>last?accountId=ID → check for existing reconciliation
+4. POST /bank/reconciliation {{account: {{id}}, type: "MANUAL", bankAccountClosingBalanceCurrency: BALANCE}}
+5. For each transaction: create matching postings or reconciliation matches
+6. Use POST /bank/reconciliation/match to link transactions to postings
+
+### 14. Timesheet / Hours Registration
+1. GET /activity/>forTimeSheet?employeeId=X&date=YYYY-MM-DD → find activity
+2. POST /timesheet/entry {{activity: {{id}}, employee: {{id}}, project: {{id}},
+   date: "YYYY-MM-DD", hours: N, comment: "..."}}
+
+### 15. Asset Registration
+1. GET /ledger/account?number=XXXX → find asset account and depreciation account
+2. POST /asset {{name, dateOfAcquisition, acquisitionCost, account: {{id}},
+   lifetime: MONTHS, depreciationAccount: {{id}},
+   depreciationMethod: "STRAIGHT_LINE", depreciationFrom: "YYYY-MM-DD"}}
+
+### 16. Year-End / Ledger Corrections
+1. Identify the accounts involved (GET /ledger/account?number=XXXX)
+2. POST /ledger/voucher with balanced postings
+3. For reversals: PUT /ledger/voucher/{{id}}/:reverse
+4. Use GET /balanceSheet?dateFrom=X&dateTo=X to verify account balances
+
+## Handling Unknown Tasks
 For tasks you don't recognize:
 1. Analyze the prompt carefully — what is the end goal?
 2. Use GET with ?fields=* to discover entity structures you're unsure about.
 3. Read error messages carefully — Tripletex tells you exactly what's missing.
 4. Break complex problems into smaller API calls.
-5. If you need to find a salary type or obscure entity, use GET to discover what's available.
+5. If a module isn't active, try POST /company/salesmodules to enable it.
+6. The cheat sheet below covers ALL known endpoints — search it for the right one.
 
-{API_REFERENCE}
+{TRIPLETEX_API_CHEAT_SHEET}
 """
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `python -m pytest tests/test_prompts.py -v`
-Expected: All 7 tests PASS
+Expected: All tests PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add prompts.py tests/test_prompts.py
-git commit -m "feat: system prompt with API reference, recipes, and scoring rules"
+git commit -m "feat: system prompt with 16 recipes, scoring rules, and cheat sheet import"
 ```
 
 ---
 
-## Task 2: Rewrite agent.py — Clean Agentic Loop
+## Task 2: Rewrite agent.py — Pure Agentic Loop
 
-Rewrite `agent.py` to remove all planner/executor imports and the deterministic path. Keep the existing tool definitions, `execute_tool`, and `gemini_ocr` functions. Replace `run_agent` and `run_tool_loop` with a single clean agentic loop using streaming and adaptive thinking.
+Replace the entire agent.py with a clean agentic loop. Remove all imports of planner/executor/task_registry. Keep: tool definitions, execute_tool, gemini_ocr, Gemini client. Add: streaming, adaptive thinking, prompt caching, build_user_message.
+
+**Key changes from current agent.py:**
+- Remove: `from planner import parse_prompt, is_known_pattern, FallbackContext`
+- Remove: `from executor import execute_plan`
+- Remove: `from api_knowledge.cheat_sheet import TRIPLETEX_API_CHEAT_SHEET`
+- Add: `from prompts import build_system_prompt`
+- Remove: `build_system_prompt()` (moved to prompts.py)
+- Remove: `run_tool_loop()` (merged into `run_agent`)
+- Rewrite: `run_agent()` — single clean loop, no deterministic path
+- Add: streaming with `messages.stream()` + `get_final_message()`
+- Add: `thinking={"type": "adaptive"}`
+- Add: prompt caching via `cache_control` on system prompt
+- Add: `build_user_message()` function
+- Add: `is_error: True` on failed tool results
+- Change: `MAX_ITERATIONS` from 25 to 20
+- Keep: `execute_tool()` with try/except wrapping
+- Keep: `gemini_ocr()` unchanged
+- Keep: `TOOLS` definitions unchanged
+- Keep: lazy `_get_genai_client()` pattern
 
 **Files:**
 - Rewrite: `agent.py`
-- Create: `tests/test_agent.py` (rewrite)
+- Rewrite: `tests/test_agent.py`
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -476,123 +446,183 @@ Rewrite `agent.py` to remove all planner/executor imports and the deterministic 
 # tests/test_agent.py
 """Tests for the pure Claude agentic loop."""
 import json
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 # Mock external dependencies before importing agent
 _mock_genai_client = MagicMock()
 _mock_claude_client = MagicMock()
 
-with patch("claude_client.get_claude_client", return_value=_mock_claude_client):
-    with patch("google.genai.Client", return_value=_mock_genai_client):
-        from agent import (
-            TOOLS,
-            execute_tool,
-            gemini_ocr,
-            run_agent,
-            build_user_message,
-            MAX_ITERATIONS,
-            TIMEOUT_SECONDS,
-        )
+with patch("google.genai.Client", return_value=_mock_genai_client):
+    with patch("claude_client.get_claude_client", return_value=_mock_claude_client):
+        import agent as agent_module
 
-
-def _mock_tripletex_client():
-    from tripletex_api import TripletexClient
-    return MagicMock(spec=TripletexClient)
+# Ensure lazy genai client returns our mock
+agent_module._get_genai_client = lambda: _mock_genai_client
 
 
 class TestToolDefinitions:
-    def test_four_tools_defined(self):
-        """Exactly 4 generic REST tools."""
-        assert len(TOOLS) == 4
-        names = {t["name"] for t in TOOLS}
-        assert names == {"tripletex_get", "tripletex_post", "tripletex_put", "tripletex_delete"}
+    def test_has_four_tools(self):
+        names = [t["name"] for t in agent_module.TOOLS]
+        assert sorted(names) == ["tripletex_delete", "tripletex_get", "tripletex_post", "tripletex_put"]
 
     def test_post_requires_path_and_body(self):
-        """POST tool requires both path and body."""
-        post_tool = next(t for t in TOOLS if t["name"] == "tripletex_post")
-        assert "path" in post_tool["input_schema"]["required"]
-        assert "body" in post_tool["input_schema"]["required"]
+        post = next(t for t in agent_module.TOOLS if t["name"] == "tripletex_post")
+        assert "path" in post["input_schema"]["required"]
+        assert "body" in post["input_schema"]["required"]
 
-    def test_put_has_params_for_payment(self):
-        """PUT tool has params field for payment registration."""
-        put_tool = next(t for t in TOOLS if t["name"] == "tripletex_put")
-        assert "params" in put_tool["input_schema"]["properties"]
+    def test_put_has_params(self):
+        put = next(t for t in agent_module.TOOLS if t["name"] == "tripletex_put")
+        assert "params" in put["input_schema"]["properties"]
+
+    def test_all_tools_have_input_schema(self):
+        for tool in agent_module.TOOLS:
+            assert "input_schema" in tool
+            assert tool["input_schema"]["type"] == "object"
+
+
+class TestSystemPrompt:
+    def test_includes_cheat_sheet(self):
+        prompt = agent_module.build_system_prompt()
+        assert "POST /employee" in prompt
+
+    def test_includes_payment_gotcha(self):
+        prompt = agent_module.build_system_prompt()
+        assert "QUERY" in prompt
+
+    def test_includes_known_constants(self):
+        prompt = agent_module.build_system_prompt()
+        assert "id=162" in prompt or '"id": 162' in prompt
+        assert "vatType" in prompt
+
+
+class TestGeminiOcr:
+    def setup_method(self):
+        agent_module._get_genai_client = lambda: _mock_genai_client
+
+    def test_returns_empty_when_no_images(self):
+        files = [{"filename": "data.csv", "text_content": "col1;col2", "images": []}]
+        result = agent_module.gemini_ocr(files)
+        assert result == ""
+
+    def test_calls_gemini_with_images(self):
+        _mock_genai_client.models.generate_content.reset_mock()
+        mock_response = MagicMock()
+        mock_response.text = "Invoice #123, Amount: 500 NOK"
+        _mock_genai_client.models.generate_content.return_value = mock_response
+
+        files = [{"filename": "receipt.png", "text_content": "",
+                  "images": [{"data": b"PNG_DATA", "mime_type": "image/png"}]}]
+        result = agent_module.gemini_ocr(files)
+        assert "Invoice #123" in result
+
+    def test_returns_empty_on_none_response(self):
+        mock_response = MagicMock()
+        mock_response.text = None
+        _mock_genai_client.models.generate_content.return_value = mock_response
+
+        files = [{"filename": "img.jpg", "text_content": "",
+                  "images": [{"data": b"JPG", "mime_type": "image/jpeg"}]}]
+        result = agent_module.gemini_ocr(files)
+        assert result == ""
 
 
 class TestExecuteTool:
     def test_get(self):
-        client = _mock_tripletex_client()
-        client.get.return_value = {"success": True, "body": {"values": []}}
-        result = execute_tool("tripletex_get", {"path": "/employee", "params": {"firstName": "Ola"}}, client)
-        client.get.assert_called_once_with("/employee", params={"firstName": "Ola"})
+        mock_client = MagicMock()
+        mock_client.get.return_value = {"success": True, "status_code": 200, "body": {}}
+        result = agent_module.execute_tool("tripletex_get", {"path": "/employee"}, mock_client)
+        mock_client.get.assert_called_once_with("/employee", params=None)
+        assert result["success"]
 
     def test_post(self):
-        client = _mock_tripletex_client()
-        client.post.return_value = {"success": True, "body": {"value": {"id": 1}}}
-        result = execute_tool("tripletex_post", {"path": "/employee", "body": {"firstName": "Ola"}}, client)
-        client.post.assert_called_once_with("/employee", body={"firstName": "Ola"})
+        mock_client = MagicMock()
+        mock_client.post.return_value = {"success": True, "status_code": 201, "body": {"value": {"id": 1}}}
+        result = agent_module.execute_tool("tripletex_post", {"path": "/employee", "body": {"firstName": "Ola"}}, mock_client)
+        mock_client.post.assert_called_once_with("/employee", body={"firstName": "Ola"})
 
     def test_put_with_params(self):
-        client = _mock_tripletex_client()
-        client.put.return_value = {"success": True, "body": {}}
-        result = execute_tool("tripletex_put", {
+        mock_client = MagicMock()
+        mock_client.put.return_value = {"success": True, "status_code": 200, "body": {}}
+        agent_module.execute_tool("tripletex_put", {
             "path": "/invoice/1/:payment",
-            "params": {"paymentDate": "2026-03-20", "paidAmount": "1000"}
-        }, client)
-        client.put.assert_called_once_with("/invoice/1/:payment", body=None, params={"paymentDate": "2026-03-20", "paidAmount": "1000"})
+            "params": {"paymentDate": "2026-03-20", "paidAmount": 1000},
+        }, mock_client)
+        mock_client.put.assert_called_once_with(
+            "/invoice/1/:payment", body=None,
+            params={"paymentDate": "2026-03-20", "paidAmount": 1000}
+        )
 
     def test_delete(self):
-        client = _mock_tripletex_client()
-        client.delete.return_value = {"success": True, "body": {}}
-        result = execute_tool("tripletex_delete", {"path": "/employee/1"}, client)
-        client.delete.assert_called_once_with("/employee/1")
+        mock_client = MagicMock()
+        mock_client.delete.return_value = {"success": True, "status_code": 204, "body": {}}
+        agent_module.execute_tool("tripletex_delete", {"path": "/employee/1"}, mock_client)
+        mock_client.delete.assert_called_once_with("/employee/1")
 
     def test_unknown_tool(self):
-        client = _mock_tripletex_client()
-        result = execute_tool("unknown_tool", {}, client)
-        assert result["success"] is False
+        result = agent_module.execute_tool("tripletex_patch", {}, MagicMock())
+        assert not result["success"]
 
-    def test_exception_handling(self):
-        client = _mock_tripletex_client()
-        client.post.side_effect = Exception("connection timeout")
-        result = execute_tool("tripletex_post", {"path": "/employee", "body": {}}, client)
-        assert result["success"] is False
+    def test_exception_returns_error(self):
+        mock_client = MagicMock()
+        mock_client.post.side_effect = Exception("connection timeout")
+        result = agent_module.execute_tool("tripletex_post", {"path": "/x", "body": {}}, mock_client)
+        assert not result["success"]
         assert "connection timeout" in result["error"]
 
 
 class TestBuildUserMessage:
     def test_prompt_only(self):
-        msg = build_user_message("Create employee Ola", [])
+        msg = agent_module.build_user_message("Create employee Ola", [])
         assert "Create employee Ola" in msg
 
     def test_with_file_text(self):
         files = [{"filename": "data.csv", "text_content": "Name,Amount\nOla,1000", "images": []}]
-        msg = build_user_message("Process this", files)
+        msg = agent_module.build_user_message("Process this", files)
         assert "data.csv" in msg
         assert "Name,Amount" in msg
 
     def test_with_ocr_text(self):
         files = [{"filename": "_ocr_extracted.txt", "text_content": "Invoice #123", "images": []}]
-        msg = build_user_message("Process invoice", files)
+        msg = agent_module.build_user_message("Process invoice", files)
         assert "Invoice #123" in msg
+
+
+class TestRunAgentOcr:
+    """Test that OCR text is appended to file_contents."""
+
+    @patch("agent.gemini_ocr", return_value="Extracted: Invoice 500 NOK")
+    def test_ocr_text_appended(self, mock_ocr):
+        # Mock the Claude streaming response to just end immediately
+        mock_stream = MagicMock()
+        mock_response = MagicMock()
+        mock_response.stop_reason = "end_turn"
+        mock_response.content = []
+        mock_stream.__enter__ = MagicMock(return_value=mock_stream)
+        mock_stream.__exit__ = MagicMock(return_value=False)
+        mock_stream.get_final_message.return_value = mock_response
+        _mock_claude_client.messages.stream.return_value = mock_stream
+
+        file_contents = [{"filename": "receipt.png", "text_content": "", "images": [{"data": b"PNG", "mime_type": "image/png"}]}]
+        agent_module.run_agent("Process receipt", file_contents, "http://x/v2", "tok")
+        assert any(f["filename"] == "_ocr_extracted.txt" for f in file_contents)
 
 
 class TestConstants:
     def test_max_iterations(self):
-        assert MAX_ITERATIONS == 20
+        assert agent_module.MAX_ITERATIONS == 20
 
     def test_timeout(self):
-        assert TIMEOUT_SECONDS == 270
+        assert agent_module.TIMEOUT_SECONDS == 270
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run test to verify failing**
 
 Run: `python -m pytest tests/test_agent.py -v`
-Expected: FAIL — ImportError on `build_user_message` (doesn't exist in current agent.py)
+Expected: FAIL — ImportError on `build_user_message` (doesn't exist yet) and `from planner import` (old agent.py still has it)
 
 - [ ] **Step 3: Rewrite agent.py**
 
-Replace the entire contents of `agent.py` with:
+Replace the entire file:
 
 ```python
 # agent.py
@@ -618,7 +648,7 @@ from tripletex_api import TripletexClient
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Gemini client (retained for OCR only)
+# Gemini client (retained for OCR only — lazy init, NOT module-level)
 # ---------------------------------------------------------------------------
 
 _genai_client = None
@@ -875,43 +905,39 @@ git commit -m "feat: rewrite agent as pure Claude agentic loop with streaming an
 
 ---
 
-## Task 3: Simplify main.py
+## Task 3: Verify main.py Compatibility
 
-Remove any references to the old planner/executor. Keep `_preconfigure_bank_account` (it's needed for invoice tasks). The main change: `run_agent` signature stays the same, so `main.py` barely changes.
+main.py is already correct. Verify it works with the new agent module.
 
 **Files:**
-- Modify: `main.py`
+- Keep: `main.py` (no changes)
 
-- [ ] **Step 1: Verify main.py works with new agent**
-
-The current `main.py` already calls `run_agent(prompt, file_contents, base_url, session_token)` — this signature is preserved in the new `agent.py`. The only change needed is removing the import of `file_handler.process_files` being fine (it's unchanged) and verifying no stale imports.
-
-Read `main.py` and confirm it only imports `run_agent` from `agent` and `process_files` from `file_handler`. Both are preserved. No changes needed to main.py.
-
-- [ ] **Step 2: Run existing main test**
+- [ ] **Step 1: Run main.py tests**
 
 Run: `python -m pytest tests/test_main.py -v`
-Expected: PASS (or if tests reference old imports, they need updating — see Task 5)
 
-- [ ] **Step 3: Commit (if any changes)**
+The test mocks `run_agent` at the `main` module level, so it should pass regardless of agent.py internals. If it fails due to import-time errors from the old `planner.py` imports being gone, the test's mock setup already patches before import.
 
-```bash
-git add main.py
-git commit -m "chore: verify main.py works with new agent module"
-```
+Expected: All PASS
+
+- [ ] **Step 2: Verify both POST routes work**
+
+The evaluator sends `POST /` (root path). main.py already handles both `@app.post("/")` and `@app.post("/solve")`. No changes needed.
+
+- [ ] **Step 3: Verify GCS logging preserved**
+
+main.py already has `_save_request_to_gcs()` with `REQUEST_LOG_BUCKET`. No changes needed.
 
 ---
 
 ## Task 4: Delete Old Files
 
-Remove the old deterministic path files that are now replaced by the pure agent approach.
+Remove files replaced by the pure agent approach. Keep api_knowledge/.
 
 **Files to delete:**
 - `planner.py`
 - `executor.py`
 - `task_registry.py`
-- `api_knowledge/cheat_sheet.py`
-- `api_knowledge/__init__.py`
 - `tests/test_planner.py`
 - `tests/test_executor.py`
 - `tests/test_task_registry.py`
@@ -920,7 +946,6 @@ Remove the old deterministic path files that are now replaced by the pure agent 
 
 ```bash
 git rm planner.py executor.py task_registry.py
-git rm -r api_knowledge/
 ```
 
 - [ ] **Step 2: Delete old test files**
@@ -929,74 +954,85 @@ git rm -r api_knowledge/
 git rm tests/test_planner.py tests/test_executor.py tests/test_task_registry.py
 ```
 
-- [ ] **Step 3: Run remaining tests to ensure nothing breaks**
+- [ ] **Step 3: Run all remaining tests**
 
 Run: `python -m pytest tests/ -v --ignore=tests/integration`
-Expected: All remaining tests PASS. No imports of deleted modules.
+
+Expected: All PASS. Specifically verify:
+- `tests/test_agent.py` — new tests, no old imports
+- `tests/test_main.py` — mocks run_agent, no planner/executor dependency
+- `tests/test_prompts.py` — new tests
+- `tests/test_file_handler.py` — unchanged, no deleted-module dependency
+- `tests/test_tripletex_api.py` — unchanged
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add -A
-git commit -m "chore: remove planner, executor, task_registry, api_knowledge — replaced by pure agent"
+git rm planner.py executor.py task_registry.py tests/test_planner.py tests/test_executor.py tests/test_task_registry.py && git commit -m "chore: remove planner, executor, task_registry — replaced by pure agent"
 ```
 
 ---
 
-## Task 5: Update Remaining Tests
+## Task 5: Update CLAUDE.md
 
-Fix `tests/test_main.py` and `tests/test_file_handler.py` if they have stale imports or references to deleted modules.
+Update the project guide to reflect the new architecture.
 
 **Files:**
-- Modify: `tests/test_main.py` (if needed)
-- Modify: `tests/test_file_handler.py` (if needed)
+- Modify: `CLAUDE.md`
 
-- [ ] **Step 1: Run the full test suite**
+- [ ] **Step 1: Update architecture section**
 
-Run: `python -m pytest tests/ -v --ignore=tests/integration`
+Replace the architecture section in CLAUDE.md with:
 
-If there are import errors or failures referencing `planner`, `executor`, or `task_registry`, fix them. The test for `file_handler.py` should pass unchanged. The test for `main.py` may need mock updates if it mocked planner/executor.
+```markdown
+## Architecture
 
-- [ ] **Step 2: Fix any broken tests**
+```
+POST / → main.py
+  ├── _save_request_to_gcs()       — full payload to GCS (if REQUEST_LOG_BUCKET set)
+  ├── _preconfigure_bank_account()  — ensures ledger 1920 has bank account
+  ├── gemini_ocr()                 — Gemini extracts text from images (if any)
+  └── Claude Opus 4.6 agentic loop — streaming, adaptive thinking, 4 REST tools
+      ├── system prompt (rules + recipes + api_knowledge/cheat_sheet.py)
+      ├── max 20 iterations, 270s timeout
+      └── return {"status": "completed"}
+```
+```
 
-Common fixes:
-- `tests/test_main.py`: If it mocks `planner.parse_prompt` or `executor.execute_plan`, update to mock `agent.run_agent` instead.
-- `tests/test_file_handler.py`: Should pass unchanged — no dependency on deleted modules.
+- [ ] **Step 2: Update key files table**
 
-- [ ] **Step 3: Run full suite again to confirm**
+Remove planner.py, executor.py, task_registry.py entries. Add prompts.py.
 
-Run: `python -m pytest tests/ -v --ignore=tests/integration`
-Expected: All PASS
+- [ ] **Step 3: Update implementation notes**
+
+Remove references to deterministic path, FallbackContext, etc.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add tests/
-git commit -m "fix: update tests for pure agent architecture"
+git add CLAUDE.md
+git commit -m "docs: update CLAUDE.md for pure agent architecture"
 ```
 
 ---
 
 ## Task 6: Local Smoke Test
 
-Verify the new agent works end-to-end against the sandbox before deploying.
+Verify the new agent works end-to-end against the sandbox.
 
-**Files:**
-- Modify: `smoke_test.py` (if needed to work with new agent)
-
-- [ ] **Step 1: Start the local server**
+- [ ] **Step 1: Start local server**
 
 ```bash
-uvicorn main:app --host 0.0.0.0 --port 8000
+source .env && uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-- [ ] **Step 2: Send a simple test request**
+- [ ] **Step 2: Test simple task (Tier 1)**
 
 ```bash
 curl -X POST http://localhost:8000/solve \
   -H "Content-Type: application/json" \
   -d '{
-    "prompt": "Opprett en avdeling med navn Salg og avdelingsnummer 100",
+    "prompt": "Opprett en kunde med namn Testfirma AS og e-post post@testfirma.no",
     "files": [],
     "tripletex_credentials": {
       "base_url": "https://kkpqfuj-amager.tripletex.dev/v2",
@@ -1005,15 +1041,15 @@ curl -X POST http://localhost:8000/solve \
   }'
 ```
 
-Expected: `{"status": "completed"}` and logs showing Claude making 1 POST /department call.
+Expected: `{"status": "completed"}`, logs show 1 POST /customer call, 0 errors.
 
-- [ ] **Step 3: Test a multi-step flow**
+- [ ] **Step 3: Test multi-step task (Tier 2 — invoice)**
 
 ```bash
 curl -X POST http://localhost:8000/solve \
   -H "Content-Type: application/json" \
   -d '{
-    "prompt": "Create a customer named Test AS, then create a product named Consulting at 1000 NOK excl VAT, then create an order and invoice for this customer with 1 unit of the product",
+    "prompt": "Opprett en faktura til kunden Testfaktura AS (org.nr 123456789) med en produktlinje: Konsulenttimer (10000 NOK ekskl. MVA, 5 timer)",
     "files": [],
     "tripletex_credentials": {
       "base_url": "https://kkpqfuj-amager.tripletex.dev/v2",
@@ -1022,55 +1058,73 @@ curl -X POST http://localhost:8000/solve \
   }'
 ```
 
-Expected: `{"status": "completed"}` with logs showing customer → product → order → invoice chain.
+Expected: `{"status": "completed"}`, logs show customer → product → order → invoice chain.
 
-- [ ] **Step 4: Commit any fixes**
+- [ ] **Step 4: Test with competition fixture**
 
 ```bash
-git add -A
-git commit -m "fix: smoke test fixes from local testing"
+cat tests/competition_tasks/10_create_invoice_no.json | curl -X POST http://localhost:8000/solve \
+  -H "Content-Type: application/json" \
+  -d @-
+```
+
+Note: Competition fixtures have truncated prompts. Use for format testing, not full correctness.
+
+- [ ] **Step 5: Fix any issues found**
+
+```bash
+git add -A && git commit -m "fix: smoke test fixes from local testing"
 ```
 
 ---
 
-## Task 7: Deploy to Cloud Run
+## Task 7: Deploy to Dev Container
 
-Deploy the new pure agent to Cloud Run and submit to the competition.
+Deploy to the dev container first, then competition after verification.
 
-- [ ] **Step 1: Deploy**
+- [ ] **Step 1: Deploy to dev**
 
 ```bash
-gcloud run deploy ai-accounting-agent-det \
-  --source . \
-  --region europe-north1 \
-  --allow-unauthenticated \
-  --memory 1Gi \
-  --timeout 300 \
-  --set-env-vars GCP_PROJECT_ID=ai-nm26osl-1799,GCP_LOCATION=global \
-  --min-instances 1
+gcloud run deploy ai-accounting-agent-det --source . --region europe-north1 --project ai-nm26osl-1799 --set-env-vars="GCP_PROJECT_ID=ai-nm26osl-1799,GCP_LOCATION=global,REQUEST_LOG_BUCKET=ai-nm26osl-1799-dev-logs" --quiet
 ```
 
-- [ ] **Step 2: Verify health endpoint**
+- [ ] **Step 2: Verify dev health**
 
 ```bash
-curl https://YOUR-CLOUD-RUN-URL/health
+curl https://ai-accounting-agent-det-590159115697.europe-north1.run.app/health
 ```
 
 Expected: `{"status": "ok"}`
 
-- [ ] **Step 3: Submit to competition**
-
-Go to `https://app.ainm.no/submit/tripletex` and submit the Cloud Run URL.
-
-- [ ] **Step 4: Monitor results**
-
-Watch the competition dashboard for scores. The key metric: do Tier 2/3 multi-step tasks that previously scored 0% now score >0%?
-
-- [ ] **Step 5: Commit deployment config**
+- [ ] **Step 3: Test dev with a real task**
 
 ```bash
-git add -A
-git commit -m "chore: deploy pure agent to Cloud Run"
+curl -X POST https://ai-accounting-agent-det-590159115697.europe-north1.run.app/solve \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Opprett en kunde med namn CloudTest AS og e-post test@cloud.no",
+    "files": [],
+    "tripletex_credentials": {
+      "base_url": "https://kkpqfuj-amager.tripletex.dev/v2",
+      "session_token": "YOUR_SANDBOX_TOKEN"
+    }
+  }'
+```
+
+- [ ] **Step 4: Deploy to competition (only after dev verified)**
+
+```bash
+gcloud run deploy accounting-agent-comp --source . --region europe-north1 --project ai-nm26osl-1799 --set-env-vars="GCP_PROJECT_ID=ai-nm26osl-1799,GCP_LOCATION=global,REQUEST_LOG_BUCKET=ai-nm26osl-1799-competition-logs" --quiet
+```
+
+- [ ] **Step 5: Submit to competition**
+
+Go to `https://app.ainm.no/submit/tripletex` and submit the competition URL.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add -A && git commit -m "chore: deploy pure agent to dev and competition"
 ```
 
 ---
@@ -1079,14 +1133,30 @@ git commit -m "chore: deploy pure agent to Cloud Run"
 
 | Task | Component | Key Deliverable |
 |------|-----------|----------------|
-| 1 | prompts.py | System prompt with API ref + recipes + rules |
-| 2 | agent.py | Clean agentic loop with streaming + adaptive thinking |
-| 3 | main.py | Verified compatibility (minimal changes) |
-| 4 | Cleanup | Delete planner, executor, registry, api_knowledge |
-| 5 | Tests | Updated test suite for new architecture |
-| 6 | Smoke test | Local end-to-end verification |
-| 7 | Deploy | Cloud Run deployment + competition submission |
+| 1 | prompts.py | 16 recipes + rules + cheat sheet import (~6K tokens) |
+| 2 | agent.py | Clean agentic loop: streaming, adaptive thinking, prompt caching |
+| 3 | main.py | Verify compatibility (no changes needed) |
+| 4 | Cleanup | Delete planner.py, executor.py, task_registry.py + tests |
+| 5 | CLAUDE.md | Update documentation for new architecture |
+| 6 | Smoke test | Local end-to-end verification against sandbox |
+| 7 | Deploy | Dev container → verify → competition container |
 
-**Total estimated code:** ~650 lines (down from 2000+). One code path. One prompt to iterate on.
+**What's preserved:**
+- `api_knowledge/cheat_sheet.py` (941 lines, actively maintained)
+- `main.py` (GCS logging, bank pre-config, both POST routes)
+- `claude_client.py` (AnthropicVertex singleton)
+- `tripletex_api.py` (HTTP wrapper, 30s timeouts)
+- `file_handler.py` (PDF/image/text processing)
+- `tests/competition_tasks/` (23 fixtures)
+- Lazy genai client pattern
+- vatType retry guidance (now in prompt, not code)
+- PM entitlements guidance (now in prompt, not code)
+- Bank pre-config (still in main.py code)
 
-**After deployment:** The fastest path to improving scores is prompt iteration: submit → read results → adjust recipes/rules in prompts.py → redeploy → repeat.
+**What's new:**
+- `prompts.py` — system prompt brain (rules + 16 recipes + gotchas)
+- Streaming with adaptive thinking
+- Prompt caching via cache_control
+- is_error flag on failed tool results
+
+**After deployment:** Iterate on `prompts.py` recipes based on competition scores. Each recipe adjustment is a prompt edit → redeploy → resubmit cycle.
