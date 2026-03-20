@@ -1,0 +1,15 @@
+{
+  "prompt": "Crie uma fatura para o cliente Oceano Lda (org. n\u00ba 825975497) com tr\u00eas linhas de produto: Design web, Hospedagem cloud e Suporte t\u00e9cnico. Configure a conta banc\u00e1ria, crie o cliente, crie os tr\u00eas produtos, crie uma encomenda com todas as linhas e fature a encomenda.",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "create_invoice",
+    "tier": 2,
+    "language": "PT",
+    "source": "ai-accounting-agent_logs_2026-03-20",
+    "note": "Prompt reconstructed from truncated log + planner analysis"
+  }
+}

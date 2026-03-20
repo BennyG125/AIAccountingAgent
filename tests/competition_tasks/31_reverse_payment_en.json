@@ -1,0 +1,15 @@
+{
+    "prompt": "The payment from Blueshore Ltd (org no. 989902121) for the invoice \"Software License\" (39700 NOK excl. VAT) was received but needs to be reversed. Create the customer, create an invoice for \"Software License\" at 39700 NOK excluding VAT, register a payment voucher for the invoice, and then reverse the payment voucher.",
+    "files": [],
+    "tripletex_credentials": {
+        "base_url": "PLACEHOLDER_BASE_URL",
+        "session_token": "PLACEHOLDER_TOKEN"
+    },
+    "_metadata": {
+        "task_type": "reverse_payment_voucher",
+        "tier": 2,
+        "language": "EN",
+        "source": "ai-accounting-agent_logs_2026-03-20",
+        "note": "Prompt reconstructed from truncated log + planner analysis"
+    }
+}

@@ -1,0 +1,15 @@
+{
+  "prompt": "Nous avons re\u00e7u la facture INV-2026-5683 du fournisseur Lumi\u00e8re SARL (n\u00ba org. 904564184) de 75500 NOK TTC avec 25% de TVA d\u00e9ductible. Les services de bureau doivent \u00eatre enregistr\u00e9s sur le compte 7140.",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "register_supplier_invoice",
+    "tier": 2,
+    "language": "FR",
+    "source": "ai-accounting-agent_logs_2026-03-20",
+    "note": "Prompt reconstructed from truncated log + planner analysis"
+  }
+}

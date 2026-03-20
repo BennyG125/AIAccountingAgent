@@ -1,0 +1,15 @@
+{
+  "prompt": "Create a department called Sales with department number 1",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "create_department",
+    "tier": 1,
+    "language": "EN",
+    "source": "ai-accounting-agent_logs_2026-03-20",
+    "note": "Prompt reconstructed from truncated log + planner analysis"
+  }
+}

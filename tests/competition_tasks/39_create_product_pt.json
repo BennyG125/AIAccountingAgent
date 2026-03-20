@@ -1,0 +1,15 @@
+{
+  "prompt": "Crie o produto \"Servi\u00e7o de rede\" com n\u00famero de produto 4252. O pre\u00e7o \u00e9 8200 NOK sem IVA, utilizando a taxa de IVA padr\u00e3o de 25%.",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "create_product",
+    "tier": 1,
+    "language": "PT",
+    "source": "ai-accounting-agent_logs_2026-03-20",
+    "note": "Prompt reconstructed from truncated log + planner analysis"
+  }
+}

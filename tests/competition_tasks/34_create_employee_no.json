@@ -1,0 +1,15 @@
+{
+  "prompt": "Vi har en ny ansatt som heter Lars Bakken, f\u00f8dt 1. October 1983. Opprett vedkommende som ansatt med e-post lars.bakken@example.org. Opprett ogs\u00e5 et arbeidsforhold med startdato 2026-08-04.",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "create_employee",
+    "tier": 1,
+    "language": "NO",
+    "source": "ai-accounting-agent_logs_2026-03-20",
+    "note": "Prompt reconstructed from truncated log + planner analysis"
+  }
+}

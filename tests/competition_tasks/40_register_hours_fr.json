@@ -1,0 +1,15 @@
+{
+    "prompt": "Enregistrez 5 heures pour Raphaël Thomas (raphael.thomas@example.org) sur l'activité \"Utvikling\" du projet \"Refonte du site\" lié au client Colline SARL (nº org. 997549929). Créez le client, l'employé, le projet et l'activité au préalable si nécessaire.",
+    "files": [],
+    "tripletex_credentials": {
+        "base_url": "PLACEHOLDER_BASE_URL",
+        "session_token": "PLACEHOLDER_TOKEN"
+    },
+    "_metadata": {
+        "task_type": "register_hours",
+        "tier": 2,
+        "language": "FR",
+        "source": "ai-accounting-agent_logs_2026-03-20",
+        "note": "Prompt reconstructed from truncated log + planner analysis"
+    }
+}

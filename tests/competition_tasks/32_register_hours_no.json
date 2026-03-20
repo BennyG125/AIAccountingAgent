@@ -1,0 +1,15 @@
+{
+    "prompt": "Registrer 30 timar for Gunnhild Eide (gunnhild.eide@example.org) på aktiviteten \"Rådgivning\" i prosjektet \"Nettbutikk-utvikling\" knytt til kunden Sjøbris AS (org. 801323847). Opprett kunden, den tilsette, prosjektet og aktiviteten først om dei ikkje finst.",
+    "files": [],
+    "tripletex_credentials": {
+        "base_url": "PLACEHOLDER_BASE_URL",
+        "session_token": "PLACEHOLDER_TOKEN"
+    },
+    "_metadata": {
+        "task_type": "register_hours",
+        "tier": 2,
+        "language": "NO",
+        "source": "ai-accounting-agent_logs_2026-03-20",
+        "note": "Prompt reconstructed from truncated log + planner analysis"
+    }
+}

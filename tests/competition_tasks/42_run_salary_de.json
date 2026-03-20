@@ -1,0 +1,15 @@
+{
+  "prompt": "F\u00fchren Sie die Gehaltsabrechnung f\u00fcr Lena M\u00fcller (lena.muller@example.org) f\u00fcr diesen Monat durch. Das Grundgehalt betr\u00e4gt 52850 NOK. Zus\u00e4tzlich soll ein einmaliger Bonus von 8800 NOK hinzugef\u00fcgt werden.",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "run_salary",
+    "tier": 2,
+    "language": "DE",
+    "source": "ai-accounting-agent_logs_2026-03-20",
+    "note": "Prompt reconstructed from truncated log + planner analysis"
+  }
+}

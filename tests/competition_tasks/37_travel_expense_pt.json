@@ -1,0 +1,15 @@
+{
+    "prompt": "Registe uma despesa de viagem para Sofia Ferreira (sofia.ferreira@example.org) referente a \"Conferência Drammen\". A dieta é de 4 dias a 800 NOK/dia, bilhete de avião 7050 NOK e táxi 450 NOK.",
+    "files": [],
+    "tripletex_credentials": {
+        "base_url": "PLACEHOLDER_BASE_URL",
+        "session_token": "PLACEHOLDER_TOKEN"
+    },
+    "_metadata": {
+        "task_type": "travel_expense",
+        "tier": 2,
+        "language": "PT",
+        "source": "ai-accounting-agent_logs_2026-03-20",
+        "note": "Prompt reconstructed from truncated log + planner analysis"
+    }
+}

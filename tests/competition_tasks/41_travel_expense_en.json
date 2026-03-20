@@ -1,0 +1,15 @@
+{
+    "prompt": "Register a travel expense for Lucy Walker (lucy.walker@example.org) for \"Client visit Trondheim\". The per diem is 4 days at 800 NOK/day, flight ticket 7200 NOK, and taxi 650 NOK.",
+    "files": [],
+    "tripletex_credentials": {
+        "base_url": "PLACEHOLDER_BASE_URL",
+        "session_token": "PLACEHOLDER_TOKEN"
+    },
+    "_metadata": {
+        "task_type": "travel_expense",
+        "tier": 2,
+        "language": "EN",
+        "source": "ai-accounting-agent_logs_2026-03-20",
+        "note": "Prompt reconstructed from truncated log + planner analysis"
+    }
+}

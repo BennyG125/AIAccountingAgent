@@ -1,0 +1,15 @@
+{
+  "prompt": "Create a custom accounting dimension \"Region\" with the values \"Nord-Norge\" and \"Vestlandet\". Then post a voucher using the \"Region\" dimension.",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "custom_dimension",
+    "tier": 2,
+    "language": "EN",
+    "source": "ai-accounting-agent_logs_2026-03-20",
+    "note": "Prompt reconstructed from truncated log + planner analysis"
+  }
+}

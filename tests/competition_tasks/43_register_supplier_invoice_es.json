@@ -1,0 +1,15 @@
+{
+  "prompt": "Hemos recibido la factura INV-2026-9187 del proveedor Monta\u00f1a SL (org. n\u00ba 884646979) por 19500 NOK con IVA incluido al 25%. Los servicios de oficina deben registrarse en la cuenta 7300.",
+  "files": [],
+  "tripletex_credentials": {
+    "base_url": "PLACEHOLDER_BASE_URL",
+    "session_token": "PLACEHOLDER_TOKEN"
+  },
+  "_metadata": {
+    "task_type": "register_supplier_invoice",
+    "tier": 2,
+    "language": "ES",
+    "source": "ai-accounting-agent_logs_2026-03-20",
+    "note": "Prompt reconstructed from truncated log + planner analysis"
+  }
+}
