@@ -27,10 +27,14 @@ NM i AI 2026 — Tripletex task. Agent receives accounting prompts (multilingual
 
 ```bash
 # Dev (test here first)
-gcloud run deploy ai-accounting-agent-det --source . --region europe-north1 --project ai-nm26osl-1799 --set-env-vars="GCP_PROJECT_ID=ai-nm26osl-1799,GCP_LOCATION=global,REQUEST_LOG_BUCKET=ai-nm26osl-1799-dev-logs" --quiet
+gcloud run deploy ai-accounting-agent-det --source . --region europe-north1 --project ai-nm26osl-1799 --set-env-vars="GCP_PROJECT_ID=ai-nm26osl-1799,GCP_LOCATION=global,REQUEST_LOG_BUCKET=ai-nm26osl-1799-dev-logs,LANGSMITH_TRACING=true,LANGSMITH_PROJECT=ai-accounting-agent" --quiet
 
 # Competition (only after dev is verified)
-gcloud run deploy accounting-agent-comp --source . --region europe-north1 --project ai-nm26osl-1799 --set-env-vars="GCP_PROJECT_ID=ai-nm26osl-1799,GCP_LOCATION=global,REQUEST_LOG_BUCKET=ai-nm26osl-1799-competition-logs" --quiet
+gcloud run deploy accounting-agent-comp --source . --region europe-north1 --project ai-nm26osl-1799 --set-env-vars="GCP_PROJECT_ID=ai-nm26osl-1799,GCP_LOCATION=global,REQUEST_LOG_BUCKET=ai-nm26osl-1799-competition-logs,LANGSMITH_TRACING=true,LANGSMITH_PROJECT=ai-accounting-agent" --quiet
+
+# Set LangSmith API key separately (never commit the value):
+# gcloud run services update ai-accounting-agent-det --region europe-north1 --project ai-nm26osl-1799 --update-env-vars="LANGSMITH_API_KEY=<your-key>"
+# gcloud run services update accounting-agent-comp --region europe-north1 --project ai-nm26osl-1799 --update-env-vars="LANGSMITH_API_KEY=<your-key>"
 ```
 
 ## Architecture
