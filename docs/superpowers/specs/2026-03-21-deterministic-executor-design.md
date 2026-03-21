@@ -14,13 +14,20 @@
 - **Current success rate:** ~96% on known tasks, but slow (avg 60s) and API-inefficient
 - **Existing data:** 43 task fixtures in `tests/competition_tasks/`, 6 real competition captures, ground truth doc
 
+## Principle
+
+**Diligence over efficiency.** Every task type gets a thoroughly researched, tested, and verified
+execution plan. The compound effect of bulletproof plans across all task types and tiers is the
+real competitive advantage. We do not cut corners or skip task types.
+
 ## Strategy
 
-Three phases executed sequentially:
+Four phases:
 
-1. **Capture** — Deploy minimal container to capture Tier 3 requests (unknown task types)
-2. **Analyze** — Download captures + combine with existing fixtures, map exact field requirements
-3. **Execute** — Build deterministic executor: classify → extract → execute → fallback
+1. **Capture** — Deploy minimal container to intercept ALL evaluator requests (especially Tier 3)
+2. **Parallel Analysis** — For each captured task type, spawn a research agent that discovers the optimal API sequence by testing against the sandbox
+3. **Build Plans** — Convert each research output into a hardcoded execution plan
+4. **Integrate** — Wire up: classify → extract → execute → fallback
 
 ---
 
@@ -122,7 +129,7 @@ gcloud run deploy accounting-agent-capture \
 
 ---
 
-## Phase 2: Analyze Captured Tasks
+## Phase 2: Download & Parallel Analysis
 
 ### Download script
 
@@ -155,17 +162,82 @@ if __name__ == "__main__":
     download()
 ```
 
-### Analysis process
+### Parallel research agents
 
-For each captured task type, determine:
+Once captured tasks are downloaded, we **spawn one research agent per task type in parallel**.
+Each agent receives:
 
-1. **Task type** — what kind of accounting operation
-2. **Required fields** — what the evaluator checks
-3. **Optimal API sequence** — minimum calls to achieve the result
-4. **Parameter extraction schema** — what fields to extract from the prompt
-5. **Error recovery** — retry strategies for known failure modes
+1. The captured prompt(s) for that task type
+2. The existing recipe (if one exists)
+3. Access to the Tripletex sandbox (base_url + session_token)
+4. The API cheat sheet (`api_knowledge/cheat_sheet.py`)
 
-### Output: execution plan files
+Each agent's job:
+
+1. **Parse the prompt** — identify all required fields the evaluator expects
+2. **Read the existing recipe** — understand the current approach and known gotchas
+3. **Test against the sandbox** — make real API calls to discover:
+   - The exact minimal set of API calls needed
+   - Which fields are required vs optional
+   - What error responses look like and how to recover
+   - Field name quirks (e.g., `priceExcludingVatCurrency` not `price`)
+4. **Document the optimal sequence** — write a research report with:
+   - Exact API calls in order (method, path, body, params)
+   - Required vs optional fields per call
+   - Error recovery strategies (tested, not guessed)
+   - The extraction schema (what to pull from the prompt)
+
+**Output:** One research report per task type saved to `execution_plans/research/<task_type>.md`
+
+```
+execution_plans/research/
+  create_customer.md
+  create_employee.md
+  create_supplier.md
+  create_product.md
+  create_departments.md
+  create_invoice.md
+  create_order.md
+  create_project.md
+  fixed_price_project.md
+  register_payment.md
+  register_supplier_invoice.md
+  run_salary.md
+  custom_dimension.md
+  reverse_payment.md
+  credit_note.md
+  register_hours.md
+  travel_expense.md
+  bank_reconciliation.md
+  employee_onboarding.md
+  asset_registration.md
+  year_end_corrections.md
+  # ... plus any new Tier 3 task types discovered via capture
+```
+
+### Why parallel
+
+- Each task type is independent — agents don't need to coordinate
+- Sandbox can handle concurrent API calls (separate entities don't conflict)
+- Running 20 agents in parallel instead of sequentially saves massive time
+- Each agent can be thorough (5-10 min of real API testing) without blocking others
+
+### Analysis checklist per task type
+
+Each research agent must answer:
+
+- [ ] What is the minimum number of API calls?
+- [ ] What are the exact required fields per API call?
+- [ ] What fields should NEVER be included (cause errors)?
+- [ ] What order do calls need to happen in (dependencies)?
+- [ ] If a call fails with 422, what field should be removed and retried?
+- [ ] If an entity already exists, how to find it (which search endpoint + params)?
+- [ ] What does the prompt look like across all 6 languages for this task?
+- [ ] What parameters need to be extracted from the prompt?
+
+### Phase 2 output: execution plan files
+
+After research, each task type gets an execution plan:
 
 ```
 execution_plans/
@@ -173,6 +245,7 @@ execution_plans/
   _base.py            # Base class, shared utilities, timeout
   _registry.py        # Task type → plan mapping
   _classifier.py      # Keyword classifier + Gemini param extractor
+  research/           # Research reports from parallel agents
   create_customer.py
   create_employee.py
   create_supplier.py
@@ -186,22 +259,19 @@ execution_plans/
   register_supplier_invoice.py
   run_salary.py
   custom_dimension.py
-  # ... additional plans added as Tier 3 tasks are discovered
+  reverse_payment.py
+  credit_note.py
+  register_hours.py
+  travel_expense.py
+  bank_reconciliation.py
+  employee_onboarding.py
+  asset_registration.py
+  year_end_corrections.py
+  # ... plus any new Tier 3 task types
 ```
 
-**Priority implementation order** (highest ROI first):
-1. Tier 3 tasks (3x multiplier) — discovered via capture
-2. `create_invoice` (Tier 2, 16% of competition, currently slow + error-prone)
-3. `run_salary` (Tier 2, currently slow — avg 151s, up to 24 API calls)
-4. `register_payment` (Tier 2)
-5. `register_supplier_invoice` (Tier 2)
-6. `fixed_price_project` (Tier 2)
-7. `create_order` (Tier 2)
-8. `create_project` (Tier 2)
-9. `custom_dimension` (Tier 2)
-10. Tier 1 tasks — simple, already ~100% success, lowest priority
-
-If time is tight, implement only items 1-6 and let Claude handle the rest.
+**Every task type gets a plan.** No scoping down. The Claude fallback exists as a safety net,
+not as an excuse to skip task types.
 
 ---
 
@@ -789,7 +859,8 @@ python smoke_test.py --mode deterministic --tier 2
 | `execution_plans/_base.py` | Create | Base class with timeout, safe_post, find_or_create |
 | `execution_plans/_classifier.py` | Create | Keyword-based task classifier |
 | `execution_plans/_registry.py` | Create | Task type → plan mapping |
-| `execution_plans/<task>.py` | Create | One per implemented task type (5-13 files) |
+| `execution_plans/research/<task>.md` | Create | Research report per task type (from parallel agents) |
+| `execution_plans/<task>.py` | Create | One per task type (ALL types, no scoping down) |
 | `main.py` | Modify | Add deterministic path before Claude fallback, move bank pre-config |
 | `smoke_test.py` | Modify | Add --mode deterministic option |
 
@@ -797,28 +868,40 @@ python smoke_test.py --mode deterministic --tier 2
 
 ## Execution Order
 
-### Tonight (Friday evening) — prep
+### Step 1 — Framework + Capture Container
 
-1. Deploy capture container (10 min)
-2. Implement framework: `_base.py`, `_classifier.py`, `_registry.py`, `deterministic_executor.py` (30 min)
-3. Implement 2-3 Tier 1 plans to validate the pipeline end-to-end (30 min)
-4. Verify against sandbox (15 min)
+1. Deploy capture container
+2. Implement the executor framework: `_base.py`, `_classifier.py`, `_registry.py`, `deterministic_executor.py`
+3. Implement + test 1 simple plan (e.g., create_customer) to validate the full pipeline end-to-end
+4. Integrate into `main.py` with Claude fallback
 
-### Saturday morning — Tier 3 capture + high-value plans
+### Step 2 — Capture Tier 3
 
-1. When Tier 3 opens: submit once via capture container (5 min)
-2. Download + analyze Tier 3 requests (20 min)
-3. Implement Tier 3 execution plans (3x multiplier, highest ROI) (~1h)
-4. Implement remaining high-value Tier 2 plans: create_invoice, run_salary, register_payment (~1h)
-5. Verify all plans against sandbox (20 min)
-6. Deploy to dev, smoke test (15 min)
-7. Deploy to comp, submit scored runs (5 min)
+1. When Tier 3 opens: submit once via capture container
+2. Download all captured payloads
 
-### Fallback plan
+### Step 3 — Parallel Research
 
-If time is tight, implement only:
-- All Tier 3 plans (unknown but 3x multiplier)
-- `create_invoice` (16% of competition, currently error-prone)
-- `run_salary` (currently slowest — 151s avg)
+1. Combine captured tasks with existing fixtures (`tests/competition_tasks/`)
+2. Group by task type
+3. Spawn parallel research agents — one per task type
+4. Each agent tests against sandbox and produces a research report
+5. Review research reports for completeness
 
-Everything else falls back to the existing Claude agent (~96% success rate).
+### Step 4 — Build ALL Execution Plans
+
+1. Convert each research report into a hardcoded Python execution plan
+2. Every task type gets a plan — no exceptions
+3. Each plan is tested against the sandbox before moving on
+
+### Step 5 — Verification
+
+1. Run `scripts/verify_plans.py` — verifies every plan against the sandbox
+2. Run smoke tests in deterministic mode
+3. Fix any failures
+
+### Step 6 — Deploy
+
+1. Deploy to dev container, run full smoke test
+2. Deploy to comp container
+3. Submit scored runs
