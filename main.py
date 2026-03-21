@@ -133,18 +133,35 @@ async def solve(request: Request):
     task_id = uuid.uuid4().hex[:12]
     logger.info(f"task_id={task_id}")
 
+    # Bank pre-config runs before BOTH execution paths
+    _preconfigure_bank_account(base_url, session_token)
+
     result = None
+
+    # Priority path: deterministic execution
     try:
-        metadata = {
-            "task_id": task_id,
-            "prompt_hash": hashlib.sha256(prompt.encode()).hexdigest()[:8],
-            "prompt_preview": prompt[:80],
-            "file_count": len(files),
-        }
-        result = _handle_task(prompt, files, base_url, session_token, metadata=metadata)
-        logger.info(f"Agent: {result}")
+        from deterministic_executor import DeterministicExecutor
+        executor = DeterministicExecutor(base_url, session_token)
+        result = executor.try_execute(prompt, files)
+        if result:
+            logger.info(f"Deterministic executor succeeded: task_id={task_id}")
     except Exception as e:
-        logger.error(f"Agent error: {e}", exc_info=True)
+        logger.warning(f"Deterministic executor error: {e}")
+        result = None
+
+    # Fallback: full Claude agentic loop
+    if result is None:
+        try:
+            metadata = {
+                "task_id": task_id,
+                "prompt_hash": hashlib.sha256(prompt.encode()).hexdigest()[:8],
+                "prompt_preview": prompt[:80],
+                "file_count": len(files),
+            }
+            result = _handle_task(prompt, files, base_url, session_token, metadata=metadata)
+            logger.info(f"Agent: {result}")
+        except Exception as e:
+            logger.error(f"Agent error: {e}", exc_info=True)
 
     # Save full request+result to GCS (synchronous — Cloud Run freezes CPU after response)
     _save_request_to_gcs(body, result, task_id=task_id)
