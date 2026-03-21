@@ -163,17 +163,28 @@ class DeterministicExecutor:
         """
         start_time = time.time()
 
-        # 1. OCR if files present
+        # 1. Extract text from files (fast path: PyMuPDF for PDFs, skip Gemini OCR)
         ocr_text = ""
         if files:
             try:
                 from file_handler import process_files
-                from agent import gemini_ocr
-
                 file_contents = process_files(files)
-                ocr_text = gemini_ocr(file_contents)
+                # Use PyMuPDF text extraction first (instant)
+                text_parts = [
+                    fc.get("text_content", "")
+                    for fc in file_contents
+                    if fc.get("text_content", "").strip()
+                ]
+                if text_parts:
+                    ocr_text = "\n\n".join(text_parts)
+                    logger.info(f"Fast text extraction: {len(ocr_text)} chars from {len(text_parts)} files")
+                else:
+                    # Fallback to Gemini OCR only for scanned/image files
+                    from agent import gemini_ocr
+                    ocr_text = gemini_ocr(file_contents)
+                    logger.info(f"Gemini OCR: {len(ocr_text)} chars")
             except Exception as e:
-                logger.warning(f"OCR failed in deterministic executor: {e}")
+                logger.warning(f"File processing failed in deterministic executor: {e}")
 
         # 1b. Extract CSV/text content from files (in addition to OCR)
         csv_text = ""
