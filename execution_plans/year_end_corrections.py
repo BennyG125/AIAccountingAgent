@@ -163,21 +163,9 @@ class YearEndCorrectionsPlan(ExecutionPlan):
             }
         )
 
-        account_ids: dict[str, int] = {}
-        for acc_num in account_numbers:
-            result = client.get("/ledger/account", params={"number": acc_num})
-            api_calls += 1
-            if result["success"]:
-                values = result["body"].get("values", [])
-                if values:
-                    account_ids[acc_num] = values[0]["id"]
-            if acc_num not in account_ids:
-                api_errors += 1
-                raise RuntimeError(
-                    f"Failed to look up account {acc_num}: "
-                    f"status={result.get('status_code')}, error={result.get('error')}"
-                )
-            self._check_timeout(start_time)
+        # Batch look up all accounts in 1 call instead of up to 6
+        account_ids = self._get_accounts(client, *account_numbers)
+        api_calls += 1
 
         wrong_account_id = account_ids[str(wa["wrong_account_number"])]
         correct_account_id = account_ids[str(wa["correct_account_number"])]

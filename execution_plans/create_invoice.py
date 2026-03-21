@@ -134,12 +134,20 @@ class CreateInvoicePlan(ExecutionPlan):
 
         self._check_timeout(start_time)
 
-        # --- Step 5: Create invoice ---
-        invoice_result = client.post("/invoice", body={
-            "invoiceDate": invoice_date,
-            "invoiceDueDate": invoice_due_date,
-            "orders": [{"id": order_id}],
-        })
+        # --- Step 5: Create invoice (with sendToCustomer if requested) ---
+        invoice_params = {}
+        if params.get("send_invoice"):
+            invoice_params["sendToCustomer"] = "true"
+
+        invoice_result = client.post(
+            "/invoice",
+            body={
+                "invoiceDate": invoice_date,
+                "invoiceDueDate": invoice_due_date,
+                "orders": [{"id": order_id}],
+            },
+            params=invoice_params or None,
+        )
         api_calls += 1
         if not invoice_result["success"]:
             api_errors += 1
@@ -147,23 +155,5 @@ class CreateInvoicePlan(ExecutionPlan):
                 f"Failed to create invoice: "
                 f"status={invoice_result.get('status_code')}, error={invoice_result.get('error')}"
             )
-
-        invoice_id = invoice_result["body"]["value"]["id"]
-
-        # --- Step 6: Send invoice if requested ---
-        if params.get("send_invoice"):
-            self._check_timeout(start_time)
-            send_result = client.put(f"/invoice/{invoice_id}/:send", params={"sendType": "EMAIL"})
-            api_calls += 1
-            if not send_result["success"] and send_result.get("status_code") == 422:
-                # Retry with MANUAL
-                send_result = client.put(f"/invoice/{invoice_id}/:send", params={"sendType": "MANUAL"})
-                api_calls += 1
-            if not send_result["success"]:
-                api_errors += 1
-                raise RuntimeError(
-                    f"Failed to send invoice {invoice_id}: "
-                    f"status={send_result.get('status_code')}, error={send_result.get('error')}"
-                )
 
         return self._make_result(api_calls=api_calls, api_errors=api_errors)

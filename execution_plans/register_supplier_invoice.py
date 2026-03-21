@@ -111,33 +111,12 @@ class RegisterSupplierInvoicePlan(ExecutionPlan):
                 )
             supplier_id = create_result["body"]["value"]["id"]
 
-        # --- Step 2: Look up supplier payable account (2400) ---
+        # --- Step 2: Batch look up accounts (2400 + expense) ---
         self._check_timeout(start_time)
-        acc2400_result = client.get("/ledger/account", params={"number": "2400"})
+        accounts = self._get_accounts(client, "2400", expense_account_number)
         api_calls += 1
-        if not acc2400_result["success"] or not acc2400_result["body"].get("values"):
-            api_errors += 1
-            raise RuntimeError(
-                f"Failed to look up account 2400: "
-                f"status={acc2400_result.get('status_code')}, "
-                f"error={acc2400_result.get('error')}"
-            )
-        supplier_payable_account_id = acc2400_result["body"]["values"][0]["id"]
-
-        # --- Step 3: Look up expense account ---
-        self._check_timeout(start_time)
-        exp_result = client.get(
-            "/ledger/account", params={"number": expense_account_number}
-        )
-        api_calls += 1
-        if not exp_result["success"] or not exp_result["body"].get("values"):
-            api_errors += 1
-            raise RuntimeError(
-                f"Failed to look up expense account {expense_account_number}: "
-                f"status={exp_result.get('status_code')}, "
-                f"error={exp_result.get('error')}"
-            )
-        expense_account_id = exp_result["body"]["values"][0]["id"]
+        supplier_payable_account_id = accounts["2400"]
+        expense_account_id = accounts[expense_account_number]
 
         # --- Step 4: Look up incoming VAT type ---
         # Prefer percentage matching vat_rate; fall back to first entry (id=1 is usually 25%)

@@ -118,18 +118,12 @@ class MonthlyClosingPlan(ExecutionPlan):
             account_numbers_needed.add("5000")
             account_numbers_needed.add("2900")
 
-        account_ids: dict[str, int] = {}
-        for acc_number in account_numbers_needed:
-            self._check_timeout(start_time)
-            result = client.get("/ledger/account", params={"number": acc_number, "count": 1})
+        # Batch look up all accounts in 1 call instead of up to 6
+        if account_numbers_needed:
+            account_ids = self._get_accounts(client, *account_numbers_needed)
             api_calls += 1
-            if not result["success"] or not result["body"].get("values"):
-                api_errors += 1
-                raise RuntimeError(
-                    f"Failed to look up account {acc_number}: "
-                    f"status={result.get('status_code')}, error={result.get('error')}"
-                )
-            account_ids[acc_number] = result["body"]["values"][0]["id"]
+        else:
+            account_ids = {}
 
         # ------------------------------------------------------------------
         # Voucher 1: Accrual — debit expense account, credit 1700 (prepaid)

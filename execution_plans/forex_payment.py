@@ -250,36 +250,31 @@ class ForexPaymentPlan(ExecutionPlan):
         # SHARED: register payment + forex voucher (both paths converge)
         # ==============================================================
 
-        # --- Look up ledger accounts (1500, 8060/8070) ---
-        ar_result = client.get("/ledger/account", params={"number": 1500, "count": 1})
-        api_calls += 1
-        if not ar_result["success"] or not ar_result["body"].get("values"):
-            api_errors += 1
-            raise RuntimeError("Failed to look up account 1500 (Kundefordringer)")
-        ar_account_id = ar_result["body"]["values"][0]["id"]
+        # --- Batch look up ledger accounts (1500 + forex account) ---
+        forex_account_number = str(8070 if is_gain else 8060)
+        try:
+            accounts = self._get_accounts(client, "1500", forex_account_number)
+            api_calls += 1
+            ar_account_id = accounts["1500"]
+            forex_account_id = accounts[forex_account_number]
+        except RuntimeError:
+            # Forex account may not exist — look up 1500 individually, create forex
+            api_calls += 1
+            ar_result = client.get("/ledger/account", params={"number": "1500"})
+            api_calls += 1
+            if not ar_result["success"] or not ar_result["body"].get("values"):
+                raise RuntimeError("Failed to look up account 1500")
+            ar_account_id = ar_result["body"]["values"][0]["id"]
 
-        self._check_timeout(start_time)
-
-        forex_account_number = 8070 if is_gain else 8060
-        forex_result = client.get("/ledger/account", params={"number": forex_account_number, "count": 1})
-        api_calls += 1
-        if not forex_result["success"] or not forex_result["body"].get("values"):
-            # Account may not exist — create it
-            create_account_name = "Valutagevinst" if is_gain else "Valutatap"
-            create_acct_result = client.post(
+            create_name = "Valutagevinst" if is_gain else "Valutatap"
+            create_result = client.post(
                 "/ledger/account",
-                body={"number": forex_account_number, "name": create_account_name},
+                body={"number": int(forex_account_number), "name": create_name},
             )
             api_calls += 1
-            if not create_acct_result["success"]:
-                api_errors += 1
-                raise RuntimeError(
-                    f"Failed to find or create account {forex_account_number}: "
-                    f"status={create_acct_result.get('status_code')}, error={create_acct_result.get('error')}"
-                )
-            forex_account_id = create_acct_result["body"]["value"]["id"]
-        else:
-            forex_account_id = forex_result["body"]["values"][0]["id"]
+            if not create_result["success"]:
+                raise RuntimeError(f"Failed to create account {forex_account_number}")
+            forex_account_id = create_result["body"]["value"]["id"]
 
         self._check_timeout(start_time)
 

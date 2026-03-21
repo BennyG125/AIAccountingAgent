@@ -152,25 +152,14 @@ class BankReconciliationPlan(ExecutionPlan):
         api_errors = 0
 
         # ------------------------------------------------------------------ #
-        # Step 2: Look up required accounts (1920, 2400, 7770)
+        # Step 2: Batch look up required accounts (1 call instead of 3)
         # ------------------------------------------------------------------ #
         self._check_timeout(start_time)
-
-        def _get_account_id(number: str) -> int:
-            nonlocal api_calls, api_errors
-            result = client.get("/ledger/account", params={"number": number})
-            api_calls += 1
-            if not result["success"] or not result["body"].get("values"):
-                api_errors += 1
-                raise RuntimeError(
-                    f"Failed to look up account {number}: "
-                    f"status={result.get('status_code')}, error={result.get('error')}"
-                )
-            return result["body"]["values"][0]["id"]
-
-        account_1920 = _get_account_id("1920")  # bank account
-        account_2400 = _get_account_id("2400")  # supplier payable
-        account_7770 = _get_account_id("7770")  # bank fees expense
+        accounts = self._get_accounts(client, "1920", "2400", "7770")
+        api_calls += 1
+        account_1920 = accounts["1920"]  # bank account
+        account_2400 = accounts["2400"]  # supplier payable
+        account_7770 = accounts["7770"]  # bank fees expense
 
         # ------------------------------------------------------------------ #
         # Step 3: Find or create all unique customers

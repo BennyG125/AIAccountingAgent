@@ -20,10 +20,10 @@ class TripletexClient:
         resp = requests.get(url, auth=self.auth, params=params, timeout=30)
         return self._parse_response(resp)
 
-    def post(self, endpoint: str, body: dict | None = None) -> dict:
+    def post(self, endpoint: str, body: dict | None = None, params: dict | None = None) -> dict:
         url = f"{self.base_url}{endpoint}"
-        logger.info(f"POST {url}")
-        resp = requests.post(url, auth=self.auth, json=body, timeout=30)
+        logger.info(f"POST {url} params={params}")
+        resp = requests.post(url, auth=self.auth, json=body, params=params, timeout=30)
         return self._parse_response(resp)
 
     def put(self, endpoint: str, body: dict | None = None, params: dict | None = None) -> dict:

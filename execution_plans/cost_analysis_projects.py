@@ -137,21 +137,19 @@ class CostAnalysisProjectsPlan(ExecutionPlan):
         self._check_timeout(start_time)
 
         # ---------------------------------------------------------------
-        # Step 4: Fetch account names for top-3 accounts
+        # Step 4: Batch fetch account names for top-3 accounts (1 call)
         # ---------------------------------------------------------------
         account_names: dict[int, str] = {}
-        for acct_num in top3_account_numbers:
-            self._check_timeout(start_time)
-            r = client.get(
-                "/ledger/account",
-                params={"number": str(acct_num), "fields": "id,number,name"},
-            )
-            api_calls += 1
-            if r["success"]:
-                values = r["body"].get("values", [])
-                if values:
-                    account_names[acct_num] = values[0].get("name", f"Konto {acct_num}")
-            else:
+        numbers_str = ",".join(str(n) for n in top3_account_numbers)
+        r = client.get(
+            "/ledger/account",
+            params={"number": numbers_str, "fields": "id,number,name"},
+        )
+        api_calls += 1
+        if r["success"]:
+            for acc in r["body"].get("values", []):
+                account_names[acc["number"]] = acc.get("name", f"Konto {acc['number']}")
+        if not account_names:
                 # Non-fatal: fall back to account number as name
                 account_names[acct_num] = f"Konto {acct_num}"
 
@@ -178,29 +176,35 @@ class CostAnalysisProjectsPlan(ExecutionPlan):
         # ---------------------------------------------------------------
         # Step 6: Create an internal project for each top-3 account
         # ---------------------------------------------------------------
+        # Bulk create all 3 projects in 1 call via POST /project/list
+        projects_body = [
+            {
+                "name": account_names.get(acct_num, f"Konto {acct_num}"),
+                "projectManager": {"id": project_manager_id},
+                "startDate": today,
+                "isInternal": True,
+            }
+            for acct_num in top3_account_numbers
+        ]
+        result = client.post("/project/list", body=projects_body)
+        api_calls += 1
         project_ids: list[int] = []
-        for acct_num in top3_account_numbers:
-            self._check_timeout(start_time)
-            account_name = account_names.get(acct_num, f"Konto {acct_num}")
-            project_name = account_name
-
-            result = client.post(
-                "/project",
-                body={
-                    "name": project_name,
-                    "projectManager": {"id": project_manager_id},
-                    "startDate": today,
-                    "isInternal": True,
-                },
-            )
-            api_calls += 1
-            if not result["success"]:
-                api_errors += 1
-                raise RuntimeError(
-                    f"Failed to create project '{project_name}': "
-                    f"status={result.get('status_code')}, error={result.get('error')}"
-                )
-            project_ids.append(result["body"]["value"]["id"])
+        if result["success"]:
+            for proj in result["body"].get("values", result["body"].get("value", [])):
+                project_ids.append(proj["id"] if isinstance(proj, dict) else proj)
+        else:
+            # Fallback: create individually
+            for proj_body in projects_body:
+                self._check_timeout(start_time)
+                ind_result = client.post("/project", body=proj_body)
+                api_calls += 1
+                if ind_result["success"]:
+                    project_ids.append(ind_result["body"]["value"]["id"])
+                else:
+                    api_errors += 1
+                    raise RuntimeError(
+                        f"Failed to create project '{proj_body['name']}': {ind_result}"
+                    )
 
         self._check_timeout(start_time)
 

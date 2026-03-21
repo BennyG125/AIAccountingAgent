@@ -153,43 +153,54 @@ class YearEndClosePlan(ExecutionPlan):
         api_errors = [0]
 
         # ------------------------------------------------------------------
-        # Phase 1: Look up all account IDs
+        # Phase 1: Batch look up ALL account IDs in 1 call
         # ------------------------------------------------------------------
         self._check_timeout(start_time)
 
-        # Shared depreciation accounts (may be overridden per asset)
-        shared_depr_expense_id = _require_account(
-            client, default_depr_expense, api_calls, api_errors
-        )
-        shared_acc_depr_id = _require_account(
-            client, default_acc_depr, api_calls, api_errors
-        )
-
-        # Per-asset accounts (look up unique account numbers only)
-        asset_account_ids: dict[str, int] = {}
+        # Collect all unique account numbers we need
+        all_account_numbers = set()
+        all_account_numbers.add(default_depr_expense)
+        all_account_numbers.add(default_acc_depr)
+        all_account_numbers.add("1700")
+        all_account_numbers.add(prepaid_expense_account_number)
+        all_account_numbers.add(tax_expense_account_number)
+        all_account_numbers.add(tax_provision_account_number)
         for asset in assets:
-            for acc_number in [
-                str(asset.get("asset_account", "")),
-                str(asset.get("depreciation_account", default_acc_depr)),
-                str(asset.get("expense_account", default_depr_expense)),
-            ]:
-                if acc_number and acc_number not in asset_account_ids:
-                    acc_id = _lookup_account(client, acc_number)
-                    api_calls[0] += 1
-                    if acc_id is not None:
-                        asset_account_ids[acc_number] = acc_id
+            for key in ["asset_account", "depreciation_account", "expense_account"]:
+                val = asset.get(key)
+                if val:
+                    all_account_numbers.add(str(val))
 
-        # Prepaid and tax accounts
-        prepaid_account_id = _require_account(client, "1700", api_calls, api_errors)
-        prepaid_expense_id = _require_account(
-            client, prepaid_expense_account_number, api_calls, api_errors
-        )
-        tax_expense_id = _require_account(
-            client, tax_expense_account_number, api_calls, api_errors
-        )
-        tax_provision_id = _require_account(
-            client, tax_provision_account_number, api_calls, api_errors
-        )
+        # Remove empty strings
+        all_account_numbers.discard("")
+
+        # Single batch lookup
+        try:
+            all_accounts = self._get_accounts(client, *all_account_numbers)
+            api_calls[0] += 1
+        except RuntimeError:
+            # Some accounts may not exist — fall back to individual lookups
+            all_accounts = {}
+            for num in all_account_numbers:
+                acc_id = _lookup_account(client, num)
+                api_calls[0] += 1
+                if acc_id is not None:
+                    all_accounts[str(num)] = acc_id
+
+        shared_depr_expense_id = all_accounts.get(default_depr_expense)
+        shared_acc_depr_id = all_accounts.get(default_acc_depr)
+        asset_account_ids = all_accounts  # all accounts in one dict
+
+        prepaid_account_id = all_accounts.get("1700")
+        prepaid_expense_id = all_accounts.get(prepaid_expense_account_number)
+        tax_expense_id = all_accounts.get(tax_expense_account_number)
+        tax_provision_id = all_accounts.get(tax_provision_account_number)
+
+        # Check critical accounts exist
+        if shared_depr_expense_id is None:
+            raise RuntimeError(f"Account {default_depr_expense} not found")
+        if prepaid_account_id is None and prepaid_amount > 0:
+            raise RuntimeError("Account 1700 not found")
 
         # ------------------------------------------------------------------
         # Phase 2: Post one depreciation voucher per asset

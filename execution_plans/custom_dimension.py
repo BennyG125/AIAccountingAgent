@@ -143,31 +143,12 @@ class CustomDimensionPlan(ExecutionPlan):
                     f"created/existing values: {dimension_values}"
                 )
 
-        # Step 3 — Look up expense account ID
+        # Step 3 — Batch look up expense + bank accounts (1 call instead of 2)
         self._check_timeout(start_time)
-        result = client.get(
-            "/ledger/account", params={"number": str(voucher_account_number)}
-        )
+        accounts = self._get_accounts(client, str(voucher_account_number), "1920")
         api_calls += 1
-        if not result["success"] or not result["body"].get("values"):
-            api_errors += 1
-            raise RuntimeError(
-                f"Failed to look up account {voucher_account_number}: "
-                f"status={result.get('status_code')}, error={result.get('error')}"
-            )
-        expense_account_id = result["body"]["values"][0]["id"]
-
-        # Step 4 — Look up bank/offset account ID (1920)
-        self._check_timeout(start_time)
-        result = client.get("/ledger/account", params={"number": "1920"})
-        api_calls += 1
-        if not result["success"] or not result["body"].get("values"):
-            api_errors += 1
-            raise RuntimeError(
-                f"Failed to look up account 1920: "
-                f"status={result.get('status_code')}, error={result.get('error')}"
-            )
-        bank_account_id = result["body"]["values"][0]["id"]
+        expense_account_id = accounts[str(voucher_account_number)]
+        bank_account_id = accounts["1920"]
 
         # Step 5 — Post balanced voucher with freeAccountingDimensionN on the expense row
         today = datetime.date.today().isoformat()

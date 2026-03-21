@@ -37,20 +37,28 @@ class CreateDepartmentsPlan(ExecutionPlan):
                 if num_str and num_str.isdigit():
                     max_num = max(max_num, int(num_str))
 
-        for i, name in enumerate(department_names):
-            self._check_timeout(start_time)
-            department_number = str(max_num + (i + 1) * 100)
-            body = {
+        # Bulk create all departments in 1 call via POST /department/list
+        departments = [
+            {
                 "name": name,
-                "departmentNumber": department_number,
+                "departmentNumber": str(max_num + (i + 1) * 100),
             }
-            result = client.post("/department", body=body)
-            api_calls += 1
-            if not result["success"]:
-                api_errors += 1
-                raise RuntimeError(
-                    f"Failed to create department '{name}': "
-                    f"status={result.get('status_code')}, error={result.get('error')}"
-                )
+            for i, name in enumerate(department_names)
+        ]
+        result = client.post("/department/list", body=departments)
+        api_calls += 1
+        if not result["success"]:
+            api_errors += 1
+            # Fallback: try individual creates
+            for dept in departments:
+                self._check_timeout(start_time)
+                ind_result = client.post("/department", body=dept)
+                api_calls += 1
+                if not ind_result["success"]:
+                    api_errors += 1
+                    raise RuntimeError(
+                        f"Failed to create department '{dept['name']}': "
+                        f"status={ind_result.get('status_code')}, error={ind_result.get('error')}"
+                    )
 
         return self._make_result(api_calls=api_calls, api_errors=api_errors)
