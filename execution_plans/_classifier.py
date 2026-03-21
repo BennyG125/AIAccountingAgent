@@ -28,6 +28,8 @@ TASK_PATTERNS: list[tuple[str, list[str]]] = [
         r"cierre.*mensual", r"monthly.*clos", r"månedsslutt", r"monatsabschluss",
         r"clôture.*mensuel", r"encerramento.*mensal", r"periodificación",
         r"periodisering", r"deprecia.*mensual",
+        r"månedsavslutning", r"lønnsavsetning.*periodiser",
+        r"periodiser.*avskrivning", r"avskrivning.*periodiser",
     ]),
     ("cost_analysis_projects", [
         r"kostnadsanalyse", r"cost.*analy[sz]", r"análisis.*costo", r"análise.*custo",
@@ -98,7 +100,9 @@ TASK_PATTERNS: list[tuple[str, list[str]]] = [
         r"receipt.*expense", r"kvittering", r"beleg.*ausgabe",
     ]),
     ("register_hours", [
-        r"timer", r"hours", r"horas", r"stunden", r"heures", r"timeføring",
+        r"timer", r"\d+\s*hours", r"register.*hours", r"erfassen.*stunden",
+        r"\d+\s*horas", r"registe.*horas", r"\d+\s*stunden",
+        r"\d+\s*heures", r"timeføring", r"timesheet",
     ]),
     ("custom_dimension", [
         r"dimensjon", r"dimension", r"dimensión", r"dimensão",
