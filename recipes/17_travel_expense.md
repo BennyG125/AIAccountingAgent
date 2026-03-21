@@ -21,5 +21,3 @@
      ]
    }
 NOTE: Embed compensations/costs in the POST body to save API calls. Do NOT create them separately.
-
-### Tier 3 Recipes (anticipated — opens Saturday)
