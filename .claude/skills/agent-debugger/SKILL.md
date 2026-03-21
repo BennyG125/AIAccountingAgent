@@ -256,6 +256,19 @@ handle_accounting_task (chain)        ← root, has task_id in metadata
     └── ...
 ```
 
+## Next Steps
+
+After completing your diagnosis, recommend the appropriate next action:
+
+| Root cause | Recommendation |
+|-----------|----------------|
+| Recipe is wrong or missing (bad API sequence, missing fields, wrong endpoint) | "The issue is in the recipe. Want me to fix it? (invoke recipe-builder)" |
+| Recipe exists but agent didn't follow it (wording unclear) | "The recipe wording needs improvement. Want me to update it? (invoke recipe-builder)" |
+| Agent code bug (agent.py, tool definitions, OCR) | Suggest a code fix directly — no skill needed |
+| Infrastructure issue (timeout, deployment, credentials) | Suggest the fix directly |
+
+Do NOT automatically invoke recipe-builder. Present the diagnosis and let the user decide.
+
 ## Full Reference
 
 For the complete CLI reference, advanced filtering, and additional cross-referencing techniques, read `docs/debugging-skill-prompt.md` in the project root.

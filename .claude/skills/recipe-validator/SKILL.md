@@ -189,10 +189,16 @@ Sandbox state:      —                    Entity yes/no per entity
 - **Marginal**: Zero errors but extra calls (agent deviated but got right result)
 - **Fail**: Any 4xx error, or final state is wrong
 
-**If the agent deviated:**
-- Agent found a better path -> update the recipe (back to recipe-builder)
-- Agent didn't follow the recipe -> recipe wording needs to be clearer
-- Agent hit an unexpected error -> add to recipe's Known Gotchas
+**If the agent deviated, recommend the appropriate next action:**
+
+| Deviation | Recommendation |
+|-----------|----------------|
+| Agent found a better path (fewer calls, same result) | "Agent found a better sequence. Want me to update the recipe? (invoke recipe-builder)" |
+| Agent didn't follow the recipe (wording unclear) | "Recipe wording needs to be clearer. Want me to improve it? (invoke recipe-builder)" |
+| Agent hit an unexpected error | "New gotcha discovered. Want me to add it to the recipe? (invoke recipe-builder)" |
+| Agent passed cleanly | "Validation passed. Ready to deploy to competition on your say-so." |
+
+Do NOT automatically invoke recipe-builder. Present the comparison and let the user decide.
 
 ### Step 7: Clean up sandbox
 

@@ -46,14 +46,25 @@ curl -s -u "0:$TRIPLETEX_SESSION_TOKEN" \
 - Read the user's description or sample prompt
 - Identify which Tripletex entities and endpoints are likely needed
 
-### Step 2: Check existing recipe
+### Step 2: Check existing recipes (MANDATORY before any API exploration)
 
-Look in `recipes/` for an existing file for this task type:
+This step prevents wasted time and prompt bloat. Do it BEFORE any curl calls.
+
 ```bash
 ls recipes/
 ```
 
-If one exists, read it and compare against what actually happened in the logs. This is an optimization, not a fresh build.
+Read the 2-3 most similar recipe files. Then decide:
+
+| Situation | Action |
+|-----------|--------|
+| Existing recipe covers this exact task type | **Update** that file — do NOT create a new one |
+| Task is a variant of an existing type (e.g., "invoice with discount" vs "invoice") | **Add a subsection** to the existing recipe file |
+| Genuinely new task type with different API endpoints | **Create a new file** with next available number |
+
+**NEVER create a second recipe for the same task type.** Recipes are task-type-level, not language-level or prompt-level. One recipe handles all language variants of the same task.
+
+If unsure whether it's a new type or a variant, ask the user before proceeding to Step 3.
 
 ### Step 3: Explore the Tripletex API
 
@@ -189,3 +200,11 @@ The competition scores on:
 4. 270-second timeout — agent must finish within this
 
 The ideal recipe: minimum calls, zero errors, all fields correct.
+
+## Next Steps
+
+After writing or updating a recipe, recommend the user invoke **recipe-validator** to deploy and verify the agent follows the recipe correctly. Say:
+
+> "Recipe updated. Want me to deploy and validate it? (invoke recipe-validator)"
+
+Do NOT invoke recipe-validator automatically — the user may want to review the recipe first or make manual tweaks.
