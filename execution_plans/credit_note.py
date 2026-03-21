@@ -31,6 +31,8 @@ class CreditNotePlan(ExecutionPlan):
         api_calls = 0
         api_errors = 0
         today = datetime.date.today().isoformat()  # YYYY-MM-DD
+        # invoiceDateTo is EXCLUSIVE in the Tripletex API — add 1 day to include today
+        tomorrow = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
 
         # Step 1: Find customer by organizationNumber
         org_number = params.get("org_number")
@@ -54,10 +56,14 @@ class CreditNotePlan(ExecutionPlan):
         self._check_timeout(start_time)
 
         # Step 2: Find invoices for this customer
+        # The /invoice endpoint REQUIRES invoiceDateFrom and invoiceDateTo.
+        # Use a wide date range to find all invoices.
         result = client.get(
             "/invoice",
             params={
                 "customerId": customer_id,
+                "invoiceDateFrom": "2020-01-01",
+                "invoiceDateTo": tomorrow,
                 "fields": "id,invoiceDate,amountExcludingVatCurrency,orders",
             },
         )

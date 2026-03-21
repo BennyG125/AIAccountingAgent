@@ -45,6 +45,8 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
 
         today = datetime.date.today()
         today_str = today.isoformat()
+        # invoiceDateTo is EXCLUSIVE in the Tripletex API — add 1 day to include today
+        tomorrow_str = (today + datetime.timedelta(days=1)).isoformat()
         one_year_ago = (today - datetime.timedelta(days=365)).isoformat()
 
         api_calls = 0
@@ -59,7 +61,7 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
         # ------------------------------------------------------------------
         search_params: dict = {
             "invoiceDateFrom": one_year_ago,
-            "invoiceDateTo": today_str,
+            "invoiceDateTo": tomorrow_str,
             "fields": "id,invoiceDate,invoiceDueDate,amountExcludingVatCurrency,customer",
         }
 
@@ -270,14 +272,14 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
         # ------------------------------------------------------------------
         send_result = client.put(
             f"/invoice/{reminder_invoice_id}/:send",
-            body={"sendType": "EMAIL"},
+            params={"sendType": "EMAIL"},
         )
         api_calls += 1
         if not send_result["success"] and send_result.get("status_code") == 422:
             # Fallback: send as MANUAL
             send_result = client.put(
                 f"/invoice/{reminder_invoice_id}/:send",
-                body={"sendType": "MANUAL"},
+                params={"sendType": "MANUAL"},
             )
             api_calls += 1
         if not send_result["success"]:

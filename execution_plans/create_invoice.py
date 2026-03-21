@@ -153,11 +153,11 @@ class CreateInvoicePlan(ExecutionPlan):
         # --- Step 6: Send invoice if requested ---
         if params.get("send_invoice"):
             self._check_timeout(start_time)
-            send_result = client.put(f"/invoice/{invoice_id}/:send", body={"sendType": "EMAIL"})
+            send_result = client.put(f"/invoice/{invoice_id}/:send", params={"sendType": "EMAIL"})
             api_calls += 1
             if not send_result["success"] and send_result.get("status_code") == 422:
                 # Retry with MANUAL
-                send_result = client.put(f"/invoice/{invoice_id}/:send", body={"sendType": "MANUAL"})
+                send_result = client.put(f"/invoice/{invoice_id}/:send", params={"sendType": "MANUAL"})
                 api_calls += 1
             if not send_result["success"]:
                 api_errors += 1

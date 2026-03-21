@@ -84,12 +84,12 @@ def extract_params(prompt: str, task_type: str) -> dict | None:
     )
 
     try:
-        from agent import _get_genai_client
+        from agent import _get_genai_client, GEMINI_MODEL
         from google.genai import types
 
         client = _get_genai_client()
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=GEMINI_MODEL,
             contents=[types.Content(role="user", parts=[
                 types.Part.from_text(text=extraction_prompt)
             ])],

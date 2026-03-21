@@ -27,9 +27,19 @@ class CreateDepartmentsPlan(ExecutionPlan):
         api_calls = 0
         api_errors = 0
 
+        # Query existing departments to find the next available number
+        existing = client.get("/department", params={"count": 1000})
+        api_calls += 1
+        max_num = 0
+        if existing["success"]:
+            for dept in existing["body"].get("values", []):
+                num_str = dept.get("departmentNumber", "")
+                if num_str and num_str.isdigit():
+                    max_num = max(max_num, int(num_str))
+
         for i, name in enumerate(department_names):
             self._check_timeout(start_time)
-            department_number = str((i + 1) * 100)
+            department_number = str(max_num + (i + 1) * 100)
             body = {
                 "name": name,
                 "departmentNumber": department_number,
