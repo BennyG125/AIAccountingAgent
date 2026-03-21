@@ -117,22 +117,29 @@ class ForexPaymentPlan(ExecutionPlan):
 
         self._check_timeout(start_time)
 
-        # --- Step 4: Create product (minimal — no vatType) ---
-        product_result = client.post(
-            "/product",
-            body={
-                "name": description,
-                "priceExcludingVatCurrency": eur_amount,
-            },
+        # --- Step 4: Find or create product (minimal — no vatType) ---
+        product_search = client.get(
+            "/product", params={"name": description, "count": 1}
         )
         api_calls += 1
-        if not product_result["success"]:
-            api_errors += 1
-            raise RuntimeError(
-                f"Failed to create product: "
-                f"status={product_result.get('status_code')}, error={product_result.get('error')}"
+        if product_search["success"] and product_search["body"].get("values"):
+            product_id = product_search["body"]["values"][0]["id"]
+        else:
+            product_result = client.post(
+                "/product",
+                body={
+                    "name": description,
+                    "priceExcludingVatCurrency": eur_amount,
+                },
             )
-        product_id = product_result["body"]["value"]["id"]
+            api_calls += 1
+            if not product_result["success"]:
+                api_errors += 1
+                raise RuntimeError(
+                    f"Failed to create product: "
+                    f"status={product_result.get('status_code')}, error={product_result.get('error')}"
+                )
+            product_id = product_result["body"]["value"]["id"]
 
         self._check_timeout(start_time)
 
@@ -227,6 +234,7 @@ class ForexPaymentPlan(ExecutionPlan):
             postings = [
                 {
                     "account": {"id": ar_account_id},
+                    "customer": {"id": customer_id},
                     "amount": abs_diff,
                     "amountCurrency": abs_diff,
                     "row": 1,
@@ -253,6 +261,7 @@ class ForexPaymentPlan(ExecutionPlan):
                 },
                 {
                     "account": {"id": ar_account_id},
+                    "customer": {"id": customer_id},
                     "amount": -abs_diff,
                     "amountCurrency": -abs_diff,
                     "row": 2,

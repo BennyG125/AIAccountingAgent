@@ -74,8 +74,8 @@ TASK_PATTERNS: list[tuple[str, list[str]]] = [
         r"note\s*de\s*crédit",
     ]),
     ("bank_reconciliation", [
-        r"bank.*avstemming", r"bank.*reconcil", r"concilia.*banc",
-        r"rapproch.*bancaire",
+        r"bank.*avstemming", r"bank.*reconcil", r"reconcil.*bank",
+        r"concilia.*banc", r"rapproch.*bancaire",
     ]),
     ("employee_onboarding", [
         r"arbeidskontrakt", r"employment.*contract", r"contrat.*travail",

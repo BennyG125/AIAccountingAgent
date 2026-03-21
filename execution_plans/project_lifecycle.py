@@ -393,11 +393,13 @@ class ProjectLifecyclePlan(ExecutionPlan):
         # ------------------------------------------------------------------
         # Step 9: Create order + invoice for customer
         # ------------------------------------------------------------------
+        # NOTE: Do NOT link order to project — Tripletex treats linked orders as
+        # "underordre" that must be closed before the project can close, and there
+        # is no order-close endpoint.
         r = client.post(
             "/order",
             body={
                 "customer": {"id": customer_id},
-                "project": {"id": project_id},
                 "orderDate": today,
                 "deliveryDate": today,
                 "orderLines": [
@@ -439,8 +441,36 @@ class ProjectLifecyclePlan(ExecutionPlan):
         self._check_timeout(start_time)
 
         # ------------------------------------------------------------------
-        # Step 10: Get project version, then close project
+        # Step 10: Close sub-projects, then close main project
         # ------------------------------------------------------------------
+        # Close any open sub-projects first (Tripletex requires this)
+        sub_r = client.get(
+            "/project",
+            params={
+                "parentProjectId": project_id,
+                "isClosed": False,
+                "fields": "id,version,name",
+            },
+        )
+        api_calls += 1
+        if sub_r["success"]:
+            for sub in sub_r["body"].get("values", []):
+                self._check_timeout(start_time)
+                sub_close = client.put(
+                    f"/project/{sub['id']}",
+                    body={
+                        "id": sub["id"],
+                        "version": sub["version"],
+                        "isClosed": True,
+                        "endDate": today,
+                    },
+                )
+                api_calls += 1
+                if not sub_close["success"]:
+                    api_errors += 1
+                    # Non-fatal: continue closing others
+
+        # Get main project version (may have changed after sub-project closes)
         r = client.get(f"/project/{project_id}", params={"fields": "id,version"})
         api_calls += 1
         if not r["success"]:
@@ -453,7 +483,12 @@ class ProjectLifecyclePlan(ExecutionPlan):
 
         r = client.put(
             f"/project/{project_id}",
-            body={"id": project_id, "version": project_version, "isClosed": True},
+            body={
+                "id": project_id,
+                "version": project_version,
+                "isClosed": True,
+                "endDate": today,
+            },
         )
         api_calls += 1
         if not r["success"]:

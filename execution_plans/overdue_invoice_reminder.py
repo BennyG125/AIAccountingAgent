@@ -114,6 +114,16 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
         overdue_invoice = self._pick_overdue_invoice(invoices, today)
         overdue_invoice_id: int = overdue_invoice["id"]
 
+        # Resolve customer_id from overdue invoice if not already known
+        if customer_id is None:
+            overdue_customer = overdue_invoice.get("customer")
+            if isinstance(overdue_customer, dict):
+                customer_id = overdue_customer.get("id")
+            if customer_id is None:
+                raise RuntimeError(
+                    "Cannot determine customer ID from overdue invoice"
+                )
+
         self._check_timeout(start_time)
 
         # ------------------------------------------------------------------
@@ -156,6 +166,7 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
             "postings": [
                 {
                     "account": {"id": debit_account_id},
+                    "customer": {"id": customer_id},
                     "amount": reminder_fee,
                     "amountCurrency": reminder_fee,
                     "amountGross": reminder_fee,
@@ -198,23 +209,30 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
                     "Cannot create reminder invoice: unable to determine customer ID"
                 )
 
-        # Create a reminder product on the fly
-        product_result = client.post(
-            "/product",
-            body={
-                "name": "Purregebyr",
-                "priceExcludingVatCurrency": reminder_fee,
-            },
+        # Find or create a reminder product
+        product_search = client.get(
+            "/product", params={"name": "Purregebyr", "count": 1}
         )
         api_calls += 1
-        if not product_result["success"]:
-            api_errors += 1
-            raise RuntimeError(
-                f"Failed to create reminder fee product: "
-                f"status={product_result.get('status_code')}, "
-                f"error={product_result.get('error')}"
+        if product_search["success"] and product_search["body"].get("values"):
+            product_id: int = product_search["body"]["values"][0]["id"]
+        else:
+            product_result = client.post(
+                "/product",
+                body={
+                    "name": "Purregebyr",
+                    "priceExcludingVatCurrency": reminder_fee,
+                },
             )
-        product_id: int = product_result["body"]["value"]["id"]
+            api_calls += 1
+            if not product_result["success"]:
+                api_errors += 1
+                raise RuntimeError(
+                    f"Failed to create reminder fee product: "
+                    f"status={product_result.get('status_code')}, "
+                    f"error={product_result.get('error')}"
+                )
+            product_id = product_result["body"]["value"]["id"]
 
         self._check_timeout(start_time)
 
@@ -224,6 +242,7 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
             body={
                 "customer": {"id": customer_id},
                 "orderDate": today_str,
+                "deliveryDate": today_str,
                 "orderLines": [
                     {
                         "product": {"id": product_id},
