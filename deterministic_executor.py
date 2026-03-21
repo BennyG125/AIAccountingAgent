@@ -76,11 +76,19 @@ def extract_params(prompt: str, task_type: str) -> dict | None:
         return None
 
     extraction_prompt = (
-        f"Extract parameters from this accounting task prompt.\n"
-        f"Task type: {task_type}\n"
-        f"Expected fields: {json.dumps(schema)}\n\n"
-        f"Prompt: {prompt}\n\n"
-        f"Return ONLY a valid JSON object with the extracted fields. No explanation."
+        f"You are extracting structured data from an accounting task prompt.\n"
+        f"The task type is: {task_type}\n\n"
+        f"Here is the prompt (may be in Norwegian, English, German, French, Spanish, or Portuguese):\n"
+        f'"""\n{prompt}\n"""\n\n'
+        f"Extract ALL relevant fields into this JSON structure:\n"
+        f"{json.dumps(schema, indent=2)}\n\n"
+        f"Rules:\n"
+        f"- Extract actual values from the prompt text, not the schema descriptions\n"
+        f"- For names, amounts, dates, emails — copy them exactly from the prompt\n"
+        f"- For dates, use YYYY-MM-DD format\n"
+        f"- For amounts, use numbers without currency symbols\n"
+        f"- If a field is not mentioned in the prompt, use null\n"
+        f"- Return ONLY a valid JSON object. No markdown, no explanation."
     )
 
     try:
@@ -101,7 +109,31 @@ def extract_params(prompt: str, task_type: str) -> dict | None:
         text = re.sub(r"^```(?:json)?\s*", "", text)
         text = re.sub(r"\s*```$", "", text)
 
-        return json.loads(text)
+        params = json.loads(text)
+
+        # Validate: if all values are null/empty/zero, extraction failed
+        def _has_meaningful_value(v):
+            if v is None:
+                return False
+            if isinstance(v, str) and not v.strip():
+                return False
+            if isinstance(v, (int, float)) and v == 0:
+                return False
+            if isinstance(v, list) and len(v) == 0:
+                return False
+            if isinstance(v, dict):
+                return any(_has_meaningful_value(sv) for sv in v.values())
+            return True
+
+        meaningful = sum(1 for v in params.values() if _has_meaningful_value(v))
+        if meaningful == 0:
+            logger.warning(
+                f"Extraction returned all empty/null for '{task_type}', "
+                f"raw={text[:200]}"
+            )
+            return None
+
+        return params
     except json.JSONDecodeError:
         logger.warning(f"JSON parse failed for '{task_type}' extraction")
         return None

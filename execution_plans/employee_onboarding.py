@@ -136,14 +136,11 @@ class EmployeeOnboardingPlan(ExecutionPlan):
         # --- Step 3: Get division (NEVER create a division) ---
         division_result = client.get("/company/divisions")
         api_calls += 1
-        if not division_result["success"] or not division_result["body"].get("values"):
-            api_errors += 1
-            raise RuntimeError(
-                f"Failed to get divisions: "
-                f"status={division_result.get('status_code')}, "
-                f"error={division_result.get('error')}"
-            )
-        division_id = division_result["body"]["values"][0]["id"]
+        division_id = None
+        if division_result["success"]:
+            values = division_result["body"].get("values", [])
+            if values:
+                division_id = values[0]["id"]
 
         self._check_timeout(start_time)
 
@@ -151,8 +148,9 @@ class EmployeeOnboardingPlan(ExecutionPlan):
         employment_body = {
             "employee": {"id": employee_id},
             "startDate": params["startDate"],
-            "division": {"id": division_id},
         }
+        if division_id:
+            employment_body["division"] = {"id": division_id}
         employment_result = client.post("/employee/employment", body=employment_body)
         api_calls += 1
         if not employment_result["success"]:
