@@ -531,7 +531,7 @@ git commit -m "feat: OpenAPI tool generator + 248 generated Tripletex tools"
 ### Task 2: Agent Tool Router and Content Serialization
 
 **Files:**
-- Modify: `agent.py:44-99` (TOOLS section) and `agent.py:137-187` (execute_tool, _serialize_content)
+- Modify: `agent.py:48-99` (TOOLS list), `agent.py:137-155` (execute_tool), `agent.py:162-187` (_serialize_content)
 - Modify: `tests/test_agent.py`
 
 - [ ] **Step 1: Write tests for path param resolution**
@@ -818,31 +818,48 @@ git commit -m "feat: tool router, content serialization, mode switching in agent
 
 ### Task 3: Slim System Prompt
 
+The current `prompts.py` already has `_load_recipes()` that loads from `recipes/*.md` files
+and `build_system_prompt()` that assembles the full prompt with cheat sheet. We need to add
+a `mode` parameter that drops the cheat sheet in hybrid/tool_search modes.
+
 **Files:**
-- Modify: `prompts.py`
+- Modify: `prompts.py` (line 44: `build_system_prompt`, line 130: cheat sheet inclusion)
 - Modify: `tests/test_prompts.py`
 
 - [ ] **Step 1: Write test for slim prompt mode**
 
 Add to `tests/test_prompts.py`:
 ```python
+from prompts import build_system_prompt
+
+
 class TestSlimPrompt:
     def test_slim_prompt_has_no_cheat_sheet(self):
         prompt = build_system_prompt(mode="hybrid")
         assert "## Tripletex v2 API" not in prompt  # cheat sheet header absent
+        assert "TRIPLETEX_API_CHEAT_SHEET" not in prompt
 
     def test_slim_prompt_has_recipes(self):
         prompt = build_system_prompt(mode="hybrid")
         assert "Create Customer" in prompt
         assert "Create Employee" in prompt
 
+    def test_slim_prompt_has_mandatory_recipe_section(self):
+        prompt = build_system_prompt(mode="hybrid")
+        assert "MANDATORY" in prompt
+
     def test_slim_prompt_has_fallback_guidance(self):
         prompt = build_system_prompt(mode="hybrid")
-        assert "tripletex_get" in prompt or "generic" in prompt.lower()
+        assert "tripletex_get" in prompt
 
-    def test_generic_mode_unchanged(self):
+    def test_slim_prompt_has_gotchas(self):
+        prompt = build_system_prompt(mode="hybrid")
+        assert "Critical Gotchas" in prompt
+        assert "entitlement" in prompt.lower()
+
+    def test_generic_mode_has_cheat_sheet(self):
         prompt = build_system_prompt(mode="generic")
-        assert "## Tripletex v2 API" in prompt  # cheat sheet present
+        assert "## Tripletex v2 API" in prompt
 
     def test_default_mode_is_generic(self):
         prompt = build_system_prompt()
@@ -856,50 +873,51 @@ Expected: FAIL with `TypeError: build_system_prompt() got an unexpected keyword 
 
 - [ ] **Step 3: Implement mode parameter in build_system_prompt**
 
-In `prompts.py`:
-
-1. Rename `build_system_prompt` to `_full_prompt` (keep all existing content)
-2. Create new `build_system_prompt` that dispatches by mode
-3. Create `_slim_prompt` that copies everything EXCEPT the final `{TRIPLETEX_API_CHEAT_SHEET}` line, replacing it with fallback guidance
+In `prompts.py`, the current structure is a single `build_system_prompt()` function with
+an f-string that ends with `{TRIPLETEX_API_CHEAT_SHEET}` on line 130. Refactor to:
 
 ```python
 def build_system_prompt(mode: str = "generic") -> str:
-    """Build the system prompt. Mode controls cheat sheet inclusion."""
+    """Build the system prompt. mode='generic' includes cheat sheet, 'hybrid' drops it."""
+    today = date.today().isoformat()
+    recipes = _load_recipes()
+
+    # Everything from "You are an expert..." through "## Handling Unknown Tasks" is shared
+    # The only difference: generic includes the API Reference cheat sheet, hybrid replaces
+    # it with tool search fallback guidance.
+
     if mode == "generic":
-        return _full_prompt()
-    return _slim_prompt()
+        api_section = f"""## API Reference (for unknown tasks only — use recipes above for known tasks)
+{TRIPLETEX_API_CHEAT_SHEET}"""
+    else:
+        api_section = """## Using Tools
+You have access to specific Tripletex API endpoint tools discovered via search.
+Each tool has exact parameter schemas with enums and required fields — use them directly.
+If a searched tool does not exist or fails, fall back to the generic
+tripletex_get/post/put/delete tools with the API path and body directly."""
 
+    return f"""You are an expert AI accounting agent ...
+... (shared prompt body with {today} and {recipes} interpolated) ...
 
-def _full_prompt() -> str:
-    """Full prompt with cheat sheet — used in generic mode."""
-    today = date.today().isoformat()
-    # ... (entire existing prompt body, unchanged)
-
-
-def _slim_prompt() -> str:
-    """Slim prompt without cheat sheet — used in hybrid/tool_search modes.
-
-    Keeps: scoring rules, known constants, critical gotchas, all 20 recipes.
-    Drops: the 941-line TRIPLETEX_API_CHEAT_SHEET (endpoint details come from tool schemas).
-    Adds: fallback guidance for using generic tools.
-    """
-    today = date.today().isoformat()
-    # Copy the entire f-string from _full_prompt() but replace the last line:
-    #   {TRIPLETEX_API_CHEAT_SHEET}
-    # with:
-    #   ## Using Tools
-    #   You have access to specific Tripletex API tools discovered via search. Each tool has
-    #   exact parameter schemas with enums and required fields — use them directly.
-    #   If a searched tool does not exist or fails, fall back to the generic
-    #   tripletex_get/post/put/delete tools with the API path and body directly.
+{api_section}
+"""
 ```
 
-The key change: `_slim_prompt` is identical to `_full_prompt` except the last line before the closing `"""` replaces `{TRIPLETEX_API_CHEAT_SHEET}` with the fallback guidance text above.
+**Implementation approach**: Extract the shared prompt body (lines 48-128 of current prompts.py)
+into a helper that returns everything up to the API section. Then `build_system_prompt(mode)`
+appends the mode-specific tail. The `_load_recipes()` call stays in the shared body.
+
+Key points:
+- `_load_recipes()` is already implemented and tested — reuse it unchanged
+- The "MANDATORY: Follow Recipes" section stays in both modes
+- All gotchas stay in both modes
+- Only the `{TRIPLETEX_API_CHEAT_SHEET}` import on line 130 is mode-dependent
+- Default `mode="generic"` preserves backward compatibility
 
 - [ ] **Step 4: Run all prompt tests**
 
 Run: `python -m pytest tests/test_prompts.py -v`
-Expected: all tests PASS
+Expected: all tests PASS (existing + new)
 
 - [ ] **Step 5: Commit**
 
@@ -913,12 +931,12 @@ git commit -m "feat: add slim prompt mode for hybrid tool search"
 ### Task 4: Wire AGENT_MODE Through main.py
 
 **Files:**
-- Modify: `agent.py:265-267` (run_agent calling build_system_prompt)
+- Modify: `agent.py:266` (run_agent calling build_system_prompt)
 - Modify: `CLAUDE.md`
 
 - [ ] **Step 1: Update run_agent to pass mode to build_system_prompt**
 
-In `agent.py`, change:
+In `agent.py` line 266, change:
 ```python
 system_prompt = build_system_prompt()
 ```
@@ -927,7 +945,7 @@ to:
 system_prompt = build_system_prompt(mode=AGENT_MODE)
 ```
 
-No changes needed in `main.py` — `AGENT_MODE` is read from env var directly in `agent.py`.
+`AGENT_MODE` is already defined at module level from Task 2. No changes needed in `main.py`.
 
 - [ ] **Step 2: Update CLAUDE.md with AGENT_MODE documentation**
 
