@@ -1,0 +1,11 @@
+{
+  "task_type": "_global",
+  "field_guards": {
+    "/product": {
+      "body_strip": ["vatType"]
+    },
+    "/employee": {
+      "body_strip": ["isAdministrator"]
+    }
+  }
+}
