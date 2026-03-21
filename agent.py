@@ -16,7 +16,7 @@ from google.genai import types
 from claude_client import get_claude_client, CLAUDE_MODEL
 from prompts import build_system_prompt
 from tripletex_api import TripletexClient
-from observability import traceable, trace_child
+from observability import traceable, trace_child, get_current_run_tree
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +103,6 @@ TOOLS = [
 # Gemini OCR
 # ---------------------------------------------------------------------------
 
-@traceable(run_type="llm", name="gemini_ocr")
 def gemini_ocr(file_contents: list[dict]) -> str:
     """Use Gemini to extract text from images. Returns OCR text or empty string."""
     image_parts = []
@@ -134,7 +133,6 @@ def gemini_ocr(file_contents: list[dict]) -> str:
 # Tool execution
 # ---------------------------------------------------------------------------
 
-@traceable(run_type="tool", name="execute_tool")
 def execute_tool(name: str, args: dict, client: TripletexClient) -> dict:
     """Execute a single tool call against the Tripletex API."""
     try:
@@ -157,7 +155,7 @@ def execute_tool(name: str, args: dict, client: TripletexClient) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Message building
+# Content helpers
 # ---------------------------------------------------------------------------
 
 def _serialize_content(content: list) -> list[dict]:
@@ -188,6 +186,24 @@ def _serialize_content(content: list) -> list[dict]:
     return result
 
 
+def _extract_thinking(content) -> str | None:
+    """Extract Claude's thinking text from response content blocks."""
+    parts = []
+    for block in content:
+        if block.type == "thinking" and block.thinking:
+            parts.append(block.thinking)
+    return "\n\n".join(parts) if parts else None
+
+
+def _extract_text(content) -> str | None:
+    """Extract Claude's text response from content blocks."""
+    parts = []
+    for block in content:
+        if block.type == "text" and block.text:
+            parts.append(block.text)
+    return "\n".join(parts) if parts else None
+
+
 def build_user_message(prompt: str, file_contents: list[dict]) -> str:
     """Build the user message from prompt and file contents."""
     parts = []
@@ -215,8 +231,28 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
     start_time = time.time()
     client = TripletexClient(base_url, session_token)
 
+    # Counters for top-level metadata
+    total_api_calls = 0
+    total_errors = 0
+    error_details = []  # 4xx error messages for prominent surfacing
+    total_input_tokens = 0
+    total_output_tokens = 0
+    cache_creation_tokens = 0
+    cache_read_tokens = 0
+
     # Step 1: OCR — extract text from images via Gemini
-    ocr_text = gemini_ocr(file_contents)
+    with trace_child("gemini_ocr", run_type="llm", inputs={
+        "model": GEMINI_MODEL,
+        "image_count": sum(len(f.get("images", [])) for f in file_contents),
+        "filenames": [f.get("filename", "?") for f in file_contents],
+    }) as ocr_span:
+        ocr_text = gemini_ocr(file_contents)
+        if ocr_span:
+            ocr_span.end(outputs={
+                "ocr_text": ocr_text if ocr_text else "(no images)",
+                "chars_extracted": len(ocr_text),
+            })
+
     if ocr_text:
         logger.info(f"OCR extracted {len(ocr_text)} chars")
         file_contents.append({
@@ -245,10 +281,10 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
         # --- LLM call span ---
         with trace_child(f"claude_{iteration + 1}", run_type="llm", inputs={
             "model": CLAUDE_MODEL,
-            "messages": messages,
-            "tools": [t["name"] for t in TOOLS],
-            "max_tokens": 16000,
-            "thinking": "adaptive",
+            "message_count": len(messages),
+            "last_message_role": messages[-1]["role"] if messages else "?",
+            # Only include the latest user/tool_result message to avoid bloat
+            "latest_input": messages[-1] if messages else None,
         }) as llm_span:
             with claude_client.messages.stream(
                 model=CLAUDE_MODEL,
@@ -264,21 +300,46 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
             ) as stream:
                 response = stream.get_final_message()
 
-            # Capture response metadata for LangSmith
+            # Extract thinking and text for prominent display
+            thinking = _extract_thinking(response.content)
+            text_response = _extract_text(response.content)
+            tool_calls = [
+                {"name": b.name, "input": b.input}
+                for b in response.content if b.type == "tool_use"
+            ]
+
+            # Track token usage
+            usage = getattr(response, "usage", None)
+            if usage:
+                total_input_tokens += usage.input_tokens
+                total_output_tokens += usage.output_tokens
+                cache_creation_tokens += getattr(usage, "cache_creation_input_tokens", 0) or 0
+                cache_read_tokens += getattr(usage, "cache_read_input_tokens", 0) or 0
+
             if llm_span:
-                usage = getattr(response, "usage", None)
-                output_content = _serialize_content(response.content)
-                llm_span.end(
-                    outputs={
-                        "stop_reason": response.stop_reason,
-                        "content": output_content,
-                    },
-                    **({"metadata": {
+                llm_outputs = {
+                    "stop_reason": response.stop_reason,
+                }
+                if thinking:
+                    llm_outputs["thinking"] = thinking
+                if text_response:
+                    llm_outputs["text"] = text_response
+                if tool_calls:
+                    llm_outputs["tool_calls"] = tool_calls
+
+                llm_metadata = {}
+                if usage:
+                    llm_metadata.update({
                         "input_tokens": usage.input_tokens,
                         "output_tokens": usage.output_tokens,
-                        "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", 0),
-                        "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", 0),
-                    }} if usage else {}),
+                        "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", 0) or 0,
+                        "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", 0) or 0,
+                        "cache_hit": bool(getattr(usage, "cache_read_input_tokens", 0)),
+                    })
+
+                llm_span.end(
+                    outputs=llm_outputs,
+                    **({"metadata": llm_metadata} if llm_metadata else {}),
                 )
 
         # Check if agent is done
@@ -299,10 +360,12 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
         tool_results = []
         for block in tool_use_blocks:
             logger.info(f"  Tool: {block.name}({json.dumps(block.input, ensure_ascii=False)[:200]})")
+            total_api_calls += 1
 
             # --- Tool execution span ---
             with trace_child(block.name, run_type="tool", inputs={
                 "tool": block.name,
+                "path": block.input.get("path", ""),
                 "args": block.input,
             }) as tool_span:
                 result = execute_tool(block.name, block.input, client)
@@ -311,13 +374,31 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
                 success = result.get("success", False)
                 logger.info(f"  -> {status} success={success}")
 
+                # Track errors — 4xx are scoring penalties
+                if not success:
+                    total_errors += 1
+                    error_msg = result.get("body", {}).get("message", result.get("error", ""))
+                    error_details.append({
+                        "tool": block.name,
+                        "path": block.input.get("path", ""),
+                        "status": status,
+                        "error": error_msg,
+                    })
+
                 if tool_span:
-                    tool_span.end(outputs={
+                    tool_outputs = {
                         "status_code": status,
                         "success": success,
-                        "body": result.get("body", {}),
-                        **({"error": result.get("error")} if not success else {}),
-                    })
+                    }
+                    if success:
+                        tool_outputs["body"] = result.get("body", {})
+                    else:
+                        # Surface error message prominently
+                        tool_outputs["error"] = result.get("body", {}).get(
+                            "message", result.get("error", "unknown")
+                        )
+                        tool_outputs["body"] = result.get("body", {})
+                    tool_span.end(outputs=tool_outputs)
 
             content = json.dumps(result)
             tool_results.append({
@@ -330,6 +411,39 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
         messages.append({"role": "user", "content": tool_results})
 
     total_ms = int((time.time() - start_time) * 1000)
-    logger.info(f"Agent done: {iteration + 1} iterations, {total_ms}ms total")
+    iterations_used = iteration + 1
+    logger.info(f"Agent done: {iterations_used} iterations, {total_ms}ms total")
 
-    return {"status": "completed", "iterations": iteration + 1, "time_ms": total_ms}
+    # Set top-level metadata on the run_agent span
+    try:
+        rt = get_current_run_tree()
+        if rt:
+            rt.metadata.update({
+                "api_calls": total_api_calls,
+                "api_errors": total_errors,
+                "iterations": iterations_used,
+                "total_input_tokens": total_input_tokens,
+                "total_output_tokens": total_output_tokens,
+                "cache_creation_tokens": cache_creation_tokens,
+                "cache_read_tokens": cache_read_tokens,
+                "time_ms": total_ms,
+            })
+            if error_details:
+                rt.metadata["error_details"] = error_details
+    except Exception:
+        pass
+
+    return {
+        "status": "completed",
+        "iterations": iterations_used,
+        "time_ms": total_ms,
+        "api_calls": total_api_calls,
+        "api_errors": total_errors,
+        "error_details": error_details if error_details else None,
+        "tokens": {
+            "input": total_input_tokens,
+            "output": total_output_tokens,
+            "cache_creation": cache_creation_tokens,
+            "cache_read": cache_read_tokens,
+        },
+    }
