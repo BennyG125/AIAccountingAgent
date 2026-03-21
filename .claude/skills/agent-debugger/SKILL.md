@@ -274,42 +274,6 @@ Based on patterns found, recommend changes to these files (ordered by impact):
 4. **`agent.py`** — agentic loop, tool definitions, OCR
 5. **`file_handler.py`** — file processing, PDF text extraction, image rendering (if OCR issues)
 
-## Save & Replay Competition Requests
-
-After debugging, save the request locally so it can be replayed after recipe fixes.
-
-**Save all competition requests (batch):**
-```bash
-python scripts/save_competition_requests.py
-```
-
-**Save a specific task:**
-```bash
-python scripts/save_competition_requests.py --task-id 752c1e06d0c3
-```
-
-**Save from dev logs instead:**
-```bash
-python scripts/save_competition_requests.py --env dev
-```
-
-Saved requests go to `competition/requests/{task_id}.json` — stripped of credentials, ready to commit.
-
-**Replay a saved request against dev:**
-```bash
-source .env && export TRIPLETEX_BASE_URL TRIPLETEX_SESSION_TOKEN
-python scripts/replay_request.py competition/requests/752c1e06d0c3.json
-```
-
-**Typical debug-fix-replay cycle:**
-1. Debug a failure with agent-debugger → identify recipe issue
-2. `python scripts/save_competition_requests.py --task-id <task_id>` → save locally
-3. Fix the recipe in `recipes/*.md`
-4. Deploy to dev
-5. `python scripts/replay_request.py competition/requests/<task_id>.json` → verify fix
-6. Check LangSmith trace for the replay → confirm fewer errors
-7. Deploy to comp
-
 ## Agent Architecture
 
 ```
@@ -343,12 +307,12 @@ After completing your diagnosis, recommend the appropriate next action:
 
 | Root cause | Recommendation |
 |-----------|----------------|
-| Recipe is wrong or missing (bad API sequence, missing fields, wrong endpoint) | "The issue is in the recipe. Want me to fix it? (invoke recipe-builder)" |
-| Recipe exists but agent didn't follow it (wording unclear) | "The recipe wording needs improvement. Want me to update it? (invoke recipe-builder)" |
+| Recipe is wrong or missing | "Save this request and fix the recipe? (invoke save-and-replay, then recipe-builder)" |
+| Recipe exists but agent didn't follow it | "Save and fix the recipe wording? (invoke save-and-replay, then recipe-builder)" |
 | Agent code bug (agent.py, tool definitions, OCR) | Suggest a code fix directly — no skill needed |
 | Infrastructure issue (timeout, deployment, credentials) | Suggest the fix directly |
 
-Do NOT automatically invoke recipe-builder. Present the diagnosis and let the user decide.
+**Always recommend save-and-replay first** so the user has a reproducible test case before making changes. Do NOT automatically invoke skills — present the diagnosis and let the user decide.
 
 ## Full Reference
 
