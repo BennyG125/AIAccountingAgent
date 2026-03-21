@@ -218,12 +218,16 @@ def call_solve(url: str, prompt: str, auth_headers: dict) -> dict:
 def verify_in_tripletex(endpoint: str, search_params: dict, expected: dict) -> dict:
     """Verify an entity was created in Tripletex."""
     url = f"{SANDBOX_BASE_URL}{endpoint}"
-    params = {**search_params, "fields": "*", "count": "10"}
+    params = {**search_params, "fields": "*", "count": "500"}
     resp = requests.get(url, auth=("0", SANDBOX_TOKEN), params=params, timeout=30)
     if resp.status_code != 200:
         return {"found": False, "error": f"GET {endpoint} returned {resp.status_code}"}
 
     values = resp.json().get("values", [])
+
+    # Tripletex returns oldest-first — sort newest-first so we find
+    # the entity we just created, not a stale one with a similar name.
+    values.sort(key=lambda v: v.get("id", 0), reverse=True)
 
     # For endpoints without good search, scan all
     if not search_params and expected:
@@ -233,6 +237,14 @@ def verify_in_tripletex(endpoint: str, search_params: dict, expected: dict) -> d
 
     if not values:
         return {"found": False, "error": f"No results for {search_params}"}
+
+    # Tripletex search does broad matching — filter for exact match on expected values
+    if expected:
+        for key, val in expected.items():
+            exact = [v for v in values if v.get(key) == val]
+            if exact:
+                values = exact
+                break
 
     entity = values[0]
     mismatches = {}
