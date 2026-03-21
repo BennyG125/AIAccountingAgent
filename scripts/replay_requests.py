@@ -3,11 +3,12 @@
 
 Sends each request.json from real-requests/logs/ to the dev container,
 using sandbox credentials instead of the competition proxy credentials.
-Reports results per request.
+Reports results per request. Supports concurrent execution.
 
 Usage:
     source .env && export TRIPLETEX_SESSION_TOKEN
-    python scripts/replay_requests.py                          # all requests
+    python scripts/replay_requests.py                          # all requests (sequential)
+    python scripts/replay_requests.py --concurrent 5           # 5 concurrent requests
     python scripts/replay_requests.py --request 003            # single request (by number prefix)
     python scripts/replay_requests.py --url http://localhost:8080  # local server
     python scripts/replay_requests.py --dry-run                # classify only, no API calls
@@ -98,12 +99,45 @@ def classify_only(request_data: dict) -> str:
     return f"{task_type} (plan={'YES' if has_plan else 'NO'})"
 
 
+def _replay_one(args_tuple):
+    """Worker function for concurrent replay."""
+    idx, total, folder, url, session_token, timeout = args_tuple
+    request_data = load_request(folder)
+    if request_data is None:
+        return None
+
+    prompt = request_data.get("prompt", "?")[:80]
+    files_count = len(request_data.get("files", []))
+    folder_name = folder.name
+
+    result = send_request(url, request_data, session_token, timeout)
+    status = "OK" if result["status_code"] == 200 else "FAIL"
+    print(f"[{status}] [{idx:3d}/{total}] {folder_name:55s} {result['elapsed_seconds']:6.1f}s")
+
+    entry = {
+        "folder": folder_name,
+        "prompt_preview": prompt,
+        "files": files_count,
+        "status_code": result["status_code"],
+        "elapsed_seconds": result["elapsed_seconds"],
+        "response": result["response"],
+    }
+
+    # Save individual result
+    result_file = RESULTS_DIR / f"{folder_name}.json"
+    with open(result_file, "w") as f:
+        json.dump(entry, f, indent=2, ensure_ascii=False)
+
+    return entry
+
+
 def main():
     parser = argparse.ArgumentParser(description="Replay competition requests against dev")
     parser.add_argument("--url", default=DEV_URL, help="Target URL")
     parser.add_argument("--request", help="Replay single request by number prefix (e.g., '003')")
     parser.add_argument("--dry-run", action="store_true", help="Classify only, don't send")
     parser.add_argument("--timeout", type=int, default=300, help="Request timeout in seconds")
+    parser.add_argument("--concurrent", type=int, default=1, help="Number of concurrent requests")
     args = parser.parse_args()
 
     session_token = os.getenv("TRIPLETEX_SESSION_TOKEN", "")
@@ -125,72 +159,62 @@ def main():
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    results = []
     total = len(folders)
 
-    for idx, folder in enumerate(folders, 1):
-        request_data = load_request(folder)
-        if request_data is None:
-            continue
-
-        prompt = request_data.get("prompt", "?")[:80]
-        files_count = len(request_data.get("files", []))
-        folder_name = folder.name
-
-        if args.dry_run:
+    if args.dry_run:
+        for idx, folder in enumerate(folders, 1):
+            request_data = load_request(folder)
+            if request_data is None:
+                continue
             classification = classify_only(request_data)
-            print(f"[{idx:3d}/{total}] {folder_name}")
-            print(f"  Classify: {classification}")
-            print(f"  Prompt: {prompt}...")
-            print(f"  Files: {files_count}")
-            results.append({
-                "folder": folder_name,
-                "classification": classification,
-                "prompt_preview": prompt,
-                "files": files_count,
-            })
-            continue
+            prompt = request_data.get("prompt", "?")[:80]
+            print(f"[{idx:3d}/{total}] {folder.name}: {classification}")
+        return
 
-        print(f"\n[{idx:3d}/{total}] {folder_name}")
-        print(f"  Prompt: {prompt}...")
-        print(f"  Files: {files_count}")
+    # Build work items
+    work = []
+    for idx, folder in enumerate(folders, 1):
+        work.append((idx, total, folder, args.url, session_token, args.timeout))
 
-        result = send_request(args.url, request_data, session_token, args.timeout)
+    start_all = time.time()
 
-        status = "OK" if result["status_code"] == 200 else "FAIL"
-        print(f"  Result: {status} ({result['status_code']}) in {result['elapsed_seconds']}s")
+    if args.concurrent > 1:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        print(f"Replaying {total} requests with {args.concurrent} concurrent workers...\n")
+        results = []
+        with ThreadPoolExecutor(max_workers=args.concurrent) as executor:
+            futures = {executor.submit(_replay_one, w): w for w in work}
+            for future in as_completed(futures):
+                entry = future.result()
+                if entry:
+                    results.append(entry)
+    else:
+        print(f"Replaying {total} requests sequentially...\n")
+        results = []
+        for w in work:
+            entry = _replay_one(w)
+            if entry:
+                results.append(entry)
 
-        entry = {
-            "folder": folder_name,
-            "prompt_preview": prompt,
-            "files": files_count,
-            "status_code": result["status_code"],
-            "elapsed_seconds": result["elapsed_seconds"],
-            "response": result["response"],
-        }
-        results.append(entry)
+    wall_time = time.time() - start_all
 
-        # Save individual result
-        result_file = RESULTS_DIR / f"{folder_name}.json"
-        with open(result_file, "w") as f:
-            json.dump(entry, f, indent=2, ensure_ascii=False)
+    # Sort results by folder name for display
+    results.sort(key=lambda r: r["folder"])
 
     # Summary
     print(f"\n{'='*70}")
-    if args.dry_run:
-        print("DRY RUN — Classification Results")
-        for r in results:
-            print(f"  {r['folder']}: {r['classification']}")
-    else:
-        ok = sum(1 for r in results if r["status_code"] == 200)
-        fail = sum(1 for r in results if r["status_code"] != 200)
-        avg_time = sum(r["elapsed_seconds"] for r in results) / len(results) if results else 0
-        print(f"Results: {ok} OK, {fail} FAIL out of {len(results)} requests")
-        print(f"Average time: {avg_time:.1f}s")
-        print()
-        for r in results:
-            status = "OK  " if r["status_code"] == 200 else "FAIL"
-            print(f"  [{status}] {r['folder']} — {r['elapsed_seconds']}s")
+    ok = sum(1 for r in results if r["status_code"] == 200)
+    fail = sum(1 for r in results if r["status_code"] != 200)
+    sum_time = sum(r["elapsed_seconds"] for r in results)
+    avg_time = sum_time / len(results) if results else 0
+    print(f"Results: {ok} OK, {fail} FAIL out of {len(results)} requests")
+    print(f"Avg request time: {avg_time:.1f}s | Wall time: {wall_time:.0f}s ({wall_time/60:.1f}min)")
+    if args.concurrent > 1:
+        print(f"Concurrency: {args.concurrent} workers | Speedup: {sum_time/wall_time:.1f}x")
+    print()
+    for r in results:
+        status = "OK  " if r["status_code"] == 200 else "FAIL"
+        print(f"  [{status}] {r['folder']:55s} {r['elapsed_seconds']:6.1f}s")
 
     # Save summary
     summary_file = RESULTS_DIR / "summary.json"

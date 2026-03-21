@@ -211,82 +211,9 @@ class BankReconciliationPlan(ExecutionPlan):
                 unique_suppliers[name] = supplier_id
 
         # ------------------------------------------------------------------ #
-        # Step 5: Create a shared product for all customer orders
+        # Step 5: Look up payment type (shared by all customer payments)
         # ------------------------------------------------------------------ #
         self._check_timeout(start_time)
-
-        product_result = client.post(
-            "/product",
-            body={"name": "Service", "priceExcludingVatCurrency": 1},
-        )
-        api_calls += 1
-        if not product_result["success"]:
-            api_errors += 1
-            raise RuntimeError(
-                f"Failed to create product: "
-                f"status={product_result.get('status_code')}, "
-                f"error={product_result.get('error')}"
-            )
-        product_id = product_result["body"]["value"]["id"]
-
-        # ------------------------------------------------------------------ #
-        # Step 6: For each customer row — create order
-        # ------------------------------------------------------------------ #
-        order_ids: list[tuple[int, dict]] = []  # (order_id, row)
-        for row in customer_rows:
-            self._check_timeout(start_time)
-            customer_id = unique_customers[row["customer_name"]]
-            amount = row["amount"]
-            order_body = {
-                "customer": {"id": customer_id},
-                "orderDate": row["date"],
-                "deliveryDate": row["date"],
-                "orderLines": [
-                    {
-                        "product": {"id": product_id},
-                        "count": 1,
-                        "unitPriceExcludingVatCurrency": amount,
-                    }
-                ],
-            }
-            order_result = client.post("/order", body=order_body)
-            api_calls += 1
-            if not order_result["success"]:
-                api_errors += 1
-                raise RuntimeError(
-                    f"Failed to create order for {row['customer_name']}: "
-                    f"status={order_result.get('status_code')}, "
-                    f"error={order_result.get('error')}"
-                )
-            order_id = order_result["body"]["value"]["id"]
-            order_ids.append((order_id, row))
-
-        # ------------------------------------------------------------------ #
-        # Step 7: For each order — create invoice
-        # ------------------------------------------------------------------ #
-        invoice_ids: list[tuple[int, dict]] = []  # (invoice_id, row)
-        for order_id, row in order_ids:
-            self._check_timeout(start_time)
-            invoice_result = client.put(
-                f"/order/{order_id}/:invoice",
-                params={"invoiceDate": row["date"]},
-            )
-            api_calls += 1
-            if not invoice_result["success"]:
-                api_errors += 1
-                raise RuntimeError(
-                    f"Failed to create invoice from order {order_id}: "
-                    f"status={invoice_result.get('status_code')}, "
-                    f"error={invoice_result.get('error')}"
-                )
-            invoice_id = invoice_result["body"]["value"]["id"]
-            invoice_ids.append((invoice_id, row))
-
-        # ------------------------------------------------------------------ #
-        # Step 8: Register payment on each invoice
-        # PUT /invoice/{id}/:payment  (NOT /:createPayment)
-        # Look up payment type dynamically
-        # ------------------------------------------------------------------ #
         pt_result = client.get("/invoice/paymentType")
         api_calls += 1
         payment_type_id = 1  # fallback
@@ -295,25 +222,102 @@ class BankReconciliationPlan(ExecutionPlan):
             if types:
                 payment_type_id = types[0]["id"]
 
-        for invoice_id, row in invoice_ids:
+        # ------------------------------------------------------------------ #
+        # Step 6: For each customer payment — find existing invoice or create
+        # Fast path: search for matching invoice by customer + amount → pay
+        # Slow path: create product → order → invoice → pay
+        # ------------------------------------------------------------------ #
+        from datetime import date, timedelta
+        today = date.today()
+        date_from = (today - timedelta(days=365)).isoformat()
+        date_to = (today + timedelta(days=1)).isoformat()
+
+        product_id = None  # lazy-created only if needed
+
+        for row in customer_rows:
             self._check_timeout(start_time)
+            customer_id = unique_customers[row["customer_name"]]
+            amount = row["amount"]
+
+            # Try to find an existing unpaid invoice for this customer + amount
+            invoice_id = None
+            search_result = client.get("/invoice", params={
+                "customerId": customer_id,
+                "invoiceDateFrom": date_from,
+                "invoiceDateTo": date_to,
+            })
+            api_calls += 1
+            if search_result["success"]:
+                for inv in search_result["body"].get("values", []):
+                    inv_amount = inv.get("amountExcludingVat", 0)
+                    # Match by amount (with small tolerance)
+                    if abs(inv_amount - amount) < 1.0:
+                        invoice_id = inv["id"]
+                        break
+
+            if invoice_id is None:
+                # No matching invoice — create full flow
+                # Lazy-create product
+                if product_id is None:
+                    search_prod = client.get("/product", params={"name": "Service"})
+                    api_calls += 1
+                    existing = search_prod.get("body", {}).get("values", [])
+                    if existing:
+                        product_id = existing[0]["id"]
+                    else:
+                        prod_result = self._safe_post(
+                            client, "/product",
+                            {"name": "Service", "priceExcludingVatCurrency": 1},
+                            retry_without=["number"],
+                        )
+                        api_calls += 1
+                        if not prod_result["success"]:
+                            api_errors += 1
+                            raise RuntimeError(f"Failed to create product: {prod_result}")
+                        product_id = prod_result["body"]["value"]["id"]
+
+                # Create order
+                order_result = client.post("/order", body={
+                    "customer": {"id": customer_id},
+                    "orderDate": row["date"],
+                    "deliveryDate": row["date"],
+                    "orderLines": [{
+                        "product": {"id": product_id},
+                        "count": 1,
+                        "unitPriceExcludingVatCurrency": amount,
+                    }],
+                })
+                api_calls += 1
+                if not order_result["success"]:
+                    api_errors += 1
+                    raise RuntimeError(f"Failed to create order: {order_result}")
+                order_id = order_result["body"]["value"]["id"]
+
+                # Create invoice from order
+                inv_result = client.put(
+                    f"/order/{order_id}/:invoice",
+                    params={"invoiceDate": row["date"]},
+                )
+                api_calls += 1
+                if not inv_result["success"]:
+                    api_errors += 1
+                    raise RuntimeError(f"Failed to create invoice: {inv_result}")
+                invoice_id = inv_result["body"]["value"]["id"]
+
+            # Register payment
             payment_result = client.put(
                 f"/invoice/{invoice_id}/:payment",
                 params={
                     "paymentDate": row["date"],
                     "paymentTypeId": payment_type_id,
-                    "paidAmount": row["amount"],
-                    "paidAmountCurrency": row["amount"],
+                    "paidAmount": amount,
+                    "paidAmountCurrency": amount,
                 },
             )
             api_calls += 1
             if not payment_result["success"]:
                 api_errors += 1
-                raise RuntimeError(
-                    f"Failed to register payment for invoice {invoice_id}: "
-                    f"status={payment_result.get('status_code')}, "
-                    f"error={payment_result.get('error')}"
-                )
+                # Non-fatal — continue with other rows
 
         # ------------------------------------------------------------------ #
         # Step 9: Post vouchers for supplier payments
@@ -324,6 +328,8 @@ class BankReconciliationPlan(ExecutionPlan):
             self._check_timeout(start_time)
             supplier_id = unique_suppliers[row["supplier_name"]]
             abs_amount = row["amount"]
+            # Paying supplier: DEBIT 2400 (reduce liability, positive amount),
+            # CREDIT 1920 (reduce bank, negative amount)
             voucher_body = {
                 "date": row["date"],
                 "description": f"Betaling til {row['supplier_name']}",
@@ -332,16 +338,18 @@ class BankReconciliationPlan(ExecutionPlan):
                         "row": 1,
                         "account": {"id": account_2400},
                         "supplier": {"id": supplier_id},
-                        "amount": -abs_amount,
-                        "amountCurrency": -abs_amount,
-                        "currency": {"id": 1},
+                        "amount": abs_amount,
+                        "amountCurrency": abs_amount,
+                        "amountGross": abs_amount,
+                        "amountGrossCurrency": abs_amount,
                     },
                     {
                         "row": 2,
                         "account": {"id": account_1920},
-                        "amount": abs_amount,
-                        "amountCurrency": abs_amount,
-                        "currency": {"id": 1},
+                        "amount": -abs_amount,
+                        "amountCurrency": -abs_amount,
+                        "amountGross": -abs_amount,
+                        "amountGrossCurrency": -abs_amount,
                     },
                 ],
             }
@@ -371,14 +379,16 @@ class BankReconciliationPlan(ExecutionPlan):
                         "account": {"id": account_7770},
                         "amount": abs_amount,
                         "amountCurrency": abs_amount,
-                        "currency": {"id": 1},
+                        "amountGross": abs_amount,
+                        "amountGrossCurrency": abs_amount,
                     },
                     {
                         "row": 2,
                         "account": {"id": account_1920},
                         "amount": -abs_amount,
                         "amountCurrency": -abs_amount,
-                        "currency": {"id": 1},
+                        "amountGross": -abs_amount,
+                        "amountGrossCurrency": -abs_amount,
                     },
                 ]
             else:
@@ -389,14 +399,16 @@ class BankReconciliationPlan(ExecutionPlan):
                         "account": {"id": account_1920},
                         "amount": abs_amount,
                         "amountCurrency": abs_amount,
-                        "currency": {"id": 1},
+                        "amountGross": abs_amount,
+                        "amountGrossCurrency": abs_amount,
                     },
                     {
                         "row": 2,
                         "account": {"id": account_7770},
                         "amount": -abs_amount,
                         "amountCurrency": -abs_amount,
-                        "currency": {"id": 1},
+                        "amountGross": -abs_amount,
+                        "amountGrossCurrency": -abs_amount,
                     },
                 ]
             voucher_body = {
