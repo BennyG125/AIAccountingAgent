@@ -16,8 +16,9 @@ from observability import traceable
 logger = logging.getLogger(__name__)
 
 # Import all plan modules to trigger @register decorators
-import execution_plans.create_customer  # noqa: F401
-import execution_plans.register_hours   # noqa: F401
+import execution_plans.create_customer    # noqa: F401
+import execution_plans.register_hours    # noqa: F401
+import execution_plans.project_lifecycle  # noqa: F401
 # Add imports here as plans are implemented:
 # import execution_plans.create_invoice  # noqa: F401
 # import execution_plans.run_salary  # noqa: F401
@@ -29,6 +30,7 @@ import execution_plans.register_hours   # noqa: F401
 # ---------------------------------------------------------------------------
 
 from execution_plans.register_hours import EXTRACTION_SCHEMA as _RH_SCHEMA
+from execution_plans.project_lifecycle import EXTRACTION_SCHEMA as _PL_SCHEMA
 
 EXTRACTION_SCHEMAS: dict[str, dict] = {
     "create_customer": {
@@ -43,6 +45,7 @@ EXTRACTION_SCHEMAS: dict[str, dict] = {
         },
     },
     "register_hours": _RH_SCHEMA,
+    "project_lifecycle": _PL_SCHEMA,
     # Add schemas here as optimal sequences are researched
 }
 
