@@ -649,7 +649,8 @@ Update delivery address.
 4. POST /invoice {invoiceDate, invoiceDueDate, orders: [{id: order_id}]}
 
 ### Register Payment on Invoice
-PUT /invoice/{id}/:payment {paymentDate, paymentTypeId, paidAmount}
+PUT /invoice/{id}/:payment — uses QUERY PARAMS, NOT body:
+?paymentDate=YYYY-MM-DD&paymentTypeId=N&paidAmount=X&paidAmountCurrency=1
 
 ### Create Travel Expense with Costs
 1. POST /travelExpense {employee: {id}, title} → capture expense_id

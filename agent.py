@@ -87,11 +87,12 @@ TOOLS = [
     },
     {
         "name": "tripletex_delete",
-        "description": "DELETE request for removing entities.",
+        "description": "DELETE request for removing entities. Use params for query parameters like version.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "API path e.g. '/employee/123'"},
+                "params": {"type": "object", "description": "Query params e.g. {\"version\": 1}"},
             },
             "required": ["path"],
         },
@@ -147,7 +148,7 @@ def execute_tool(name: str, args: dict, client: TripletexClient) -> dict:
         elif name == "tripletex_put":
             return client.put(path, body=body, params=params)
         elif name == "tripletex_delete":
-            return client.delete(path)
+            return client.delete(path, params=params)
         else:
             return {"success": False, "error": f"Unknown tool: {name}"}
     except Exception as e:

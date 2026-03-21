@@ -56,6 +56,10 @@ Today's date: {today}
 - **Supplier invoice vs incoming invoice**: "Register supplier invoice" may use either
   POST /incomingInvoice (newer API) or POST /supplierInvoice flow. Check what the prompt
   describes and use the appropriate endpoint.
+- **Error recovery**: If an API call fails mid-sequence, do NOT re-create entities that were
+  already created successfully — use their IDs from prior tool responses.
+- **Smart retry**: If a call fails, read the error carefully and CHANGE your approach.
+  Never retry the exact same request with identical parameters — that wastes calls and scores worse.
 
 ## Recipes for Known Task Types
 
@@ -77,7 +81,12 @@ For multiple departments, make one POST /department per department.
 Each needs: name (string), departmentNumber (string — NOT int).
 Number departments sequentially ("100", "200", "300") unless prompt specifies.
 
-### 5. Create Invoice — Multi-Product (Tier 2, HIGHEST PRIORITY — 16% of competition)
+### 5. Create Product (Tier 1)
+POST /product {{name, number (STRING), priceExcludingVatCurrency}}
+Include vatType: {{"id": 3}} for 25% MVA. If it fails with "Ugyldig mva-kode",
+retry WITHOUT vatType — Tripletex assigns a valid default.
+
+### 6. Create Invoice — Multi-Product (Tier 2, HIGHEST PRIORITY — 16% of competition)
 1. POST /customer {{name, organizationNumber}} → capture customer_id
 2. For EACH product: POST /product {{name, priceExcludingVatCurrency}} → capture product_id
    (If vatType fails, retry without it)
@@ -92,14 +101,14 @@ Number departments sequentially ("100", "200", "300") unless prompt specifies.
 5. If prompt says "send": PUT /invoice/{{invoice_id}}/:send — Body: {{"sendType": "EMAIL"}}
 CRITICAL: Use UNIQUE product names/numbers. If the prompt gives specific names/prices, use them exactly.
 
-### 6. Register Payment (Tier 2)
+### 7. Register Payment (Tier 2)
 Full flow: create customer → products → order → invoice → payment.
 1. Follow Invoice recipe above → capture invoice_id and total amount
 2. GET /invoice/paymentType → find appropriate payment type ID
 3. PUT /invoice/{{invoice_id}}/:payment?paymentDate={today}&paymentTypeId=N&paidAmount=TOTAL&paidAmountCurrency=1
 CRITICAL: Payment uses QUERY PARAMS on PUT, NOT a request body.
 
-### 7. Create Project (Tier 2)
+### 8. Create Project (Tier 2)
 1. POST /customer {{name, organizationNumber}} → capture customer_id
 2. GET /department → capture dept_id (or create if needed)
 3. POST /employee {{firstName: "PM Name", lastName: "...", userType: "STANDARD", department: {{id: dept_id}}}} → capture pm_id
@@ -108,13 +117,13 @@ CRITICAL: Payment uses QUERY PARAMS on PUT, NOT a request body.
    customer: {{id: customer_id}}, description, ...}} → capture project_id
 5. If prompt mentions participants: POST /project/participant {{project: {{id}}, employee: {{id}}}}
 
-### 8. Fixed-Price Project (Tier 2)
+### 9. Fixed-Price Project (Tier 2)
 1. Follow Create Project recipe → capture project_id
 2. GET /project/{{project_id}} → capture version
 3. PUT /project/{{project_id}} {{id: project_id, version: V, isFixedPrice: true, fixedprice: AMOUNT}}
 The fixedprice is set via PUT on the project, not a separate endpoint.
 
-### 9. Run Salary (Tier 2)
+### 10. Run Salary (Tier 2)
 1. Search or create employee: GET /employee?email=X or POST /employee
 2. GET /employee/employment?employeeId=ID → check for existing employment
 3. If no employment: POST /employee/employment {{employee: {{id}}, startDate: "{today}"}}
@@ -128,7 +137,7 @@ The fixedprice is set via PUT on the project, not a separate endpoint.
 NOTE: The salary API is complex. If the above fails, read the error message carefully.
 Use GET /salary/type?fields=* to discover available salary types and their structure.
 
-### 10. Register Supplier Invoice (Tier 2)
+### 11. Register Supplier Invoice (Tier 2)
 1. POST /supplier {{name, organizationNumber}} → capture supplier_id
 2. POST /incomingInvoice {{
      invoiceHeader: {{vendorId: supplier_id, invoiceDate: "YYYY-MM-DD",
@@ -139,13 +148,13 @@ Use GET /salary/type?fields=* to discover available salary types and their struc
 Alternative: Some prompts may reference existing supplier invoices. Use GET /supplierInvoice to search.
 For approval: PUT /supplierInvoice/{{id}}/:approve
 
-### 11. Create Order (Tier 2)
+### 12. Create Order (Tier 2)
 1. POST /customer {{name, organizationNumber}} → capture customer_id
 2. For each product: POST /product {{name, priceExcludingVatCurrency}} → capture product_ids
 3. POST /order {{customer: {{id}}, orderDate: "{today}", deliveryDate: "{today}",
    orderLines: [{{product: {{id}}, count, unitPriceExcludingVatCurrency}}]}}
 
-### 12. Custom Dimension + Voucher (Tier 2)
+### 13. Custom Dimension + Voucher (Tier 2)
 1. GET /company/salesmodules → check available modules
 2. POST /company/salesmodules to activate the dimension module if needed
 3. The "custom dimension" likely involves creating custom fields or categories.
@@ -154,9 +163,48 @@ For approval: PUT /supplierInvoice/{{id}}/:approve
    - GET /ledger/account?number=XXXX for each account
    - POST /ledger/voucher with postings that include the dimension reference
 
+### 14. Reverse Payment Voucher (Tier 2)
+Full flow: create invoice → register payment → find voucher → reverse it.
+1. Follow Register Payment recipe (#7) → capture invoice_id
+2. GET /invoice/{{invoice_id}}?fields=* → find the voucher ID from the payment
+3. PUT /ledger/voucher/{{voucher_id}}/:reverse
+If the task specifies which voucher to reverse, use GET /ledger/voucher to find it.
+
+### 15. Credit Note (Tier 2)
+1. Follow Invoice recipe (#6) → capture invoice_id
+2. PUT /invoice/{{invoice_id}}/:createCreditNote
+No body required. The credit note reverses the original invoice.
+
+### 16. Register Hours / Timesheet (Tier 2)
+Full flow: create customer → employee → project → activity → timesheet entry.
+1. POST /customer {{name, organizationNumber}} → capture customer_id
+2. GET /department → dept_id (or create one)
+3. POST /employee {{firstName, lastName, email, userType: "STANDARD", department: {{id}}}} → employee_id
+4. POST /project {{name, projectManager: {{id: employee_id}}, startDate: "{today}",
+   customer: {{id: customer_id}}}} → project_id
+5. POST /activity {{name, activityType: "PROJECT_GENERAL_ACTIVITY"}} → activity_id
+6. POST /timesheet/entry {{activity: {{id: activity_id}}, employee: {{id: employee_id}},
+   project: {{id: project_id}}, date: "YYYY-MM-DD", hours: N}}
+NOTE: hours is a decimal (e.g. 7.5 for 7h30m). One entry per date/activity/project combo.
+
+### 17. Travel Expense with Per Diem + Costs (Tier 2)
+1. GET /department → dept_id
+2. POST /employee {{firstName, lastName, email, userType: "STANDARD", department: {{id}}}} → employee_id
+3. POST /travelExpense {{employee: {{id: employee_id}}, title: "Trip description"}} → expense_id
+4. For per diem:
+   GET /travelExpense/rateCategory → find per diem rate category ID
+   POST /travelExpense/perDiemCompensation {{travelExpense: {{id: expense_id}},
+     rateCategory: {{id}}, count: NUM_DAYS, rate: DAILY_RATE, amount: TOTAL}}
+5. For each cost item:
+   GET /travelExpense/costCategory → find category (flight, taxi, etc.)
+   GET /travelExpense/paymentType → find payment type ID
+   POST /travelExpense/cost {{travelExpense: {{id: expense_id}}, date: "YYYY-MM-DD",
+     costCategory: {{id}}, paymentType: {{id}}, currency: {{id: 1}},
+     amountCurrencyIncVat: AMOUNT}}
+
 ### Tier 3 Recipes (anticipated — opens Saturday)
 
-### 13. Bank Reconciliation from CSV
+### 18. Bank Reconciliation from CSV
 1. Parse the CSV data from the prompt/attachment
 2. GET /ledger/account?number=1920 (or the bank account specified) → account_id
 3. GET /bank/reconciliation/>last?accountId=ID → check for existing reconciliation
@@ -164,18 +212,13 @@ For approval: PUT /supplierInvoice/{{id}}/:approve
 5. For each transaction: create matching postings or reconciliation matches
 6. Use POST /bank/reconciliation/match to link transactions to postings
 
-### 14. Timesheet / Hours Registration
-1. GET /activity/>forTimeSheet?employeeId=X&date=YYYY-MM-DD → find activity
-2. POST /timesheet/entry {{activity: {{id}}, employee: {{id}}, project: {{id}},
-   date: "YYYY-MM-DD", hours: N, comment: "..."}}
-
-### 15. Asset Registration
+### 19. Asset Registration
 1. GET /ledger/account?number=XXXX → find asset account and depreciation account
 2. POST /asset {{name, dateOfAcquisition, acquisitionCost, account: {{id}},
    lifetime: MONTHS, depreciationAccount: {{id}},
    depreciationMethod: "STRAIGHT_LINE", depreciationFrom: "YYYY-MM-DD"}}
 
-### 16. Year-End / Ledger Corrections
+### 20. Year-End / Ledger Corrections
 1. Identify the accounts involved (GET /ledger/account?number=XXXX)
 2. POST /ledger/voucher with balanced postings
 3. For reversals: PUT /ledger/voucher/{{id}}/:reverse

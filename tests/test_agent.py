@@ -114,7 +114,7 @@ class TestExecuteTool:
         mock_client = MagicMock()
         mock_client.delete.return_value = {"success": True, "status_code": 204, "body": {}}
         agent_module.execute_tool("tripletex_delete", {"path": "/employee/1"}, mock_client)
-        mock_client.delete.assert_called_once_with("/employee/1")
+        mock_client.delete.assert_called_once_with("/employee/1", params=None)
 
     def test_unknown_tool(self):
         result = agent_module.execute_tool("tripletex_patch", {}, MagicMock())

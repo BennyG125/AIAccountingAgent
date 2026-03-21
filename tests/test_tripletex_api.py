@@ -86,6 +86,7 @@ def test_client_delete():
         mock_delete.assert_called_once_with(
             "https://example.com/v2/travelExpense/99",
             auth=("0", "token"),
+            params=None,
             timeout=30,
         )
         assert result["status_code"] == 204

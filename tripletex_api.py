@@ -32,10 +32,10 @@ class TripletexClient:
         resp = requests.put(url, auth=self.auth, json=body, params=params, timeout=30)
         return self._parse_response(resp)
 
-    def delete(self, endpoint: str) -> dict:
+    def delete(self, endpoint: str, params: dict | None = None) -> dict:
         url = f"{self.base_url}{endpoint}"
-        logger.info(f"DELETE {url}")
-        resp = requests.delete(url, auth=self.auth, timeout=30)
+        logger.info(f"DELETE {url} params={params}")
+        resp = requests.delete(url, auth=self.auth, params=params, timeout=30)
         return self._parse_response(resp)
 
     def _parse_response(self, resp: requests.Response) -> dict:
