@@ -47,9 +47,10 @@ Today's date: {today}
 - **Fresh account**: Tripletex starts EMPTY. Create prerequisites before dependents.
 - **PUT updates**: Always include the "version" field from the GET response.
 - **vatType retry**: If POST /product fails with "Ugyldig mva-kode", retry WITHOUT vatType.
-- **PM entitlements**: Before creating a project, the projectManager employee may need
-  entitlements granted via PUT /employee/entitlement/:grantEntitlementsByTemplate.
-  If project creation fails with a permissions error, grant entitlements first then retry.
+- **PM entitlements**: After creating an employee who will be a projectManager, ALWAYS grant
+  entitlements BEFORE creating the project:
+  PUT /employee/entitlement/:grantEntitlementsByTemplate?employeeId=ID&template=ALL_PRIVILEGES
+  This uses QUERY PARAMS only (no body). Returns 200 with empty body on success.
 - **Bank account**: Invoices require a bank account on ledger 1920. This is pre-configured
   automatically, but if invoice creation fails with a bank account error, use:
   GET /ledger/account?number=1920 → PUT /ledger/account/{{id}} with bankAccountNumber.
@@ -113,9 +114,11 @@ CRITICAL: Payment uses QUERY PARAMS on PUT, NOT a request body.
 2. GET /department → capture dept_id (or create if needed)
 3. POST /employee {{firstName: "PM Name", lastName: "...", userType: "STANDARD", department: {{id: dept_id}}}} → capture pm_id
    (Or search for existing employee if prompt references one)
-4. POST /project {{name, projectManager: {{id: pm_id}}, startDate: "{today}",
+4. PUT /employee/entitlement/:grantEntitlementsByTemplate?employeeId=pm_id&template=ALL_PRIVILEGES
+   (QUERY PARAMS only, no body. Returns 200 with empty body. MUST do this before creating the project.)
+5. POST /project {{name, projectManager: {{id: pm_id}}, startDate: "{today}",
    customer: {{id: customer_id}}, description, ...}} → capture project_id
-5. If prompt mentions participants: POST /project/participant {{project: {{id}}, employee: {{id}}}}
+6. If prompt mentions participants: POST /project/participant {{project: {{id}}, employee: {{id}}}}
 
 ### 9. Fixed-Price Project (Tier 2)
 1. Follow Create Project recipe → capture project_id
@@ -176,31 +179,40 @@ If the task specifies which voucher to reverse, use GET /ledger/voucher to find 
 No body required. The credit note reverses the original invoice.
 
 ### 16. Register Hours / Timesheet (Tier 2)
-Full flow: create customer → employee → project → activity → timesheet entry.
+Full flow: create customer → employee → grant entitlements → project → activity → timesheet entry.
 1. POST /customer {{name, organizationNumber}} → capture customer_id
 2. GET /department → dept_id (or create one)
 3. POST /employee {{firstName, lastName, email, userType: "STANDARD", department: {{id}}}} → employee_id
-4. POST /project {{name, projectManager: {{id: employee_id}}, startDate: "{today}",
+4. PUT /employee/entitlement/:grantEntitlementsByTemplate?employeeId=employee_id&template=ALL_PRIVILEGES
+   (QUERY PARAMS only, no body — required before creating project with this employee as PM)
+5. POST /project {{name, projectManager: {{id: employee_id}}, startDate: "{today}",
    customer: {{id: customer_id}}}} → project_id
-5. POST /activity {{name, activityType: "PROJECT_GENERAL_ACTIVITY"}} → activity_id
-6. POST /timesheet/entry {{activity: {{id: activity_id}}, employee: {{id: employee_id}},
+6. POST /activity {{name, activityType: "PROJECT_GENERAL_ACTIVITY"}} → activity_id
+7. POST /timesheet/entry {{activity: {{id: activity_id}}, employee: {{id: employee_id}},
    project: {{id: project_id}}, date: "YYYY-MM-DD", hours: N}}
 NOTE: hours is a decimal (e.g. 7.5 for 7h30m). One entry per date/activity/project combo.
 
 ### 17. Travel Expense with Per Diem + Costs (Tier 2)
 1. GET /department → dept_id
 2. POST /employee {{firstName, lastName, email, userType: "STANDARD", department: {{id}}}} → employee_id
-3. POST /travelExpense {{employee: {{id: employee_id}}, title: "Trip description"}} → expense_id
-4. For per diem:
-   GET /travelExpense/rateCategory → find per diem rate category ID
-   POST /travelExpense/perDiemCompensation {{travelExpense: {{id: expense_id}},
-     rateCategory: {{id}}, count: NUM_DAYS, rate: DAILY_RATE, amount: TOTAL}}
-5. For each cost item:
-   GET /travelExpense/costCategory → find category (flight, taxi, etc.)
-   GET /travelExpense/paymentType → find payment type ID
-   POST /travelExpense/cost {{travelExpense: {{id: expense_id}}, date: "YYYY-MM-DD",
-     costCategory: {{id}}, paymentType: {{id}}, currency: {{id: 1}},
-     amountCurrencyIncVat: AMOUNT}}
+3. PUT /employee/entitlement/:grantEntitlementsByTemplate?employeeId=employee_id&template=ALL_PRIVILEGES
+4. GET /travelExpense/paymentType → find payment type ID
+5. GET /travelExpense/costCategory → find cost category IDs (flight, taxi, etc.)
+6. GET /travelExpense/rate or GET /travelExpense/rateCategory → find per diem rateType ID
+7. POST /travelExpense — embed ALL compensations and costs in ONE call:
+   {{employee: {{id: employee_id}}, title: "Trip description",
+     isChargeable: false,
+     travelDetails: {{departureDate: "YYYY-MM-DD", returnDate: "YYYY-MM-DD",
+       departureFrom: "...", destination: "...", purpose: "work"}},
+     perDiemCompensations: [
+       {{rateType: {{id: RATE_TYPE_ID}}, count: NUM_DAYS, location: "..."}}
+     ],
+     costs: [
+       {{paymentType: {{id: PT_ID}}, date: "YYYY-MM-DD",
+         costCategory: {{id: CAT_ID}}, amountCurrencyIncVat: AMOUNT}}
+     ]
+   }}
+NOTE: Embed compensations/costs in the POST body to save API calls. Do NOT create them separately.
 
 ### Tier 3 Recipes (anticipated — opens Saturday)
 

@@ -25,16 +25,19 @@ NM i AI 2026 — Tripletex task. Agent receives accounting prompts (multilingual
 
 ### Deploy commands
 
+**IMPORTANT:** The deploy commands below load LangSmith API keys from `.env` automatically.
+`--set-env-vars` **replaces ALL** env vars on the container — if you omit the API key it gets wiped and tracing breaks silently.
+Dev and comp use **separate** LangSmith API keys (`LANGSMITH_API_KEY` and `LANGSMITH_API_KEY_COMP` in `.env`).
+
 ```bash
+# Load keys from .env (required before deploy)
+source .env
+
 # Dev (test here first)
-gcloud run deploy ai-accounting-agent-det --source . --region europe-north1 --project ai-nm26osl-1799 --set-env-vars="GCP_PROJECT_ID=ai-nm26osl-1799,GCP_LOCATION=global,REQUEST_LOG_BUCKET=ai-nm26osl-1799-dev-logs,LANGSMITH_TRACING=true,LANGSMITH_PROJECT=ai-accounting-agent-dev" --quiet
+gcloud run deploy ai-accounting-agent-det --source . --region europe-north1 --project ai-nm26osl-1799 --set-env-vars="GCP_PROJECT_ID=ai-nm26osl-1799,GCP_LOCATION=global,REQUEST_LOG_BUCKET=ai-nm26osl-1799-dev-logs,LANGSMITH_TRACING=true,LANGSMITH_PROJECT=ai-accounting-agent-dev,LANGSMITH_API_KEY=$LANGSMITH_API_KEY" --quiet
 
 # Competition (only after dev is verified)
-gcloud run deploy accounting-agent-comp --source . --region europe-north1 --project ai-nm26osl-1799 --set-env-vars="GCP_PROJECT_ID=ai-nm26osl-1799,GCP_LOCATION=global,REQUEST_LOG_BUCKET=ai-nm26osl-1799-competition-logs,LANGSMITH_TRACING=true,LANGSMITH_PROJECT=ai-accounting-agent-comp" --quiet
-
-# Set LangSmith API key separately (never commit the value):
-# gcloud run services update ai-accounting-agent-det --region europe-north1 --project ai-nm26osl-1799 --update-env-vars="LANGSMITH_API_KEY=<your-key>"
-# gcloud run services update accounting-agent-comp --region europe-north1 --project ai-nm26osl-1799 --update-env-vars="LANGSMITH_API_KEY=<your-key>"
+gcloud run deploy accounting-agent-comp --source . --region europe-north1 --project ai-nm26osl-1799 --set-env-vars="GCP_PROJECT_ID=ai-nm26osl-1799,GCP_LOCATION=global,REQUEST_LOG_BUCKET=ai-nm26osl-1799-competition-logs,LANGSMITH_TRACING=true,LANGSMITH_PROJECT=ai-accounting-agent-comp,LANGSMITH_API_KEY=$LANGSMITH_API_KEY_COMP" --quiet
 ```
 
 ## Architecture
@@ -45,7 +48,7 @@ POST / → main.py
   ├── _preconfigure_bank_account()  — ensures ledger 1920 has bank account
   ├── gemini_ocr()                 — Gemini extracts text from images (if any)
   └── Claude Opus 4.6 agentic loop — streaming, adaptive thinking, 4 REST tools
-      ├── system prompt (rules + 16 recipes + api_knowledge/cheat_sheet.py)
+      ├── system prompt (rules + 20 recipes + api_knowledge/cheat_sheet.py)
       ├── max 20 iterations, 270s timeout
       └── return {"status": "completed"}
 ```
@@ -60,7 +63,7 @@ POST / → main.py
 |------|------|
 | `main.py` | FastAPI endpoint, request logging, bank pre-config |
 | `agent.py` | Pure Claude agentic loop, streaming, gemini_ocr, tool definitions |
-| `prompts.py` | System prompt: rules, 16 recipes, gotchas (imports cheat sheet) |
+| `prompts.py` | System prompt: rules, 20 recipes, gotchas (imports cheat sheet) |
 | `claude_client.py` | Shared AnthropicVertex client (cached singleton) |
 | `tripletex_api.py` | HTTP client wrapper (Basic Auth, 30s timeout) |
 | `api_knowledge/cheat_sheet.py` | Full API reference (941 lines, imported by prompts.py) |
@@ -68,7 +71,7 @@ POST / → main.py
 ## Ground Truth
 
 - `docs/analysis/competition-ground-truth.md` — 25 real competition requests analyzed
-- `tests/competition_tasks/` — 23 JSON fixtures in evaluator format
+- `tests/competition_tasks/` — 37 JSON fixtures in evaluator format
 - GCS buckets contain full request payloads for replay
 
 ## Testing

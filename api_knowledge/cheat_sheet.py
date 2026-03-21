@@ -97,7 +97,23 @@ Find entitlements for a user. Params: employeeId, fields
 Use this to check what permissions/roles an employee has.
 
 ### PUT /employee/entitlement/:grantEntitlementsByTemplate
-Update employee entitlements (grant roles/permissions).
+Grant entitlements to an employee. Uses QUERY PARAMS only (no body).
+Required query params:
+  employeeId (int) — the employee ID
+  template (string) — one of these enum values:
+    "ALL_PRIVILEGES", "NONE_PRIVILEGES", "INVOICING_MANAGER",
+    "PERSONELL_MANAGER", "ACCOUNTANT", "AUDITOR", "DEPARTMENT_LEADER"
+Example: PUT /employee/entitlement/:grantEntitlementsByTemplate?employeeId=123&template=ALL_PRIVILEGES
+Returns 200 with empty body on success.
+IMPORTANT: Use ALL_PRIVILEGES for project managers — they need AUTH_PROJECT_MANAGER entitlement.
+
+### PUT /employee/entitlement/:grantClientEntitlementsByTemplate
+Grant entitlements in a client account. Uses QUERY PARAMS only (no body).
+Required query params:
+  employeeId (int), customerId (int), template (string)
+  Valid templates: "ALL_PRIVILEGES", "NONE_PRIVILEGES",
+    "STANDARD_PRIVILEGES_ACCOUNTANT", "STANDARD_PRIVILEGES_AUDITOR"
+Optional: addToExisting (boolean, default false)
 
 ---
 
