@@ -1,0 +1,27 @@
+{
+  "task_id": "20260321_070831",
+  "timestamp": "2026-03-21T07:08:31.846563+00:00",
+  "prompt": "Me har motteke faktura INV-2026-4995 frå leverandøren Fossekraft AS (org.nr 949805727) på 62850 kr inklusiv MVA. Beløpet gjeld kontortenester (konto 7000). Registrer leverandørfakturaen med korrekt inngåande MVA (25 %).",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 11,
+    "api_calls": 12,
+    "api_errors": 2,
+    "time_ms": 172540,
+    "error_details": [
+      {
+        "tool": "tripletex_post",
+        "path": "/incomingInvoice",
+        "status": 403,
+        "error": "You do not have permission to access this feature."
+      },
+      {
+        "tool": "tripletex_post",
+        "path": "/ledger/voucher",
+        "status": 422,
+        "error": "Validering feilet."
+      }
+    ]
+  }
+}
