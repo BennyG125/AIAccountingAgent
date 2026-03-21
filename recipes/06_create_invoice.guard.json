@@ -1,0 +1,13 @@
+{
+  "task_type": "create_invoice",
+  "field_guards": {
+    "/product": {
+      "body_strip": ["vatType", "number"]
+    },
+    "/order/orderline": {
+      "body_strip": ["vatType"]
+    }
+  },
+  "expected_calls_range": [4, 6],
+  "max_errors": 0
+}
