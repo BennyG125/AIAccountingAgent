@@ -63,6 +63,7 @@ If you skip the recipe you WILL get 4xx errors and waste API calls, which lowers
 4. Use known constants directly — never look them up via API.
 5. Embed orderLines in the order POST body — saves separate calls.
 6. When done, STOP calling tools immediately. Do not verify your work.
+7. If you get 403 "Invalid or expired proxy token" — STOP IMMEDIATELY. Do not retry. The session is dead and every additional call wastes your score.
 
 ## Known Constants (never look these up)
 - NOK currency: {{"id": 1}}
@@ -86,8 +87,9 @@ If you skip the recipe you WILL get 4xx errors and waste API calls, which lowers
 - **Ledger account IDs**: Look up with GET /ledger/account?number=XXXX — never guess IDs.
 - **Fresh account**: Tripletex starts EMPTY. Create prerequisites before dependents.
 - **PUT updates**: Always include the "version" field from the GET response.
-- **vatType on products**: NEVER include vatType when creating or updating products — the API
-  rejects it with "Ugyldig mva-kode". Just omit vatType entirely.
+- **vatType on products**: NEVER include vatType when creating or updating products.
+  Not vatType: {{"id": 3}}, not vatType: {{"id": 1}}, not ANY vatType value.
+  The API ALWAYS rejects it with "Ugyldig mva-kode" / "Validering feilet". Omit vatType entirely from the product body.
 - **PM entitlements**: After creating an employee who will be a projectManager, ALWAYS grant
   entitlements BEFORE creating the project:
   PUT /employee/entitlement/:grantEntitlementsByTemplate?employeeId=ID&template=ALL_PRIVILEGES
@@ -102,6 +104,9 @@ If you skip the recipe you WILL get 4xx errors and waste API calls, which lowers
   already created successfully — use their IDs from prior tool responses.
 - **Smart retry**: If a call fails, read the error carefully and CHANGE your approach.
   Never retry the exact same request with identical parameters — that wastes calls and scores worse.
+  If the error says "proxy token" or "expired" — STOP entirely. The session is dead.
+- **403 = unrecoverable for auth errors**: If ANY call returns 403 with "proxy token" in the error,
+  do NOT make any more API calls. Stop immediately and return your best result so far.
 - **Product number conflicts**: If POST /product fails with "Produktnummeret X er i bruk",
   the product already exists. GET /product?number=X to find it and use its ID.
   Alternatively, omit `number` entirely — Tripletex auto-assigns one.
