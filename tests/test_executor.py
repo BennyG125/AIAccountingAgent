@@ -114,3 +114,69 @@ class TestRegistry:
         assert isinstance(PLANS["test_task_for_registry"], TestPlan)
         # Cleanup
         del PLANS["test_task_for_registry"]
+
+
+from execution_plans.create_customer import CreateCustomerPlan
+
+
+class TestCreateCustomerPlan:
+    def test_execute_simple(self):
+        plan = CreateCustomerPlan()
+        client = MagicMock()
+        client.post.return_value = {
+            "success": True,
+            "status_code": 201,
+            "body": {"value": {"id": 1, "name": "Test AS"}},
+        }
+        result = plan.execute(
+            client,
+            {"name": "Test AS", "org_number": "123456789"},
+            start_time=time.time(),
+        )
+        assert result["status"] == "completed"
+        assert result["api_calls"] == 1
+        assert result["api_errors"] == 0
+        assert result["executor"] == "deterministic"
+
+    def test_execute_with_address(self):
+        plan = CreateCustomerPlan()
+        client = MagicMock()
+        client.post.return_value = {
+            "success": True,
+            "status_code": 201,
+            "body": {"value": {"id": 1}},
+        }
+        result = plan.execute(
+            client,
+            {
+                "name": "Test AS",
+                "org_number": "123456789",
+                "email": "test@test.no",
+                "phone": "12345678",
+                "address": {
+                    "street": "Storgata 1",
+                    "postal_code": "0001",
+                    "city": "Oslo",
+                },
+            },
+            start_time=time.time(),
+        )
+        assert result["status"] == "completed"
+        # Verify the POST body included the address
+        call_body = client.post.call_args[1].get("body") or client.post.call_args[0][1]
+        assert "physicalAddress" in call_body
+
+    def test_execute_raises_on_failure(self):
+        plan = CreateCustomerPlan()
+        client = MagicMock()
+        client.post.return_value = {
+            "success": False,
+            "status_code": 500,
+            "error": "server error",
+        }
+        with pytest.raises(RuntimeError, match="Failed to create customer"):
+            plan.execute(
+                client,
+                {"name": "Test AS"},
+                start_time=time.time(),
+            )
