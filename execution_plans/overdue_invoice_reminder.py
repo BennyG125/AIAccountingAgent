@@ -20,15 +20,17 @@ from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
 
 # Fields the LLM should extract from the prompt
+# Only reminder_fee is truly required — customer can be discovered from the overdue invoice.
+# Defaults: debit_account=1500, credit_account=3400, register_payment=false
 EXTRACTION_SCHEMA = {
-    "customer_name": "string|null — customer name to narrow invoice search",
-    "org_number": "string|null — organisation number of the customer",
-    "reminder_fee": "number — reminder fee amount in NOK (e.g. 100.0)",
-    "debit_account": "number — ledger account to debit (always 1500 for accounts receivable)",
-    "credit_account": "number — ledger account to credit (always 3400 for reminder fee income)",
-    "register_payment": "boolean — true if the prompt also asks to register payment on the overdue invoice",
-    "payment_date": "string|null — YYYY-MM-DD payment date (required if register_payment is true)",
-    "paid_amount": "number|null — amount paid in NOK (required if register_payment is true)",
+    "customer_name": "string|null — customer name to narrow invoice search (optional, can be discovered)",
+    "org_number": "string|null — organisation number of the customer (optional)",
+    "reminder_fee": "number — reminder fee amount in NOK (e.g. 70.0). REQUIRED — extract from prompt",
+    "debit_account": "number — ledger account to debit, default 1500 if not mentioned",
+    "credit_account": "number — ledger account to credit, default 3400 if not mentioned",
+    "register_payment": "boolean — true only if prompt explicitly asks to register payment, default false",
+    "payment_date": "string|null — YYYY-MM-DD payment date (only if register_payment is true)",
+    "paid_amount": "number|null — amount paid in NOK (only if register_payment is true)",
 }
 
 
@@ -52,9 +54,11 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
         api_calls = 0
         api_errors = 0
 
-        reminder_fee = params["reminder_fee"]
-        debit_account_number = params.get("debit_account", 1500)
-        credit_account_number = params.get("credit_account", 3400)
+        reminder_fee = params.get("reminder_fee")
+        if not reminder_fee:
+            raise RuntimeError("reminder_fee is required but was not extracted")
+        debit_account_number = params.get("debit_account") or 1500
+        credit_account_number = params.get("credit_account") or 3400
 
         # ------------------------------------------------------------------
         # Step 1: Find the overdue invoice

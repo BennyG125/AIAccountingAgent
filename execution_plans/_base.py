@@ -6,7 +6,7 @@ from tripletex_api import TripletexClient
 
 logger = logging.getLogger(__name__)
 
-EXECUTOR_TIMEOUT = 60  # seconds — leaves ~200s for Claude fallback
+EXECUTOR_TIMEOUT = 120  # seconds — leaves ~150s for Claude fallback
 
 
 class ExecutionPlan:

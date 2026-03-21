@@ -3,6 +3,8 @@
 Full flow: find/create customer → create product → create order → create invoice
 → register payment via PUT /invoice/{id}/:payment with query params.
 """
+from datetime import date
+
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
 
@@ -29,6 +31,10 @@ class RegisterPaymentPlan(ExecutionPlan):
     def execute(self, client, params, start_time):
         self._check_timeout(start_time)
         api_calls = 0
+
+        # Default payment_date to today if empty/null
+        today = date.today().isoformat()
+        payment_date = params.get("payment_date") or today
 
         # --- Step 1: Find or create customer ---
         customer_name = params["customer_name"]
@@ -73,12 +79,11 @@ class RegisterPaymentPlan(ExecutionPlan):
         self._check_timeout(start_time)
 
         # --- Step 3: Create order with embedded order lines ---
-        today = params["payment_date"]
         quantity = params.get("quantity", 1)
         order_body = {
             "customer": {"id": customer_id},
-            "orderDate": today,
-            "deliveryDate": today,
+            "orderDate": payment_date,
+            "deliveryDate": payment_date,
             "orderLines": [
                 {
                     "product": {"id": product_id},
@@ -102,7 +107,7 @@ class RegisterPaymentPlan(ExecutionPlan):
         # --- Step 4: Create invoice from order ---
         invoice_result = client.put(
             f"/order/{order_id}/:invoice",
-            params={"invoiceDate": params["payment_date"]},
+            params={"invoiceDate": payment_date},
         )
         api_calls += 1
         if not invoice_result["success"]:
@@ -128,7 +133,7 @@ class RegisterPaymentPlan(ExecutionPlan):
         payment_result = client.put(
             f"/invoice/{invoice_id}/:payment",
             params={
-                "paymentDate": params["payment_date"],
+                "paymentDate": payment_date,
                 "paymentTypeId": payment_type_id,
                 "paidAmount": params["paid_amount"],
                 "paidAmountCurrency": params["paid_amount"],

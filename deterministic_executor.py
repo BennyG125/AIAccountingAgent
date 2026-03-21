@@ -143,7 +143,32 @@ class DeterministicExecutor:
             except Exception as e:
                 logger.warning(f"OCR failed in deterministic executor: {e}")
 
-        full_prompt = f"{prompt}\n\n{ocr_text}" if ocr_text else prompt
+        # 1b. Extract CSV/text content from files (in addition to OCR)
+        csv_text = ""
+        if files:
+            for file_entry in files:
+                filename = (file_entry.get("filename") or "").lower()
+                if filename.endswith(".csv"):
+                    import base64
+                    content_b64 = (
+                        file_entry.get("content")
+                        or file_entry.get("data")
+                        or file_entry.get("content_base64", "")
+                    )
+                    if content_b64:
+                        try:
+                            csv_text = base64.b64decode(content_b64).decode(
+                                "utf-8", errors="replace"
+                            )
+                        except Exception:
+                            pass
+
+        # Build full_prompt with OCR and CSV data
+        full_prompt = prompt
+        if ocr_text:
+            full_prompt = f"{prompt}\n\n{ocr_text}"
+        if csv_text:
+            full_prompt = f"{full_prompt}\n\nCSV content:\n{csv_text}"
 
         # 2. Classify (keyword — instant, no LLM)
         task_type = classify_task(full_prompt)
@@ -166,6 +191,10 @@ class DeterministicExecutor:
                 f"Deterministic: param extraction failed for '{task_type}', falling back"
             )
             return None
+
+        # 4b. Inject raw CSV data for bank_reconciliation
+        if task_type == "bank_reconciliation" and csv_text:
+            params["csv_data"] = csv_text
 
         # 5. Execute plan
         logger.info(
