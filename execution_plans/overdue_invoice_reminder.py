@@ -240,43 +240,29 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
 
         self._check_timeout(start_time)
 
-        # Create order with the reminder fee as an order line
-        order_result = client.post(
-            "/order",
-            body={
-                "customer": {"id": customer_id},
-                "orderDate": today_str,
-                "deliveryDate": today_str,
-                "orderLines": [
-                    {
-                        "product": {"id": product_id},
-                        "count": 1,
-                        "unitPriceExcludingVatCurrency": reminder_fee,
-                    }
-                ],
-            },
-        )
-        api_calls += 1
-        if not order_result["success"]:
-            api_errors += 1
-            raise RuntimeError(
-                f"Failed to create reminder order: "
-                f"status={order_result.get('status_code')}, "
-                f"error={order_result.get('error')}"
-            )
-        order_id: int = order_result["body"]["value"]["id"]
-
-        self._check_timeout(start_time)
-
-        # Create the invoice from the order
+        # Create reminder invoice with inline order and send in one step
         invoice_due_date = (today + datetime.timedelta(days=14)).isoformat()
         reminder_invoice_result = client.post(
             "/invoice",
             body={
                 "invoiceDate": today_str,
                 "invoiceDueDate": invoice_due_date,
-                "orders": [{"id": order_id}],
+                "orders": [
+                    {
+                        "customer": {"id": customer_id},
+                        "orderDate": today_str,
+                        "deliveryDate": today_str,
+                        "orderLines": [
+                            {
+                                "product": {"id": product_id},
+                                "count": 1,
+                                "unitPriceExcludingVatCurrency": reminder_fee,
+                            }
+                        ],
+                    }
+                ],
             },
+            params={"sendToCustomer": "true"},
         )
         api_calls += 1
         if not reminder_invoice_result["success"]:
@@ -287,31 +273,6 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
                 f"error={reminder_invoice_result.get('error')}"
             )
         reminder_invoice_id: int = reminder_invoice_result["body"]["value"]["id"]
-
-        self._check_timeout(start_time)
-
-        # ------------------------------------------------------------------
-        # Step 5: Send the reminder invoice — EMAIL with fallback to MANUAL
-        # ------------------------------------------------------------------
-        send_result = client.put(
-            f"/invoice/{reminder_invoice_id}/:send",
-            params={"sendType": "EMAIL"},
-        )
-        api_calls += 1
-        if not send_result["success"] and send_result.get("status_code") == 422:
-            # Fallback: send as MANUAL
-            send_result = client.put(
-                f"/invoice/{reminder_invoice_id}/:send",
-                params={"sendType": "MANUAL"},
-            )
-            api_calls += 1
-        if not send_result["success"]:
-            api_errors += 1
-            raise RuntimeError(
-                f"Failed to send reminder invoice {reminder_invoice_id}: "
-                f"status={send_result.get('status_code')}, "
-                f"error={send_result.get('error')}"
-            )
 
         self._check_timeout(start_time)
 

@@ -44,6 +44,33 @@ class ExecutionPlan:
                 f"(limit: {EXECUTOR_TIMEOUT}s)"
             )
 
+    def _get_accounts(self, client, *account_numbers: str) -> dict[str, int]:
+        """Look up multiple ledger accounts in a single API call.
+
+        Args:
+            client: TripletexClient
+            *account_numbers: Account numbers as strings (e.g., "1920", "2400", "7770")
+
+        Returns:
+            Dict mapping account number string to account ID.
+            Raises RuntimeError if any account is not found.
+        """
+        numbers_str = ",".join(str(n) for n in account_numbers)
+        result = client.get("/ledger/account", params={"number": numbers_str})
+        if not result["success"]:
+            raise RuntimeError(f"Failed to look up accounts {numbers_str}: {result}")
+
+        accounts = {}
+        for acc in result["body"].get("values", []):
+            accounts[str(acc["number"])] = acc["id"]
+
+        # Verify all requested accounts were found
+        for num in account_numbers:
+            if str(num) not in accounts:
+                raise RuntimeError(f"Account {num} not found in this sandbox")
+
+        return accounts
+
     def _safe_post(
         self,
         client: TripletexClient,

@@ -361,21 +361,41 @@ class ProjectLifecyclePlan(ExecutionPlan):
         self._check_timeout(start_time)
 
         # ------------------------------------------------------------------
-        # Step 7: Register hours for project manager
+        # Step 7: Register hours for all employees (bulk)
         # ------------------------------------------------------------------
-        api_calls, api_errors = self._register_hours(
-            client, pm_id, project_id, activity_id, pm_hours, today,
-            api_calls, api_errors,
-        )
-
-        # Register hours for other employees
+        timesheet_entries = [
+            {
+                "activity": {"id": activity_id},
+                "employee": {"id": pm_id},
+                "project": {"id": project_id},
+                "date": today,
+                "hours": pm_hours,
+            }
+        ]
         for i, emp_id in enumerate(other_employee_ids):
-            self._check_timeout(start_time)
-            emp_hours = float(other_employees[i]["hours"])
+            timesheet_entries.append({
+                "activity": {"id": activity_id},
+                "employee": {"id": emp_id},
+                "project": {"id": project_id},
+                "date": today,
+                "hours": float(other_employees[i]["hours"]),
+            })
+
+        bulk_ts = client.post("/timesheet/entry/list", body=timesheet_entries)
+        api_calls += 1
+        if not bulk_ts["success"]:
+            # Fallback: register individually
             api_calls, api_errors = self._register_hours(
-                client, emp_id, project_id, activity_id, emp_hours, today,
+                client, pm_id, project_id, activity_id, pm_hours, today,
                 api_calls, api_errors,
             )
+            for i, emp_id in enumerate(other_employee_ids):
+                self._check_timeout(start_time)
+                emp_hours = float(other_employees[i]["hours"])
+                api_calls, api_errors = self._register_hours(
+                    client, emp_id, project_id, activity_id, emp_hours, today,
+                    api_calls, api_errors,
+                )
 
         self._check_timeout(start_time)
 
