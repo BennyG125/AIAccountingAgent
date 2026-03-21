@@ -1,7 +1,14 @@
 # Create Product (Tier 1)
-POST /product {name, priceExcludingVatCurrency}
-Do NOT include `number` unless the prompt explicitly requires a specific number — Tripletex auto-assigns.
-Do NOT include `vatType` — setting vatType on products is not supported (returns "Ugyldig mva-kode").
-Tripletex assigns a default. Even if the prompt asks for a specific VAT rate,
-do NOT try to set it — just create the product without vatType and STOP. Do NOT attempt to update
-the product's vatType after creation either.
+POST /product with ONLY these fields:
+```json
+{
+  "name": "<from prompt>",
+  "priceExcludingVatCurrency": <number>
+}
+```
+
+**FORBIDDEN FIELDS — including ANY of these causes 422:**
+- `vatType` — NEVER include. Returns "Ugyldig mva-kode". Tripletex assigns a default automatically.
+- `number` — NEVER include unless the prompt explicitly requires a specific product number. Tripletex auto-assigns. Including it risks "Produktnummeret X er i bruk" errors.
+
+Even if the prompt specifies a VAT rate (25%, 15%, etc.), do NOT include vatType. Just create the product without it. The VAT rate cannot be set via the API.
