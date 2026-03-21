@@ -1,5 +1,5 @@
 # Register Supplier Invoice (Tier 2)
-**Do NOT use /incomingInvoice (403 in sandbox). Use /ledger/voucher instead.**
+**Do NOT use /incomingInvoice (returns 403). Use /ledger/voucher instead.**
 1. POST /supplier {name, organizationNumber} → capture supplier_id
 2. Look up account IDs (3 parallel GETs):
    - GET /ledger/account?number=7000 (or the expense account from the prompt) → expense_account_id

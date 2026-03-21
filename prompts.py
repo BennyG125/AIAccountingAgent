@@ -67,8 +67,8 @@ If you skip the recipe you WILL get 4xx errors and waste API calls, which lowers
 ## Known Constants (never look these up)
 - NOK currency: {{"id": 1}}
 - Norway country: {{"id": 162}}
-- VAT types: IDs vary per sandbox. NEVER hardcode vatType IDs.
-  For products: do NOT include vatType at all (sandbox rejects it — "Ugyldig mva-kode").
+- VAT types: IDs vary per environment. NEVER hardcode vatType IDs.
+  For products: do NOT include vatType at all (returns "Ugyldig mva-kode").
   For orderLines: vatType is optional — omit it.
   For voucher postings: look up with GET /ledger/vatType first.
 
@@ -86,8 +86,8 @@ If you skip the recipe you WILL get 4xx errors and waste API calls, which lowers
 - **Ledger account IDs**: Look up with GET /ledger/account?number=XXXX — never guess IDs.
 - **Fresh account**: Tripletex starts EMPTY. Create prerequisites before dependents.
 - **PUT updates**: Always include the "version" field from the GET response.
-- **vatType on products**: NEVER include vatType when creating or updating products — the sandbox
-  always rejects it. Do NOT try to fix this. Just omit vatType entirely.
+- **vatType on products**: NEVER include vatType when creating or updating products — the API
+  rejects it with "Ugyldig mva-kode". Just omit vatType entirely.
 - **PM entitlements**: After creating an employee who will be a projectManager, ALWAYS grant
   entitlements BEFORE creating the project:
   PUT /employee/entitlement/:grantEntitlementsByTemplate?employeeId=ID&template=ALL_PRIVILEGES
@@ -95,7 +95,7 @@ If you skip the recipe you WILL get 4xx errors and waste API calls, which lowers
 - **Bank account**: Invoices require a bank account on ledger 1920. This is pre-configured
   automatically, but if invoice creation fails with a bank account error, use:
   GET /ledger/account?number=1920 → PUT /ledger/account/{{id}} with bankAccountNumber.
-- **NEVER use /incomingInvoice**: This endpoint returns 403 (not enabled in sandbox).
+- **NEVER use /incomingInvoice**: This endpoint returns 403.
   For supplier invoices, ALWAYS use POST /ledger/voucher with manual postings instead.
   See Recipe 11 below.
 - **Error recovery**: If an API call fails mid-sequence, do NOT re-create entities that were
