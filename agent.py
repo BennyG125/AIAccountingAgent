@@ -117,8 +117,13 @@ def gemini_ocr(file_contents: list[dict]) -> str:
         return ""
 
     image_parts.append(types.Part.from_text(
-        text="Extract all text, numbers, dates, names, and amounts from these images. "
-             "Return the extracted data as structured text."
+        text="This is an accounting document (invoice, contract, receipt, or similar). "
+             "Extract ALL text exactly as it appears. For each field label and its value, "
+             "return a flat JSON object with the field label as key and the value as string. "
+             "Include everything you can find: names, dates (keep original format), amounts, "
+             "percentages, account numbers, email addresses, organization numbers, national "
+             "identity numbers, department names, occupation codes, addresses, and any other "
+             "data fields. Return ONLY the JSON object, no other text."
     ))
 
     config = types.GenerateContentConfig(temperature=0.0)

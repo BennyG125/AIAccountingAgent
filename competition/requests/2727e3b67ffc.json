@@ -1,0 +1,33 @@
+{
+  "task_id": "2727e3b67ffc",
+  "timestamp": "2026-03-21T11:55:54.512783+00:00",
+  "prompt": "Voce recebeu uma carta de oferta (ver PDF anexo) para um novo funcionario. Complete a integracao: crie o funcionario, atribua o departamento correto, configure os detalhes de emprego com percentagem e salario anual, e configure as horas de trabalho padrao.",
+  "files": [
+    {
+      "filename": "files/tilbudsbrev_pt_06.pdf",
+      "mime_type": "application/pdf",
+      "content_base64": "JVBERi0xLjMKJenr8b8KMSAwIG9iago8PAovQ291bnQgMQovS2lkcyBbMyAwIFJdCi9NZWRpYUJveCBbMCAwIDU5NS4yOCA4NDEuODldCi9UeXBlIC9QYWdlcwo+PgplbmRvYmoKMiAwIG9iago8PAovT3BlbkFjdGlvbiBbMyAwIFIgL0ZpdEggbnVsbF0KL1BhZ2VMYXlvdXQgL09uZUNvbHVtbgovUGFnZXMgMSAwIFIKL1R5cGUgL0NhdGFsb2cKPj4KZW5kb2JqCjMgMCBvYmoKPDwKL0NvbnRlbnRzIDQgMCBSCi9QYXJlbnQgMSAwIFIKL1Jlc291cmNlcyA3IDAgUgovVHlwZSAvUGFnZQo+PgplbmRvYmoKNCAwIG9iago8PAovRmlsdGVyIC9GbGF0ZURlY29kZQovTGVuZ3RoIDYwOAo+PgpzdHJlYW0KeJyNVE1z0zAQvfdX7IUZmAFV/rZ7o7SB0hQGGrgyCto4ShQpSGo6/fes7SROmsLYY49s+e2+t6vdjeHzGWdZAY9nlxM4H0UQlYxzmMzgetJsxTxlUQpFFTXLRMLryc348scVfL2De3od33z5+AYmiy38fBRDFB15SMiyhCIpWJW3Dm4XAh3C+OG38PDB+iDeHnjYwnnOirKF/1QwFw5qjRINiA0ICEpPn0BiDZ5etTI1/fF2BZ++v3NC1mqDDhRhJTY/4XYjtAoY/NKa4KzW7EgyBZ28IDnPM8Y7DVcYhF6ge272UqR5krKMt2YjKz1qL0WwF/9PUlTErIoObWPOeMKiqiwHkdJuGXfno3RwlCvtcSBpb8sLRnfM43wIaVZWu6J4bzyG0HD6mXWrYcQH9iPhw/4wB3HnOUu7errfmvm1sx5NGEjeO4g45frVINY0YUXVRey8tsYMJOvtct5csBxUS1lMS7Tlm6KSlCI5kLI3LVhGLbOinljTI0X93AHvHfyBPXlalKxsRXOWxgR4bJpRL4W7gOPznlstMYDD+kFTa/u2Szu9K6UXVtsNNaitYYrSqVlA4xsp3hqh58LIqV0yoB6DeoHkyQGh6TA3SNHCWsCuGuHbkb6c6rbtz4RlZdrqWwmDjYMVSqDSoliJpnFrvJKqBrtee1V3up3ygcE1heH2bERMX89RtJvA1jWDETqFFE0vqpeUpqws2qTPGtQaaTQ5mFndLs1Wmwt2MvASGrC8a8I70k4Yo0nvXJEIczofkyxiSdLCf/37OjWjJe3qkEblbj6i2QH/Ak+noW0KZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqCjw8Ci9CYXNlRm9udCAvSGVsdmV0aWNhLUJvbGQKL0VuY29kaW5nIC9XaW5BbnNpRW5jb2RpbmcKL1N1YnR5cGUgL1R5cGUxCi9UeXBlIC9Gb250Cj4+CmVuZG9iago2IDAgb2JqCjw8Ci9CYXNlRm9udCAvSGVsdmV0aWNhCi9FbmNvZGluZyAvV2luQW5zaUVuY29kaW5nCi9TdWJ0eXBlIC9UeXBlMQovVHlwZSAvRm9udAo+PgplbmRvYmoKNyAwIG9iago8PAovRm9udCA8PC9GMSA1IDAgUgovRjIgNiAwIFI+PgovUHJvY1NldCBbL1BERiAvVGV4dCAvSW1hZ2VCIC9JbWFnZUMgL0ltYWdlSV0KPj4KZW5kb2JqCjggMCBvYmoKPDwKL0NyZWF0aW9uRGF0ZSAoRDoyMDI2MDMwNDE5MTgwNlopCj4+CmVuZG9iagp4cmVmCjAgOQowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMTUgMDAwMDAgbiAKMDAwMDAwMDEwMiAwMDAwMCBuIAowMDAwMDAwMjA1IDAwMDAwIG4gCjAwMDAwMDAyODUgMDAwMDAgbiAKMDAwMDAwMDk2NSAwMDAwMCBuIAowMDAwMDAxMDY3IDAwMDAwIG4gCjAwMDAwMDExNjQgMDAwMDAgbiAKMDAwMDAwMTI2MSAwMDAwMCBuIAp0cmFpbGVyCjw8Ci9TaXplIDkKL1Jvb3QgMiAwIFIKL0luZm8gOCAwIFIKL0lEIFs8QzA1M0JFMjg1QUI1OEQ3MEJFRjNDOTRGNjcyMzJFMkU+PEMwNTNCRTI4NUFCNThENzBCRUYzQzk0RjY3MjMyRTJFPl0KPj4Kc3RhcnR4cmVmCjEzMTYKJSVFT0YK"
+    }
+  ],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 10,
+    "api_calls": 9,
+    "api_errors": 2,
+    "time_ms": 110594,
+    "error_details": [
+      {
+        "tool": "tripletex_post",
+        "path": "/employee",
+        "status": 422,
+        "error": "Validering feilet."
+      },
+      {
+        "tool": "tripletex_post",
+        "path": "/employee/employment/details",
+        "status": 422,
+        "error": "Request mapping failed"
+      }
+    ]
+  }
+}

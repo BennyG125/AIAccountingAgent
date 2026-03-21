@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 
 import hashlib
+import uuid
 
 from agent import run_agent
 from file_handler import process_files
@@ -26,7 +27,7 @@ API_KEY = os.getenv("API_KEY")
 REQUEST_LOG_BUCKET = os.getenv("REQUEST_LOG_BUCKET", "")
 
 
-def _save_request_to_gcs(body: dict, result: dict | None = None):
+def _save_request_to_gcs(body: dict, result: dict | None = None, task_id: str = ""):
     """Save the full request payload + result to GCS for replay. Non-blocking."""
     if not REQUEST_LOG_BUCKET:
         return
@@ -38,13 +39,15 @@ def _save_request_to_gcs(body: dict, result: dict | None = None):
         ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%S")
         prompt_preview = (body.get("prompt") or body.get("task_prompt") or "unknown")[:50]
         prompt_preview = "".join(c if c.isalnum() or c in " -_" else "" for c in prompt_preview).strip().replace(" ", "_")[:40]
-        filename = f"requests/{ts}_{prompt_preview}.json"
+        filename = f"requests/{ts}_{task_id}_{prompt_preview}.json"
 
         # Save full payload including files, credentials, and result
         payload = {
+            "task_id": task_id,
             "request": body,
             "result": result,
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            "agent_version": os.getenv("K_REVISION", "local"),
         }
         blob = bucket.blob(filename)
         blob.upload_from_string(json.dumps(payload, ensure_ascii=False, default=str), content_type="application/json")
@@ -98,7 +101,7 @@ def _handle_task(prompt: str, files: list, base_url: str, session_token: str,
         rt = get_current_run_tree()
         if rt and metadata:
             rt.metadata.update(metadata)
-            rt.metadata["session_id"] = metadata.get("prompt_hash", "unknown")
+            rt.session_id = metadata.get("prompt_hash", "unknown")
     except Exception:
         pass  # graceful — tracing is optional
     file_contents = process_files(files)
@@ -126,9 +129,14 @@ async def solve(request: Request):
     logger.info(f"Task received. Prompt: {prompt}")
     logger.info(f"Files: {len(files)}, Base URL: {base_url}")
 
+    # Correlation ID — links GCS request log to LangSmith trace
+    task_id = uuid.uuid4().hex[:12]
+    logger.info(f"task_id={task_id}")
+
     result = None
     try:
         metadata = {
+            "task_id": task_id,
             "prompt_hash": hashlib.sha256(prompt.encode()).hexdigest()[:8],
             "prompt_preview": prompt[:80],
             "file_count": len(files),
@@ -139,6 +147,6 @@ async def solve(request: Request):
         logger.error(f"Agent error: {e}", exc_info=True)
 
     # Save full request+result to GCS (synchronous — Cloud Run freezes CPU after response)
-    _save_request_to_gcs(body, result)
+    _save_request_to_gcs(body, result, task_id=task_id)
 
     return JSONResponse({"status": "completed"})

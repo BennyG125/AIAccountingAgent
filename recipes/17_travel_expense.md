@@ -1,26 +1,33 @@
 # Travel Expense with Per Diem + Costs (Tier 2)
 
+## Task Pattern
+Register a travel expense report for an employee with per diem (diett/dagpenger) and out-of-pocket costs (expenses).
+Prompts appear in NO, NN, DE, EN, FR, PT, ES. Typical prompt: "Register travel expense for [Name] ([email]) for [trip description]. The trip lasted N days with overnight stays. Expenses: flight XXXX, taxi XXX, hotel XXXX."
+
 ## Optimal API Sequence
-1. GET /department → dept_id (or create: POST /department {name: "Avdeling", departmentNumber: "100"})
-2. POST /employee {firstName, lastName, email, userType: "STANDARD", department: {id}} → employee_id
-   If exists ("e-postadressen er i bruk"): GET /employee?email=X → use existing ID.
-3. PUT /employee/entitlement/:grantEntitlementsByTemplate?employeeId=EMPLOYEE_ID&template=ALL_PRIVILEGES
+1. GET /department → dept_id [1 call]
+2. GET /employee?email=X → check if employee exists [1 call]
+   - If NOT found: POST /employee → employee_id [1 call]
+   - **ALWAYS search first** — employees often already exist in the sandbox.
+3. PUT /employee/entitlement/:grantEntitlementsByTemplate?employeeId=ID&template=ALL_PRIVILEGES [1 call]
    QUERY PARAMS ONLY, NO body. Template MUST be exactly "ALL_PRIVILEGES".
-4. GET /travelExpense/paymentType → find payment type ID (use first result)
-5. GET /travelExpense/costCategory?fields=id,description → find cost category IDs
-   **IMPORTANT**: Use `fields=id,description` — NOT `fields=id,name`. The field is `description`, not `name`.
-6. GET /travelExpense/rateCategory?fields=id,description → find per diem rate category
-   **IMPORTANT**: Do NOT use /travelExpense/rate — it returns 10000+ results (422 "Result set too large").
-   Use /travelExpense/rateCategory instead.
-7. POST /travelExpense — embed ALL compensations and costs in ONE call:
+4. GET /travelExpense/paymentType → payment_type_id (use first result) [1 call]
+5. GET /travelExpense/costCategory?fields=id,description&showOnTravelExpenses=true → match costs to categories [1 call]
+6. GET /travelExpense/rateCategory?fields=id,name,type,fromDate,toDate,isValidDomestic → find per diem rate category [1 call]
+   **Select the rateCategory where:** type=PER_DIEM, fromDate <= travel date, toDate >= travel date, isValidDomestic matches the trip.
+   For 2026 domestic overnight: use rateCategory with name containing "Overnatting over 12 timer - innland" and fromDate=2026-01-01.
+7. POST /travelExpense — embed ALL compensations and costs in ONE call [1 call]
+
+**Target: 7-8 calls, 0 errors** (8 if employee doesn't exist and needs creation)
 
 ## Field Reference
+
+### POST /travelExpense body
 ```json
 {
   "employee": {"id": "<employee_id>"},
   "title": "Trip description from prompt",
   "isChargeable": false,
-  "paymentType": {"id": "<payment_type_id>"},
   "travelDetails": {
     "departureDate": "YYYY-MM-DD",
     "returnDate": "YYYY-MM-DD",
@@ -31,7 +38,7 @@
   "perDiemCompensations": [
     {
       "rateCategory": {"id": "<rate_category_id>"},
-      "countDays": <number_of_days>,
+      "count": 3,
       "location": "City/country"
     }
   ],
@@ -40,19 +47,40 @@
       "paymentType": {"id": "<payment_type_id>"},
       "date": "YYYY-MM-DD",
       "costCategory": {"id": "<cost_category_id>"},
-      "amountCurrencyIncVat": <amount>,
+      "amountCurrencyIncVat": 2500,
       "currency": {"id": 1},
-      "description": "Cost description"
+      "comments": "What this expense was for"
     }
   ]
 }
 ```
 
 ## Known Gotchas
-- **costCategory fields**: Use `?fields=id,description` — NOT `name`. Using `name` returns 400 "Illegal field".
-- **travelExpense/rate**: Do NOT use directly — returns 422 "Result set too large". Use /travelExpense/rateCategory instead.
-- **rate vs rateCategory**: The perDiemCompensations field uses `rateCategory` (not `rateType`).
-- **countDays vs count**: The field is `countDays` (not `count`).
-- **paymentType**: Required both on the travel expense itself AND on each cost item.
-- Embed ALL compensations and costs in the POST body — do NOT create them separately.
-- If employee already exists, use GET /employee?email=X to find them.
+
+### Field name traps (most common errors)
+- **rateCategory fields filter**: Use `?fields=id,name` — NOT `description`. The field is `name`, not `description`. Using `description` returns 400.
+- **costCategory fields filter**: Use `?fields=id,description` — NOT `name`. The field is `description`, not `name`. Using `name` returns 400.
+- **Per diem count field**: Use `count` — NOT `countDays`. `countDays` does not exist.
+- **Cost item description**: Use `comments` — NOT `description`. Using `description` causes "Request mapping failed" (422).
+- **paymentType placement**: Put `paymentType` on each **cost item** only. Do NOT put it at the top level of the travel expense — it does not exist there and causes "Request mapping failed".
+
+### Rate category selection
+- There are 459 rate categories spanning many years. You MUST filter by date range matching the travel dates.
+- For 2026 domestic overnight trips: look for `name` containing "Overnatting" with `fromDate=2026-01-01`.
+- For 2026 domestic day trips over 12h: look for "Dagsreise over 12 timer" with `fromDate=2026-01-01`.
+- For 2026 domestic day trips 6-12h: look for "Dagsreise 6-12 timer" with `fromDate=2026-01-01`.
+- **Do NOT use /travelExpense/rate** — it returns 10000+ results (422 "Result set too large"). Use /travelExpense/rateCategory instead.
+
+### Employee handling
+- **Search before creating**: GET /employee?email=X first. Most sandbox employees already exist.
+- If employee creation returns 422 "e-postadressen er i bruk", search by email and use existing ID.
+
+### Other
+- Embed ALL perDiemCompensations and costs in the single POST /travelExpense call.
+- `currency: {"id": 1}` = NOK.
+- Match cost descriptions from the prompt to the closest costCategory by `description` (e.g., "Fly" for flights, "Taxi" for taxi, "Hotell" for hotel).
+
+## Expected Performance
+- Calls: 7-8 (7 if employee exists, 8 if new)
+- Errors: 0
+- Time: ~40-60s
