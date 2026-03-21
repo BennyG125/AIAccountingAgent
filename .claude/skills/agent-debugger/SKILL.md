@@ -62,11 +62,18 @@ Default to **competition** unless the user specifies dev. Competition is where s
 - **Pattern analysis across multiple runs** → list and compare several traces
 - **Specific competition submission** → check GCS logs by timestamp
 
-**Skip already-analyzed traces:** When listing traces, use `--include-metadata` to see tags. Traces tagged `analyzed` have already been investigated — skip them unless re-analysis is needed.
+**Skip already-analyzed traces:** When listing traces, use `--include-feedback` to see which ones have been analyzed. Traces with `feedback_stats` containing `status: analyzed` have already been investigated — skip them unless re-analysis is needed.
 
 ```bash
-# List recent UN-analyzed traces (check tags in output, skip ones tagged "analyzed")
-langsmith trace list --project $LANGSMITH_PROJECT --limit 10 --include-metadata --format pretty
+# List recent traces, showing which are already analyzed
+langsmith trace list --project $LANGSMITH_PROJECT --limit 20 --include-feedback --format json \
+  | python3 -c "
+import json, sys
+for t in json.load(sys.stdin):
+    fb = t.get('feedback_stats', {})
+    tag = ' [ANALYZED]' if fb else ''
+    print(f'{t[\"start_time\"][:19]}  {t[\"run_id\"][:36]}{tag}')
+"
 ```
 
 ### 2. Query LangSmith (agent behavior)
@@ -226,23 +233,35 @@ Look for these common issues:
 | **cache_read >> 0** | Prompt caching working correctly | Good — no action needed |
 | **Repeated calls to same endpoint** | Agent retrying without changing approach | Add guidance for when to stop retrying |
 
-### 6. Tag the trace as analyzed
+### 6. Mark the trace as analyzed
 
-After completing your analysis, tag the root run so it's not re-analyzed:
+After completing your analysis, add feedback to the root run so it's not re-analyzed:
 
 ```bash
 python3 -c "
 from langsmith import Client
 import os
 client = Client(api_key=os.environ['LANGSMITH_API_KEY'])
-client.update_run('<ROOT_RUN_ID>', tags=['analyzed'])
-print('Tagged as analyzed')
+client.create_feedback(
+    run_id='<ROOT_RUN_ID>',
+    key='status',
+    value='analyzed',
+    comment='Investigated via agent-debugger skill'
+)
+print('Marked as analyzed')
 "
 ```
 
-To check which traces have already been analyzed:
+To see which traces have been analyzed, use `--include-feedback` and look for non-empty `feedback_stats`:
 ```bash
-langsmith trace list --project $LANGSMITH_PROJECT --tags analyzed --limit 10 --format pretty
+langsmith trace list --project $LANGSMITH_PROJECT --limit 20 --include-feedback --format json \
+  | python3 -c "
+import json, sys
+for t in json.load(sys.stdin):
+    fb = t.get('feedback_stats', {})
+    tag = ' [ANALYZED]' if fb else ''
+    print(f'{t[\"start_time\"][:19]}  {t[\"run_id\"][:36]}{tag}')
+"
 ```
 
 ### 7. Suggest improvements
