@@ -1,6 +1,6 @@
 ---
 name: recipe-validator
-description: Validate that the deployed AI Accounting Agent follows recipes correctly. Use this skill whenever the user wants to test a recipe, verify agent behavior, deploy and check, see if the agent follows the expected API sequence, or says "test the recipe", "deploy and verify", "does the agent work", "check the agent". Also trigger after a recipe-builder session when the user wants to validate the new recipe end-to-end. Even "run a test" or "try it against dev" should trigger this skill.
+description: Validate that the deployed AI Accounting Agent follows recipes correctly. Use this skill whenever the user wants to test a recipe, verify agent behavior, deploy and check, see if the agent follows the expected API sequence, or says "test the recipe", "deploy and verify", "does the agent work", "check the agent", "try the fix against dev". Also trigger after a recipe-builder session when the user wants to validate the new recipe end-to-end. Even "run a test", "try it against dev", or "verify the fix" should trigger this skill.
 ---
 
 # Recipe Validator

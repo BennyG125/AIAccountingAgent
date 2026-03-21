@@ -1,6 +1,6 @@
 ---
 name: save-and-replay
-description: Save competition requests locally and replay them against the dev container. Use this skill when the user wants to save a competition request for debugging, replay a saved request after a recipe fix, or says "save this request", "replay the task", "test locally", "try it again". Also trigger after an agent-debugger session when a failure needs to be reproduced. Even "save it" or "replay it" in the context of a competition task should trigger this skill.
+description: Save competition requests locally and replay them against the dev container. Use this skill when the user wants to save a competition request, replay a saved request after a recipe fix, or says "save this request", "save the competition request", "replay the task", "test locally", "try it again". Also trigger after an agent-debugger session when a failure needs to be saved for reproduction. Even "save it" or "replay it" in the context of a competition task should trigger this skill.
 ---
 
 # Save & Replay
