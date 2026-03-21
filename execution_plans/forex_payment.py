@@ -3,6 +3,9 @@
 Full flow: find/create customer → create product → create order → create invoice (EUR)
 → look up ledger accounts → register payment at invoice rate
 → post forex difference voucher (agio/disagio) to account 8060 or 8070.
+
+Optimisation: if the evaluator pre-created the invoice we find it by customer +
+EUR amount and skip straight to payment + forex voucher.
 """
 from datetime import date, timedelta
 
@@ -28,6 +31,54 @@ class ForexPaymentPlan(ExecutionPlan):
         "post forex difference voucher (agio/disagio) to account 8060 or 8070"
     )
 
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _find_customer_by_org(self, client, org_number):
+        """Search customer by organisation number. Returns (id, api_calls) or (None, api_calls)."""
+        result = client.get("/customer", params={"organizationNumber": org_number, "count": 1})
+        if result["success"] and result["body"].get("values"):
+            return result["body"]["values"][0]["id"], 1
+        return None, 1
+
+    def _find_matching_invoice(self, client, customer_id, invoice_nok):
+        """Search invoices for *customer_id* and match by NOK amount.
+
+        The expected NOK amount on the invoice is eur_amount * invoice_rate.
+        Returns (invoice_id, api_calls) if a match is found, else (None, api_calls).
+        """
+        date_from = (date.today() - timedelta(days=365)).isoformat()
+        date_to = (date.today() + timedelta(days=1)).isoformat()
+
+        result = client.get(
+            "/invoice",
+            params={
+                "customerId": customer_id,
+                "invoiceDateFrom": date_from,
+                "invoiceDateTo": date_to,
+                "count": 50,
+            },
+        )
+        if not result["success"]:
+            return None, 1
+
+        invoices = result["body"].get("values", [])
+        if not invoices:
+            return None, 1
+
+        # Match by amountExcludingVat (NOK) — the invoice was booked at invoice_rate
+        for inv in invoices:
+            inv_amount = inv.get("amountExcludingVat") or inv.get("amount") or 0
+            if abs(float(inv_amount) - float(invoice_nok)) < 0.50:
+                return inv["id"], 1
+
+        return None, 1
+
+    # ------------------------------------------------------------------
+    # Main execute
+    # ------------------------------------------------------------------
+
     def execute(self, client, params, start_time):
         self._check_timeout(start_time)
 
@@ -51,40 +102,155 @@ class ForexPaymentPlan(ExecutionPlan):
         abs_diff = abs(diff_nok)
         is_gain = diff_nok > 0
 
-        # --- Step 1: Find or create customer ---
-        create_body = {"name": customer_name}
+        # ==============================================================
+        # FAST PATH: find existing customer + invoice → pay + forex voucher
+        # ==============================================================
+        found_invoice_id = None
+        found_customer_id = None
+
         if org_number:
-            create_body["organizationNumber"] = org_number
+            cust_id, calls = self._find_customer_by_org(client, org_number)
+            api_calls += calls
 
-        customer_id = self._find_or_create(
-            client,
-            search_path="/customer",
-            search_params={"organizationNumber": org_number} if org_number else {"name": customer_name, "count": 1},
-            create_path="/customer",
-            create_body=create_body,
-        )
-        api_calls += 2  # search + create (or search only if found)
+            if cust_id is not None:
+                found_customer_id = cust_id
+                self._check_timeout(start_time)
 
-        self._check_timeout(start_time)
+                inv_id, calls = self._find_matching_invoice(
+                    client, cust_id, invoice_nok,
+                )
+                api_calls += calls
 
-        # --- Step 2: Look up EUR currency ID ---
-        currency_result = client.get("/currency", params={"code": "EUR"})
-        api_calls += 1
-        if not currency_result["success"]:
-            api_errors += 1
-            raise RuntimeError(
-                f"Failed to look up EUR currency: "
-                f"status={currency_result.get('status_code')}, error={currency_result.get('error')}"
+                if inv_id is not None:
+                    found_invoice_id = inv_id
+
+        # ==============================================================
+        # If fast path found both, skip creation steps entirely
+        # ==============================================================
+        if found_invoice_id is not None and found_customer_id is not None:
+            customer_id = found_customer_id
+            invoice_id = found_invoice_id
+        else:
+            # ==============================================================
+            # FULL PATH: create everything from scratch
+            # ==============================================================
+
+            # --- Step 1: Find or create customer ---
+            create_body = {"name": customer_name}
+            if org_number:
+                create_body["organizationNumber"] = org_number
+
+            customer_id = self._find_or_create(
+                client,
+                search_path="/customer",
+                search_params=(
+                    {"organizationNumber": org_number}
+                    if org_number
+                    else {"name": customer_name, "count": 1}
+                ),
+                create_path="/customer",
+                create_body=create_body,
             )
-        eur_values = currency_result["body"].get("values", [])
-        if not eur_values:
-            raise RuntimeError("EUR currency not found in /currency response")
-        eur_currency_id = eur_values[0]["id"]
+            api_calls += 2  # search + create (or search only if found)
 
-        self._check_timeout(start_time)
+            self._check_timeout(start_time)
 
-        # --- Step 3: Look up ledger account IDs (1500, 1920, 8060 or 8070) ---
-        # Always look up 1500 (AR) and the relevant forex account
+            # --- Step 2: Look up EUR currency ID ---
+            currency_result = client.get("/currency", params={"code": "EUR"})
+            api_calls += 1
+            if not currency_result["success"]:
+                api_errors += 1
+                raise RuntimeError(
+                    f"Failed to look up EUR currency: "
+                    f"status={currency_result.get('status_code')}, error={currency_result.get('error')}"
+                )
+            eur_values = currency_result["body"].get("values", [])
+            if not eur_values:
+                raise RuntimeError("EUR currency not found in /currency response")
+            eur_currency_id = eur_values[0]["id"]
+
+            self._check_timeout(start_time)
+
+            # --- Step 3: Find or create product (minimal — no vatType) ---
+            product_search = client.get(
+                "/product", params={"name": description, "count": 1}
+            )
+            api_calls += 1
+            if product_search["success"] and product_search["body"].get("values"):
+                product_id = product_search["body"]["values"][0]["id"]
+            else:
+                product_result = client.post(
+                    "/product",
+                    body={
+                        "name": description,
+                        "priceExcludingVatCurrency": eur_amount,
+                    },
+                )
+                api_calls += 1
+                if not product_result["success"]:
+                    api_errors += 1
+                    raise RuntimeError(
+                        f"Failed to create product: "
+                        f"status={product_result.get('status_code')}, error={product_result.get('error')}"
+                    )
+                product_id = product_result["body"]["value"]["id"]
+
+            self._check_timeout(start_time)
+
+            # --- Step 4: Create order in EUR ---
+            order_result = client.post(
+                "/order",
+                body={
+                    "customer": {"id": customer_id},
+                    "orderDate": today,
+                    "deliveryDate": today,
+                    "currency": {"id": eur_currency_id},
+                    "orderLines": [
+                        {
+                            "product": {"id": product_id},
+                            "count": 1,
+                            "unitPriceExcludingVatCurrency": eur_amount,
+                        }
+                    ],
+                },
+            )
+            api_calls += 1
+            if not order_result["success"]:
+                api_errors += 1
+                raise RuntimeError(
+                    f"Failed to create order: "
+                    f"status={order_result.get('status_code')}, error={order_result.get('error')}"
+                )
+            order_id = order_result["body"]["value"]["id"]
+
+            self._check_timeout(start_time)
+
+            # --- Step 5: Create invoice in EUR ---
+            invoice_result = client.post(
+                "/invoice",
+                body={
+                    "invoiceDate": today,
+                    "invoiceDueDate": due_date,
+                    "orders": [{"id": order_id}],
+                    "currency": {"id": eur_currency_id},
+                },
+            )
+            api_calls += 1
+            if not invoice_result["success"]:
+                api_errors += 1
+                raise RuntimeError(
+                    f"Failed to create invoice: "
+                    f"status={invoice_result.get('status_code')}, error={invoice_result.get('error')}"
+                )
+            invoice_id = invoice_result["body"]["value"]["id"]
+
+            self._check_timeout(start_time)
+
+        # ==============================================================
+        # SHARED: register payment + forex voucher (both paths converge)
+        # ==============================================================
+
+        # --- Look up ledger accounts (1500, 8060/8070) ---
         ar_result = client.get("/ledger/account", params={"number": 1500, "count": 1})
         api_calls += 1
         if not ar_result["success"] or not ar_result["body"].get("values"):
@@ -117,83 +283,7 @@ class ForexPaymentPlan(ExecutionPlan):
 
         self._check_timeout(start_time)
 
-        # --- Step 4: Find or create product (minimal — no vatType) ---
-        product_search = client.get(
-            "/product", params={"name": description, "count": 1}
-        )
-        api_calls += 1
-        if product_search["success"] and product_search["body"].get("values"):
-            product_id = product_search["body"]["values"][0]["id"]
-        else:
-            product_result = client.post(
-                "/product",
-                body={
-                    "name": description,
-                    "priceExcludingVatCurrency": eur_amount,
-                },
-            )
-            api_calls += 1
-            if not product_result["success"]:
-                api_errors += 1
-                raise RuntimeError(
-                    f"Failed to create product: "
-                    f"status={product_result.get('status_code')}, error={product_result.get('error')}"
-                )
-            product_id = product_result["body"]["value"]["id"]
-
-        self._check_timeout(start_time)
-
-        # --- Step 5: Create order in EUR ---
-        order_result = client.post(
-            "/order",
-            body={
-                "customer": {"id": customer_id},
-                "orderDate": today,
-                "deliveryDate": today,
-                "currency": {"id": eur_currency_id},
-                "orderLines": [
-                    {
-                        "product": {"id": product_id},
-                        "count": 1,
-                        "unitPriceExcludingVatCurrency": eur_amount,
-                    }
-                ],
-            },
-        )
-        api_calls += 1
-        if not order_result["success"]:
-            api_errors += 1
-            raise RuntimeError(
-                f"Failed to create order: "
-                f"status={order_result.get('status_code')}, error={order_result.get('error')}"
-            )
-        order_id = order_result["body"]["value"]["id"]
-
-        self._check_timeout(start_time)
-
-        # --- Step 6: Create invoice in EUR ---
-        invoice_result = client.post(
-            "/invoice",
-            body={
-                "invoiceDate": today,
-                "invoiceDueDate": due_date,
-                "orders": [{"id": order_id}],
-                "currency": {"id": eur_currency_id},
-            },
-        )
-        api_calls += 1
-        if not invoice_result["success"]:
-            api_errors += 1
-            raise RuntimeError(
-                f"Failed to create invoice: "
-                f"status={invoice_result.get('status_code')}, error={invoice_result.get('error')}"
-            )
-        invoice_id = invoice_result["body"]["value"]["id"]
-
-        self._check_timeout(start_time)
-
-        # --- Step 7: Register payment at invoice rate (NOK) ---
-        # Look up payment type
+        # --- Register payment at invoice rate (NOK) ---
         pt_result = client.get("/invoice/paymentType")
         api_calls += 1
         payment_type_id = 1  # fallback
@@ -202,8 +292,6 @@ class ForexPaymentPlan(ExecutionPlan):
             if types:
                 payment_type_id = types[0]["id"]
 
-        # paidAmount = NOK equivalent at invoice_rate
-        # paidAmountCurrency = EUR amount (currency of the invoice)
         payment_result = client.put(
             f"/invoice/{invoice_id}/:payment",
             params={
@@ -223,7 +311,7 @@ class ForexPaymentPlan(ExecutionPlan):
 
         self._check_timeout(start_time)
 
-        # --- Step 8: Post forex difference voucher ---
+        # --- Post forex difference voucher ---
         # Skip voucher if rates are identical (no difference)
         if abs_diff == 0.0:
             return self._make_result(api_calls=api_calls, api_errors=api_errors)
