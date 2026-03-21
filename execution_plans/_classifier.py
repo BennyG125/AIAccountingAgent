@@ -43,6 +43,8 @@ TASK_PATTERNS: list[tuple[str, list[str]]] = [
         r"orçamento.*registe.*horas", r"budget.*register.*hours",
         r"full.*project.*lifecycle", r"complete.*project.*lifecycle",
         r"ciclo.*completo.*pro[jy]", r"vollständig.*projekt",
+        r"prosjektsyklus", r"heile.*prosjekt",
+        r"budsjett.*registrer.*timar", r"budget.*hours.*supplier.*invoice",
     ]),
     ("overdue_invoice_reminder", [
         r"überfällig.*rechnung", r"overdue.*invoice", r"factura.*vencid[ao]",
@@ -78,6 +80,9 @@ TASK_PATTERNS: list[tuple[str, list[str]]] = [
     ("reverse_payment", [
         r"reverser.*betaling", r"reverse.*payment", r"revertir.*pago",
         r"reverter.*pagamento", r"stornierung", r"annuler.*paiement",
+        r"stornieren.*zahlung", r"zahlung.*stornieren",
+        r"zurückgebucht", r"tilbakeført.*betaling", r"betaling.*tilbakeført",
+        r"cancelar.*pago", r"anular.*pagamento",
     ]),
     ("credit_note", [
         r"kreditnota", r"credit\s*note", r"nota\s*de\s*crédito", r"gutschrift",
