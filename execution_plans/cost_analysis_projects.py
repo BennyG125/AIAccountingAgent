@@ -214,20 +214,22 @@ class CostAnalysisProjectsPlan(ExecutionPlan):
                 account_name = account_names.get(acct_num, f"Konto {acct_num}")
                 activity_name = account_name
 
-                result = client.post(
-                    "/activity",
-                    body={
-                        "name": activity_name,
-                        "activityType": "GENERAL_ACTIVITY",
-                        "isChargeable": False,
-                    },
-                )
+                # Search for existing activity first
+                search = client.get("/activity", params={"name": activity_name})
                 api_calls += 1
-                if not result["success"]:
-                    api_errors += 1
-                    raise RuntimeError(
-                        f"Failed to create activity '{activity_name}' for project {project_id}: "
-                        f"status={result.get('status_code')}, error={result.get('error')}"
+                existing = search.get("body", {}).get("values", []) if search["success"] else []
+                if not existing:
+                    result = client.post(
+                        "/activity",
+                        body={
+                            "name": activity_name,
+                            "activityType": "GENERAL_ACTIVITY",
+                            "isChargeable": False,
+                        },
                     )
+                    api_calls += 1
+                    if not result["success"]:
+                        # Non-fatal — project creation is the important part
+                        api_errors += 1
 
         return self._make_result(api_calls=api_calls, api_errors=api_errors)
