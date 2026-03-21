@@ -9,6 +9,14 @@ import re
 # (task_type, [regex_patterns]) — ordered most specific first
 TASK_PATTERNS: list[tuple[str, list[str]]] = [
     # Composite / specific patterns first
+    ("year_end_close", [
+        r"jahresabschluss", r"year.?end\s*clos", r"årsavslutning", r"årsoppgjør",
+        r"cierre\s*anual", r"fechamento\s*anual", r"cl[oô]ture\s*annuelle",
+        r"abschreibung.*steuerr[üu]ckstellung",
+        r"steuerr[üu]ckstellung.*abschreibung",
+        r"depreciation.*tax\s*provision", r"tax\s*provision.*depreciation",
+        r"avskrivning.*skatteavsetning", r"skatteavsetning.*avskrivning",
+    ]),
     ("register_supplier_invoice", [
         r"leverandør.*faktura", r"faktura.*leverandør",
         r"supplier.*invoice", r"invoice.*supplier",
