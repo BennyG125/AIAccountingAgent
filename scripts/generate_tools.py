@@ -228,8 +228,8 @@ def write_generated_tools(tools: list[dict], meta: dict, output_path: str):
         f.write(f'{len(set(m["method"] for m in meta.values()))} HTTP methods.\n')
         f.write('DO NOT EDIT MANUALLY — regenerate with: python scripts/generate_tools.py\n')
         f.write('"""\n\n')
-        f.write(f'GENERATED_TOOLS = {json.dumps(tools, indent=2, ensure_ascii=False)}\n\n')
-        f.write(f'GENERATED_TOOLS_META = {json.dumps(meta, indent=2, ensure_ascii=False)}\n')
+        f.write(f'GENERATED_TOOLS = {repr(tools)}\n\n')
+        f.write(f'GENERATED_TOOLS_META = {repr(meta)}\n')
 
 
 def main():
