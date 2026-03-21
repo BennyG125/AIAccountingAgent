@@ -102,6 +102,7 @@ def download(buckets: list[str] | None = None):
                         try:
                             file_data = base64.b64decode(content_b64)
                             filepath = os.path.join(folder, filename)
+                            os.makedirs(os.path.dirname(filepath), exist_ok=True)
                             with open(filepath, "wb") as f:
                                 f.write(file_data)
                             print(f"  Decoded file: {filepath}")
