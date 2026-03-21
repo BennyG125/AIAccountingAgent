@@ -33,11 +33,14 @@ TASK_PATTERNS: list[tuple[str, list[str]]] = [
         r"kostnadsanalyse", r"cost.*analy[sz]", r"análisis.*costo", r"análise.*custo",
         r"kostenanalyse", r"analyse.*coût", r"totalkostnad.*økte",
         r"gesamtkosten.*gestiegen", r"costos.*aumentaron", r"largest.*increase",
+        r"costs.*increas", r"total.*costs", r"expense.*accounts.*increase",
     ]),
     ("project_lifecycle", [
         r"ciclo.*vida.*pro[jy]", r"lifecycle.*project", r"prosjektlivssyklus",
         r"lebenszyklus.*projekt", r"cycle.*vie.*projet",
         r"orçamento.*registe.*horas", r"budget.*register.*hours",
+        r"full.*project.*lifecycle", r"complete.*project.*lifecycle",
+        r"ciclo.*completo.*pro[jy]", r"vollständig.*projekt",
     ]),
     ("overdue_invoice_reminder", [
         r"überfällig.*rechnung", r"overdue.*invoice", r"factura.*vencid[ao]",
