@@ -16,38 +16,53 @@ from observability import traceable
 logger = logging.getLogger(__name__)
 
 # Import all plan modules to trigger @register decorators
-import execution_plans.create_customer    # noqa: F401
-import execution_plans.register_hours    # noqa: F401
+import execution_plans.create_customer  # noqa: F401
+import execution_plans.create_product  # noqa: F401
+import execution_plans.create_departments  # noqa: F401
+import execution_plans.create_invoice  # noqa: F401
+import execution_plans.credit_note  # noqa: F401
+import execution_plans.register_payment  # noqa: F401
+import execution_plans.register_supplier_invoice  # noqa: F401
+import execution_plans.register_hours  # noqa: F401
+import execution_plans.run_salary  # noqa: F401
+import execution_plans.custom_dimension  # noqa: F401
+import execution_plans.fixed_price_project  # noqa: F401
+import execution_plans.forex_payment  # noqa: F401
+import execution_plans.overdue_invoice_reminder  # noqa: F401
+import execution_plans.employee_onboarding  # noqa: F401
+import execution_plans.travel_expense  # noqa: F401
+import execution_plans.cost_analysis_projects  # noqa: F401
+import execution_plans.bank_reconciliation  # noqa: F401
+import execution_plans.year_end_corrections  # noqa: F401
+import execution_plans.monthly_closing  # noqa: F401
+import execution_plans.year_end_close  # noqa: F401
 import execution_plans.project_lifecycle  # noqa: F401
-# Add imports here as plans are implemented:
-# import execution_plans.create_invoice  # noqa: F401
-# import execution_plans.run_salary  # noqa: F401
-# ... etc
 
 # ---------------------------------------------------------------------------
-# Extraction schemas — defines what fields to pull from the prompt per task type.
-# These are populated as optimal sequences are researched.
+# Extraction schemas — auto-collected from each plan module's EXTRACTION_SCHEMA
 # ---------------------------------------------------------------------------
 
-from execution_plans.register_hours import EXTRACTION_SCHEMA as _RH_SCHEMA
-from execution_plans.project_lifecycle import EXTRACTION_SCHEMA as _PL_SCHEMA
+EXTRACTION_SCHEMAS: dict[str, dict] = {}
 
-EXTRACTION_SCHEMAS: dict[str, dict] = {
-    "create_customer": {
-        "name": "string (customer name)",
-        "org_number": "string (organization number)",
-        "email": "string or null",
-        "phone": "string or null",
-        "address": {
-            "street": "string (street address)",
-            "postal_code": "string",
-            "city": "string",
-        },
-    },
-    "register_hours": _RH_SCHEMA,
-    "project_lifecycle": _PL_SCHEMA,
-    # Add schemas here as optimal sequences are researched
-}
+# Collect schemas from all plan modules that define EXTRACTION_SCHEMA
+import execution_plans as _ep_pkg
+import importlib as _importlib
+import pkgutil as _pkgutil
+
+for _info in _pkgutil.iter_modules(_ep_pkg.__path__):
+    if _info.name.startswith("_"):
+        continue
+    _mod = _importlib.import_module(f"execution_plans.{_info.name}")
+    _schema = getattr(_mod, "EXTRACTION_SCHEMA", None)
+    if _schema and isinstance(_schema, dict):
+        # Find the plan's task_type
+        for _attr_name in dir(_mod):
+            _attr = getattr(_mod, _attr_name)
+            if isinstance(_attr, type) and hasattr(_attr, "task_type"):
+                _inst = _attr()
+                if _inst.task_type:
+                    EXTRACTION_SCHEMAS[_inst.task_type] = _schema
+                    break
 
 
 def extract_params(prompt: str, task_type: str) -> dict | None:

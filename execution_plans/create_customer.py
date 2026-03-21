@@ -2,6 +2,18 @@
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
 
+EXTRACTION_SCHEMA = {
+    "name": "string (customer name)",
+    "org_number": "string (organization number)",
+    "email": "string or null",
+    "phone": "string or null",
+    "address": {
+        "street": "string (street address)",
+        "postal_code": "string",
+        "city": "string",
+    },
+}
+
 
 @register
 class CreateCustomerPlan(ExecutionPlan):
