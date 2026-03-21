@@ -285,15 +285,23 @@ class BankReconciliationPlan(ExecutionPlan):
         # ------------------------------------------------------------------ #
         # Step 8: Register payment on each invoice
         # PUT /invoice/{id}/:payment  (NOT /:createPayment)
-        # Use query params, paymentTypeId=1 (bank transfer)
+        # Look up payment type dynamically
         # ------------------------------------------------------------------ #
+        pt_result = client.get("/invoice/paymentType")
+        api_calls += 1
+        payment_type_id = 1  # fallback
+        if pt_result["success"]:
+            types = pt_result["body"].get("values", [])
+            if types:
+                payment_type_id = types[0]["id"]
+
         for invoice_id, row in invoice_ids:
             self._check_timeout(start_time)
             payment_result = client.put(
                 f"/invoice/{invoice_id}/:payment",
                 params={
                     "paymentDate": row["date"],
-                    "paymentTypeId": 1,
+                    "paymentTypeId": payment_type_id,
                     "paidAmount": row["amount"],
                     "paidAmountCurrency": row["amount"],
                 },

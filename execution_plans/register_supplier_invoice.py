@@ -187,13 +187,13 @@ class RegisterSupplierInvoicePlan(ExecutionPlan):
                     "amountGrossCurrency": gross_amount,
                     "currency": {"id": 1},
                     "vatType": {"id": vat_type_id},
-                    "supplier": {"id": supplier_id},
                     "description": description,
                 },
-                # Row 2: supplier payable credit (negative gross) — no vatType, no amountGross
+                # Row 2: supplier payable credit (negative gross) — supplier linked here
                 {
                     "row": 2,
                     "account": {"id": supplier_payable_account_id},
+                    "supplier": {"id": supplier_id},
                     "amount": -gross_amount,
                     "amountCurrency": -gross_amount,
                     "amountGross": -gross_amount,

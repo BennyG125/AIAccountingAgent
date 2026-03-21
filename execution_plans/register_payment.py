@@ -49,28 +49,36 @@ class RegisterPaymentPlan(ExecutionPlan):
 
         self._check_timeout(start_time)
 
-        # --- Step 2: Create product (NEVER include vatType) ---
-        product_body = {
-            "name": params["product_name"],
-            "priceExcludingVatCurrency": params["price"],
-        }
-        product_result = client.post("/product", body=product_body)
+        # --- Step 2: Find or create product (NEVER include vatType) ---
+        product_name = params["product_name"]
+        product_search = client.get("/product", params={"name": product_name, "count": 1})
         api_calls += 1
-        if not product_result["success"]:
-            raise RuntimeError(
-                f"Failed to create product: "
-                f"status={product_result.get('status_code')}, "
-                f"error={product_result.get('error')}"
-            )
-        product_id = product_result["body"]["value"]["id"]
+        if product_search["success"] and product_search["body"].get("values"):
+            product_id = product_search["body"]["values"][0]["id"]
+        else:
+            product_body = {
+                "name": product_name,
+                "priceExcludingVatCurrency": params["price"],
+            }
+            product_result = client.post("/product", body=product_body)
+            api_calls += 1
+            if not product_result["success"]:
+                raise RuntimeError(
+                    f"Failed to create product: "
+                    f"status={product_result.get('status_code')}, "
+                    f"error={product_result.get('error')}"
+                )
+            product_id = product_result["body"]["value"]["id"]
 
         self._check_timeout(start_time)
 
         # --- Step 3: Create order with embedded order lines ---
+        today = params["payment_date"]
         quantity = params.get("quantity", 1)
         order_body = {
             "customer": {"id": customer_id},
-            "orderDate": params["payment_date"],
+            "orderDate": today,
+            "deliveryDate": today,
             "orderLines": [
                 {
                     "product": {"id": product_id},
@@ -108,12 +116,20 @@ class RegisterPaymentPlan(ExecutionPlan):
         self._check_timeout(start_time)
 
         # --- Step 5: Register payment via query params (NOT body) ---
-        # paymentTypeId=1 is bank transfer — reliable, no lookup needed
+        # Look up payment type
+        pt_result = client.get("/invoice/paymentType")
+        api_calls += 1
+        payment_type_id = 1  # fallback
+        if pt_result["success"]:
+            types = pt_result["body"].get("values", [])
+            if types:
+                payment_type_id = types[0]["id"]
+
         payment_result = client.put(
             f"/invoice/{invoice_id}/:payment",
             params={
                 "paymentDate": params["payment_date"],
-                "paymentTypeId": 1,
+                "paymentTypeId": payment_type_id,
                 "paidAmount": params["paid_amount"],
                 "paidAmountCurrency": params["paid_amount"],
             },

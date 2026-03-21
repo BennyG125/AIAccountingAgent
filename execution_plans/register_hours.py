@@ -166,7 +166,6 @@ class RegisterHoursPlan(ExecutionPlan):
         self._check_timeout(start_time)
 
         # --- Step 6: Find or create activity ---
-        # CRITICAL: activityType must be "GENERAL_ACTIVITY" — NOT "PROJECT_GENERAL_ACTIVITY"
         r = client.get("/activity", params={"name": activity_name, "fields": "id,name"})
         api_calls += 1
         if r["success"] and r["body"].get("values"):
@@ -176,7 +175,7 @@ class RegisterHoursPlan(ExecutionPlan):
                 "/activity",
                 body={
                     "name": activity_name,
-                    "activityType": "GENERAL_ACTIVITY",
+                    "activityType": "PROJECT_GENERAL_ACTIVITY",
                     "isChargeable": True,
                 },
             )

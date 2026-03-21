@@ -684,6 +684,7 @@ class ProjectLifecyclePlan(ExecutionPlan):
                 {
                     "row": 2,
                     "account": {"id": supplier_payable_id},
+                    "supplier": {"id": supplier_id},
                     "amount": -gross_amount,
                     "amountCurrency": -gross_amount,
                     "amountGross": -gross_amount,

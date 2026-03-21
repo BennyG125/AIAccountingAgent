@@ -300,11 +300,21 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
             paid_amount = params.get("paid_amount") or overdue_invoice.get(
                 "amountExcludingVatCurrency", 0
             )
+
+            # Look up payment type
+            pt_result = client.get("/invoice/paymentType")
+            api_calls += 1
+            payment_type_id = 1  # fallback
+            if pt_result["success"]:
+                types = pt_result["body"].get("values", [])
+                if types:
+                    payment_type_id = types[0]["id"]
+
             payment_result = client.put(
                 f"/invoice/{overdue_invoice_id}/:payment",
                 params={
                     "paymentDate": payment_date,
-                    "paymentTypeId": 1,  # bank transfer
+                    "paymentTypeId": payment_type_id,
                     "paidAmount": paid_amount,
                     "paidAmountCurrency": paid_amount,
                 },

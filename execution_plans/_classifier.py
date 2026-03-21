@@ -8,15 +8,48 @@ import re
 
 # (task_type, [regex_patterns]) — ordered most specific first
 TASK_PATTERNS: list[tuple[str, list[str]]] = [
-    # Composite / specific patterns first
+    # --- New specific patterns (must match before generic patterns) ---
     ("year_end_close", [
-        r"jahresabschluss", r"year.?end\s*clos", r"årsavslutning", r"årsoppgjør",
-        r"cierre\s*anual", r"fechamento\s*anual", r"cl[oô]ture\s*annuelle",
+        r"jahresabschluss", r"year.?end.*clos", r"cierre.*anual", r"encerramento.*anual",
+        r"årsavslutning", r"clôture.*annuel", r"abschreibung.*anlagen",
+        r"årsoppgjør",
+        r"fechamento\s*anual", r"cl[oô]ture\s*annuelle",
         r"abschreibung.*steuerr[üu]ckstellung",
         r"steuerr[üu]ckstellung.*abschreibung",
         r"depreciation.*tax\s*provision", r"tax\s*provision.*depreciation",
         r"avskrivning.*skatteavsetning", r"skatteavsetning.*avskrivning",
     ]),
+    ("year_end_corrections", [
+        r"erreurs.*grand.*livre", r"errors.*ledger", r"errores.*libro.*mayor",
+        r"erros.*razão", r"fehler.*hauptbuch", r"feil.*hovedbok",
+        r"correction.*voucher", r"korrigering",
+    ]),
+    ("monthly_closing", [
+        r"cierre.*mensual", r"monthly.*clos", r"månedsslutt", r"monatsabschluss",
+        r"clôture.*mensuel", r"encerramento.*mensal", r"periodificación",
+        r"periodisering", r"deprecia.*mensual",
+    ]),
+    ("cost_analysis_projects", [
+        r"kostnadsanalyse", r"cost.*analy[sz]", r"análisis.*costo", r"análise.*custo",
+        r"kostenanalyse", r"analyse.*coût", r"totalkostnad.*økte",
+        r"gesamtkosten.*gestiegen", r"costos.*aumentaron", r"largest.*increase",
+    ]),
+    ("project_lifecycle", [
+        r"ciclo.*vida.*pro[jy]", r"lifecycle.*project", r"prosjektlivssyklus",
+        r"lebenszyklus.*projekt", r"cycle.*vie.*projet",
+        r"orçamento.*registe.*horas", r"budget.*register.*hours",
+    ]),
+    ("overdue_invoice_reminder", [
+        r"überfällig.*rechnung", r"overdue.*invoice", r"factura.*vencid[ao]",
+        r"fatura.*vencid[ao]", r"purregebyr", r"mahnung", r"reminder.*fee",
+        r"cargo.*recordatorio", r"taxa.*lembrete", r"frais.*rappel",
+    ]),
+    ("forex_payment", [
+        r"valuta", r"exchange\s*rate", r"tipo\s*de\s*cambio", r"taxa\s*de\s*câmbio",
+        r"wechselkurs", r"taux\s*de\s*change", r"agio", r"disagio",
+        r"kurs.*eur", r"eur.*kurs", r"rate.*eur", r"eur.*rate",
+    ]),
+    # --- Original composite / specific patterns ---
     ("register_supplier_invoice", [
         r"leverandør.*faktura", r"faktura.*leverandør",
         r"supplier.*invoice", r"invoice.*supplier",
@@ -44,6 +77,8 @@ TASK_PATTERNS: list[tuple[str, list[str]]] = [
     ("employee_onboarding", [
         r"arbeidskontrakt", r"employment.*contract", r"contrat.*travail",
         r"contrato.*trabajo",
+        r"new\s*employee.*start", r"ny\s*ansatt.*start", r"neuer\s*mitarbeiter.*start",
+        r"nouvel\s*employ.*début", r"nuevo\s*empleado.*empez", r"novo\s*funcion.*início",
     ]),
     ("travel_expense", [
         r"reise", r"travel.*expense", r"gastos.*viaje", r"despesas.*viagem",

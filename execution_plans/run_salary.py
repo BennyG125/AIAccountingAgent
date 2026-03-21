@@ -78,6 +78,7 @@ class RunSalaryPlan(ExecutionPlan):
                 "firstName": params["employee_first_name"],
                 "lastName": params["employee_last_name"],
                 "email": email,
+                "dateOfBirth": params.get("dateOfBirth", "1990-01-01"),
                 "userType": "STANDARD",
                 "department": {"id": dept_id},
             }
@@ -92,12 +93,23 @@ class RunSalaryPlan(ExecutionPlan):
 
             self._check_timeout(start_time)
 
+            # Look up division for employment
+            div_result = client.get("/company/divisions", params={"fields": "id", "count": 1})
+            api_calls += 1
+            division_id = None
+            if div_result["success"]:
+                div_values = div_result["body"].get("values", [])
+                if div_values:
+                    division_id = div_values[0]["id"]
+
             # Create employment
             employment_body = {
                 "employee": {"id": emp_id},
                 "startDate": date_str,
                 "isMainEmployer": True,
             }
+            if division_id is not None:
+                employment_body["division"] = {"id": division_id}
             employment_result = client.post("/employee/employment", body=employment_body)
             api_calls += 1
             if not employment_result["success"]:

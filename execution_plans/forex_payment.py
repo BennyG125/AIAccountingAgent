@@ -186,13 +186,22 @@ class ForexPaymentPlan(ExecutionPlan):
         self._check_timeout(start_time)
 
         # --- Step 7: Register payment at invoice rate (NOK) ---
+        # Look up payment type
+        pt_result = client.get("/invoice/paymentType")
+        api_calls += 1
+        payment_type_id = 1  # fallback
+        if pt_result["success"]:
+            types = pt_result["body"].get("values", [])
+            if types:
+                payment_type_id = types[0]["id"]
+
         # paidAmount = NOK equivalent at invoice_rate
         # paidAmountCurrency = EUR amount (currency of the invoice)
         payment_result = client.put(
             f"/invoice/{invoice_id}/:payment",
             params={
                 "paymentDate": today,
-                "paymentTypeId": 1,
+                "paymentTypeId": payment_type_id,
                 "paidAmount": invoice_nok,
                 "paidAmountCurrency": eur_amount,
             },
