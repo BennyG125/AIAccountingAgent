@@ -53,6 +53,14 @@ TASK_PATTERNS: list[tuple[str, list[str]]] = [
         r"kurs.*eur", r"eur.*kurs", r"rate.*eur", r"eur.*rate",
     ]),
     # --- Original composite / specific patterns ---
+    # bank_reconciliation MUST come before register_supplier_invoice
+    # because bank reconciliation prompts mention "factures" (invoices)
+    ("bank_reconciliation", [
+        r"bank.*avstemming", r"bank.*reconcil", r"reconcil.*bank",
+        r"concilia.*banc", r"rapproch.*bancaire",
+        r"relev[ée]\s*bancaire", r"kontoauszug", r"bankutskrift",
+        r"bank\s*statement", r"extracto\s*banc", r"extrato\s*banc",
+    ]),
     ("register_supplier_invoice", [
         r"leverandør.*faktura", r"faktura.*leverandør",
         r"supplier.*invoice", r"invoice.*supplier",
@@ -73,19 +81,21 @@ TASK_PATTERNS: list[tuple[str, list[str]]] = [
         r"kreditnota", r"credit\s*note", r"nota\s*de\s*crédito", r"gutschrift",
         r"note\s*de\s*crédit",
     ]),
-    ("bank_reconciliation", [
-        r"bank.*avstemming", r"bank.*reconcil", r"reconcil.*bank",
-        r"concilia.*banc", r"rapproch.*bancaire",
-    ]),
     ("employee_onboarding", [
         r"arbeidskontrakt", r"employment.*contract", r"contrat.*travail",
-        r"contrato.*trabajo",
+        r"contrato.*trabalho", r"contrato.*trabajo",
+        r"carta\s*de\s*oferta", r"lettre\s*d.offre", r"tilbudsbrev",
+        r"offer\s*letter", r"carta\s*de\s*ofrecimiento",
+        r"integracao", r"integra[cç][aã]o", r"integration.*employ",
+        r"incorporaci[oó]n", r"int[eé]gration.*employ",
         r"new\s*employee.*start", r"ny\s*ansatt.*start", r"neuer\s*mitarbeiter.*start",
         r"nouvel\s*employ.*début", r"nuevo\s*empleado.*empez", r"novo\s*funcion.*início",
     ]),
     ("travel_expense", [
         r"reise", r"travel.*expense", r"gastos.*viaje", r"despesas.*viagem",
         r"reisekosten", r"frais.*voyage", r"reiserekning", r"reiseregning",
+        r"despesa.*recibo", r"recibo.*despesa", r"expense.*receipt",
+        r"receipt.*expense", r"kvittering", r"beleg.*ausgabe",
     ]),
     ("register_hours", [
         r"timer", r"hours", r"horas", r"stunden", r"heures", r"timeføring",
