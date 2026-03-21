@@ -66,38 +66,51 @@ class CreateInvoicePlan(ExecutionPlan):
 
         self._check_timeout(start_time)
 
-        # --- Step 3: Create products ---
+        # --- Step 3: Bulk create products via POST /product/list ---
         products = params.get("products", [])
+        products_body = [
+            {"name": p["name"], "priceExcludingVatCurrency": p["price"]}
+            for p in products
+        ]
+
         product_ids = []
-        for product in products:
-            self._check_timeout(start_time)
-            product_name = product["name"]
-            price = product["price"]
-
-            # POST product with ONLY name + priceExcludingVatCurrency
-            result = client.post("/product", body={
-                "name": product_name,
-                "priceExcludingVatCurrency": price,
-            })
+        if len(products_body) > 1:
+            # Try bulk create first
+            bulk_result = client.post("/product/list", body=products_body)
             api_calls += 1
+            if bulk_result["success"]:
+                for prod in bulk_result["body"].get("values", []):
+                    product_ids.append(prod["id"])
 
-            if not result["success"]:
-                # Handle "Produktnummeret er i bruk" (422) — find existing product by name
-                if result.get("status_code") == 422:
-                    find_result = client.get("/product", params={"name": product_name})
-                    api_calls += 1
-                    if find_result["success"]:
-                        values = find_result["body"].get("values", [])
-                        if values:
-                            product_ids.append(values[0]["id"])
-                            continue
-                api_errors += 1
-                raise RuntimeError(
-                    f"Failed to create product '{product_name}': "
-                    f"status={result.get('status_code')}, error={result.get('error')}"
-                )
-            else:
-                product_ids.append(result["body"]["value"]["id"])
+        if not product_ids:
+            # Fallback: create individually (handles duplicates gracefully)
+            for product in products:
+                self._check_timeout(start_time)
+                product_name = product["name"]
+                price = product["price"]
+
+                result = client.post("/product", body={
+                    "name": product_name,
+                    "priceExcludingVatCurrency": price,
+                })
+                api_calls += 1
+
+                if not result["success"]:
+                    if result.get("status_code") == 422:
+                        find_result = client.get("/product", params={"name": product_name})
+                        api_calls += 1
+                        if find_result["success"]:
+                            values = find_result["body"].get("values", [])
+                            if values:
+                                product_ids.append(values[0]["id"])
+                                continue
+                    api_errors += 1
+                    raise RuntimeError(
+                        f"Failed to create product '{product_name}': "
+                        f"status={result.get('status_code')}, error={result.get('error')}"
+                    )
+                else:
+                    product_ids.append(result["body"]["value"]["id"])
 
         self._check_timeout(start_time)
 
@@ -116,25 +129,7 @@ class CreateInvoicePlan(ExecutionPlan):
                     line["vatType"] = {"id": vat_type_map[rate_key]}
             order_lines.append(line)
 
-        order_result = client.post("/order", body={
-            "customer": {"id": customer_id},
-            "orderDate": order_date,
-            "deliveryDate": delivery_date,
-            "orderLines": order_lines,
-        })
-        api_calls += 1
-        if not order_result["success"]:
-            api_errors += 1
-            raise RuntimeError(
-                f"Failed to create order: "
-                f"status={order_result.get('status_code')}, error={order_result.get('error')}"
-            )
-
-        order_id = order_result["body"]["value"]["id"]
-
-        self._check_timeout(start_time)
-
-        # --- Step 5: Create invoice (with sendToCustomer if requested) ---
+        # --- Step 4+5: Create invoice with inline order (1 call instead of 2) ---
         invoice_params = {}
         if params.get("send_invoice"):
             invoice_params["sendToCustomer"] = "true"
@@ -144,7 +139,12 @@ class CreateInvoicePlan(ExecutionPlan):
             body={
                 "invoiceDate": invoice_date,
                 "invoiceDueDate": invoice_due_date,
-                "orders": [{"id": order_id}],
+                "orders": [{
+                    "customer": {"id": customer_id},
+                    "orderDate": order_date,
+                    "deliveryDate": delivery_date,
+                    "orderLines": order_lines,
+                }],
             },
             params=invoice_params or None,
         )

@@ -174,40 +174,25 @@ class RegisterPaymentPlan(ExecutionPlan):
 
         self._check_timeout(start_time)
 
-        # --- Step 3: Create order with embedded order lines ---
-        order_body = {
-            "customer": {"id": customer_id},
-            "orderDate": payment_date,
-            "deliveryDate": payment_date,
-            "orderLines": [
-                {
+        # --- Step 3: Create invoice with inline order (1 call instead of 2) ---
+        invoice_result = client.post("/invoice", body={
+            "invoiceDate": payment_date,
+            "invoiceDueDate": payment_date,
+            "orders": [{
+                "customer": {"id": customer_id},
+                "orderDate": payment_date,
+                "deliveryDate": payment_date,
+                "orderLines": [{
                     "product": {"id": product_id},
                     "count": quantity,
                     "unitPriceExcludingVatCurrency": params["price"],
-                }
-            ],
-        }
-        order_result = client.post("/order", body=order_body)
-        api_calls += 1
-        if not order_result["success"]:
-            raise RuntimeError(
-                f"Failed to create order: "
-                f"status={order_result.get('status_code')}, "
-                f"error={order_result.get('error')}"
-            )
-        order_id = order_result["body"]["value"]["id"]
-
-        self._check_timeout(start_time)
-
-        # --- Step 4: Create invoice from order ---
-        invoice_result = client.put(
-            f"/order/{order_id}/:invoice",
-            params={"invoiceDate": payment_date},
-        )
+                }],
+            }],
+        })
         api_calls += 1
         if not invoice_result["success"]:
             raise RuntimeError(
-                f"Failed to create invoice from order {order_id}: "
+                f"Failed to create invoice: "
                 f"status={invoice_result.get('status_code')}, "
                 f"error={invoice_result.get('error')}"
             )

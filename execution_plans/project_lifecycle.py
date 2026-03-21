@@ -416,38 +416,23 @@ class ProjectLifecyclePlan(ExecutionPlan):
         # NOTE: Do NOT link order to project — Tripletex treats linked orders as
         # "underordre" that must be closed before the project can close, and there
         # is no order-close endpoint.
-        r = client.post(
-            "/order",
-            body={
-                "customer": {"id": customer_id},
-                "orderDate": today,
-                "deliveryDate": today,
-                "orderLines": [
-                    {
-                        "description": f"Prosjektleveranse {project_name}",
-                        "count": 1,
-                        "unitPriceExcludingVatCurrency": budget_amount,
-                    }
-                ],
-            },
-        )
-        api_calls += 1
-        if not r["success"]:
-            api_errors += 1
-            raise RuntimeError(
-                f"Failed to create order for project '{project_name}': "
-                f"status={r.get('status_code')}, error={r.get('error')}"
-            )
-        order_id = r["body"]["value"]["id"]
-
-        self._check_timeout(start_time)
-
+        # Create invoice with inline order (1 call instead of 2)
+        # NOTE: Do NOT link to project — causes "underordre" issues
         r = client.post(
             "/invoice",
             body={
                 "invoiceDate": today,
                 "invoiceDueDate": due_date,
-                "orders": [{"id": order_id}],
+                "orders": [{
+                    "customer": {"id": customer_id},
+                    "orderDate": today,
+                    "deliveryDate": today,
+                    "orderLines": [{
+                        "description": f"Prosjektleveranse {project_name}",
+                        "count": 1,
+                        "unitPriceExcludingVatCurrency": budget_amount,
+                    }],
+                }],
             },
         )
         api_calls += 1

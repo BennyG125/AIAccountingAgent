@@ -189,42 +189,22 @@ class FixedPriceProjectPlan(ExecutionPlan):
 
             self._check_timeout(start_time)
 
-            # 5b: Create order linked to the project
-            order_result = client.post(
-                "/order",
-                body={
-                    "customer": {"id": customer_id},
-                    "orderDate": today,
-                    "deliveryDate": today,
-                    "project": {"id": project_id},
-                    "orderLines": [
-                        {
-                            "product": {"id": product_id},
-                            "count": 1,
-                            "unitPriceExcludingVatCurrency": unit_price,
-                        }
-                    ],
-                },
-            )
-            api_calls += 1
-            if not order_result["success"]:
-                raise RuntimeError(
-                    f"Failed to create order for invoice: "
-                    f"status={order_result.get('status_code')}, "
-                    f"error={order_result.get('error')}"
-                )
-            order_id = order_result["body"]["value"]["id"]
-
-            self._check_timeout(start_time)
-
-            # 5c: Create invoice from order
-            invoice_due_date = today
+            # 5b: Create invoice with inline order (1 call instead of 2)
             invoice_result = client.post(
                 "/invoice",
                 body={
                     "invoiceDate": today,
-                    "invoiceDueDate": invoice_due_date,
-                    "orders": [{"id": order_id}],
+                    "invoiceDueDate": today,
+                    "orders": [{
+                        "customer": {"id": customer_id},
+                        "orderDate": today,
+                        "deliveryDate": today,
+                        "orderLines": [{
+                            "product": {"id": product_id},
+                            "count": 1,
+                            "unitPriceExcludingVatCurrency": unit_price,
+                        }],
+                    }],
                 },
             )
             api_calls += 1
