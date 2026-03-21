@@ -41,8 +41,13 @@ def _load_recipes(recipes_dir: Path | None = None) -> str:
     return combined.replace("{today}", today)
 
 
-def build_system_prompt() -> str:
-    """Build the complete system prompt for the Claude accounting agent."""
+def build_system_prompt(mode: str = "generic") -> str:
+    """Build the complete system prompt for the Claude accounting agent.
+
+    Args:
+        mode: 'generic' includes full cheat sheet, 'hybrid'/'tool_search' replaces
+              it with tool search fallback guidance.
+    """
     today = date.today().isoformat()
 
     return f"""You are an expert AI accounting agent for the Tripletex system. Your job is to complete accounting tasks by making API calls using the provided tools. Tasks may be in Norwegian, English, Spanish, Portuguese, German, or French.
@@ -129,8 +134,11 @@ For tasks you don't recognize:
 3. Read error messages carefully — Tripletex tells you exactly what's missing.
 4. Break complex problems into smaller API calls.
 5. If a module isn't active, try POST /company/salesmodules to enable it.
-6. The API reference below covers ALL known endpoints — search it for the right one.
+{"6. The API reference below covers ALL known endpoints — search it for the right one." if mode == "generic" else "6. Use tool search to discover the right endpoint tool, or fall back to generic tripletex_get/post/put/delete."}
 
-## API Reference (for unknown tasks only — use recipes above for known tasks)
-{TRIPLETEX_API_CHEAT_SHEET}
+{"## API Reference (for unknown tasks only — use recipes above for known tasks)" + chr(10) + TRIPLETEX_API_CHEAT_SHEET if mode == "generic" else '''## Using Tools
+You have access to specific Tripletex API endpoint tools discovered via search.
+Each tool has exact parameter schemas with enums and required fields — use them directly.
+If a searched tool does not exist or fails, fall back to the generic
+tripletex_get/post/put/delete tools with the API path and body directly.'''}
 """

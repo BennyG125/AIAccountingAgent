@@ -8,6 +8,7 @@ No deterministic path, no pattern matching, no executor.
 import json
 import logging
 import os
+import re
 import time
 
 from google import genai
@@ -15,6 +16,7 @@ from google.genai import types
 
 from claude_client import get_claude_client, CLAUDE_MODEL
 from prompts import build_system_prompt
+from recipe_guards import RecipeGuards
 from tripletex_api import TripletexClient
 from observability import traceable, trace_child, get_current_run_tree
 
@@ -45,7 +47,19 @@ TIMEOUT_SECONDS = 270  # 30s buffer before 300s competition hard limit
 # Tool definitions (Anthropic format)
 # ---------------------------------------------------------------------------
 
-TOOLS = [
+# ---------------------------------------------------------------------------
+# Agent mode — controls tool set and prompt style
+# ---------------------------------------------------------------------------
+
+AGENT_MODE = os.getenv("AGENT_MODE", "generic")
+
+if AGENT_MODE != "generic":
+    from api_knowledge.generated_tools import GENERATED_TOOLS, GENERATED_TOOLS_META
+else:
+    GENERATED_TOOLS = []
+    GENERATED_TOOLS_META = {}
+
+GENERIC_TOOLS = [
     {
         "name": "tripletex_get",
         "description": "GET request to Tripletex API. Use for searching/listing entities.",
@@ -100,6 +114,30 @@ TOOLS = [
 ]
 
 
+def _build_tools():
+    """Build the tool list based on AGENT_MODE."""
+    if AGENT_MODE == "generic":
+        return list(GENERIC_TOOLS)
+    tools = list(GENERIC_TOOLS)
+    tools.append({"type": "tool_search_tool_bm25_20251119", "name": "tool_search_tool_bm25"})
+    tools.extend(GENERATED_TOOLS)
+    if AGENT_MODE == "tool_search":
+        # In pure tool_search mode, defer the generic tools too
+        tools = [{**t, "defer_loading": True} for t in tools[:4]] + tools[4:]
+    return tools
+
+
+TOOLS = _build_tools()
+
+
+def _resolve_path_params(path: str, path_params: list[str], args: dict) -> str:
+    """Replace {param} placeholders in path with actual values."""
+    for param in path_params:
+        if param in args:
+            path = path.replace(f"{{{param}}}", str(args[param]))
+    return path
+
+
 # ---------------------------------------------------------------------------
 # Gemini OCR
 # ---------------------------------------------------------------------------
@@ -139,23 +177,59 @@ def gemini_ocr(file_contents: list[dict]) -> str:
 # Tool execution
 # ---------------------------------------------------------------------------
 
-def execute_tool(name: str, args: dict, client: TripletexClient) -> dict:
+def execute_tool(name: str, args: dict, client: TripletexClient,
+                 guards: RecipeGuards | None = None) -> dict:
     """Execute a single tool call against the Tripletex API."""
     try:
-        path = args.get("path", "")
-        params = args.get("params")
-        body = args.get("body")
+        # Generic tools (existing behavior)
+        if name.startswith("tripletex_"):
+            path = args.get("path", "")
+            params = args.get("params")
+            body = args.get("body")
 
-        if name == "tripletex_get":
-            return client.get(path, params=params)
-        elif name == "tripletex_post":
-            return client.post(path, body=body)
-        elif name == "tripletex_put":
-            return client.put(path, body=body, params=params)
-        elif name == "tripletex_delete":
-            return client.delete(path, params=params)
-        else:
-            return {"success": False, "error": f"Unknown tool: {name}"}
+            # Apply guards before sending
+            if guards:
+                method = name.replace("tripletex_", "").upper()
+                body, params, warnings = guards.validate_request(method, path, body=body, params=params)
+                for w in warnings:
+                    logger.warning(f"Guard: {w}")
+
+            if name == "tripletex_get":
+                return client.get(path, params=params)
+            elif name == "tripletex_post":
+                return client.post(path, body=body)
+            elif name == "tripletex_put":
+                return client.put(path, body=body, params=params)
+            elif name == "tripletex_delete":
+                return client.delete(path, params=params)
+
+        # Generated endpoint tools (from OpenAPI spec)
+        meta = GENERATED_TOOLS_META.get(name)
+        if meta:
+            path = _resolve_path_params(meta["path"], meta.get("path_params", []), args)
+            query = {k: args[k] for k in meta.get("query_params", []) if k in args}
+            body_keys = [k for k in args if k not in meta.get("query_params", [])
+                         and k not in meta.get("path_params", [])]
+            body = {k: args[k] for k in body_keys} if body_keys else None
+            params = query or None
+
+            # Apply guards to generated tools too
+            if guards:
+                body, params, warnings = guards.validate_request(meta["method"], path, body=body, params=params)
+                for w in warnings:
+                    logger.warning(f"Guard: {w}")
+
+            method = meta["method"]
+            if method == "GET":
+                return client.get(path, params=params)
+            elif method == "POST":
+                return client.post(path, body=body)
+            elif method == "PUT":
+                return client.put(path, body=body, params=params)
+            elif method == "DELETE":
+                return client.delete(path, params=params)
+
+        return {"success": False, "error": f"Unknown tool: {name}"}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -186,6 +260,17 @@ def _serialize_content(content: list) -> list[dict]:
                 "id": block.id,
                 "name": block.name,
                 "input": block.input,
+            })
+        elif block.type == "server_tool_use":
+            entry = {"type": "server_tool_use", "id": block.id, "name": block.name, "input": block.input}
+            if hasattr(block, "caller") and block.caller is not None:
+                entry["caller"] = block.caller.model_dump(exclude_none=True)
+            result.append(entry)
+        elif block.type == "tool_search_tool_result":
+            result.append({
+                "type": "tool_search_tool_result",
+                "tool_use_id": block.tool_use_id,
+                "content": block.content.model_dump(exclude_none=True),
             })
         else:
             result.append(block.model_dump())
@@ -236,6 +321,7 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
     """
     start_time = time.time()
     client = TripletexClient(base_url, session_token)
+    guards = RecipeGuards()  # loads from recipes/ directory
 
     # Counters for top-level metadata
     total_api_calls = 0
@@ -268,7 +354,7 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
         })
 
     # Step 2: Build messages
-    system_prompt = build_system_prompt()
+    system_prompt = build_system_prompt(mode=AGENT_MODE)
     user_message = build_user_message(prompt, file_contents)
     messages = [{"role": "user", "content": user_message}]
 
@@ -358,14 +444,19 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
         serialized = _serialize_content(response.content)
         messages.append({"role": "assistant", "content": serialized})
 
-        # Execute tool calls
+        # Collect tool search results (server-side) into message history
+        tool_search_results = [b for b in response.content if b.type == "tool_search_tool_result"]
+        server_tool_blocks = [b for b in response.content if b.type == "server_tool_use"]
+
+        # Execute tool calls (both regular and server-discovered)
         tool_use_blocks = [b for b in response.content if b.type == "tool_use"]
-        if not tool_use_blocks:
+        all_tool_blocks = tool_use_blocks + server_tool_blocks
+        if not all_tool_blocks:
             logger.info(f"No tool calls, stopping after {iteration + 1} iterations")
             break
 
         tool_results = []
-        for block in tool_use_blocks:
+        for block in all_tool_blocks:
             logger.info(f"  Tool: {block.name}({json.dumps(block.input, ensure_ascii=False)[:200]})")
             total_api_calls += 1
 
@@ -375,7 +466,7 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
                 "path": block.input.get("path", ""),
                 "args": block.input,
             }) as tool_span:
-                result = execute_tool(block.name, block.input, client)
+                result = execute_tool(block.name, block.input, client, guards=guards)
 
                 status = result.get("status_code", "?")
                 success = result.get("success", False)
