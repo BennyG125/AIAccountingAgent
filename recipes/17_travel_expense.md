@@ -1,5 +1,16 @@
 # Travel Expense with Per Diem + Costs (Tier 2)
 
+## CRITICAL — Read Before Making ANY Call
+
+**FORBIDDEN fields that cause instant 422 "Request mapping failed":**
+- `paymentType` at TOP level of travelExpense → PUT IT ON EACH **cost** ITEM ONLY
+- `countDays` → DOES NOT EXIST. Use `count` on perDiemCompensations
+- `description` on cost items → DOES NOT EXIST. Use `comments`
+- `rateCategory?fields=id,description` → 400 error. The field is `name`, NOT `description`. Use `?fields=id,name`
+- `costCategory?fields=id,name` → 400 error. The field is `description`, NOT `name`. Use `?fields=id,description`
+
+If you ignore this list you WILL waste 3-5 API calls on retries.
+
 ## Task Pattern
 Register a travel expense report for an employee with per diem (diett/dagpenger) and out-of-pocket costs (expenses).
 Prompts appear in NO, NN, DE, EN, FR, PT, ES. Typical prompt: "Register travel expense for [Name] ([email]) for [trip description]. The trip lasted N days with overnight stays. Expenses: flight XXXX, taxi XXX, hotel XXXX."
@@ -55,27 +66,20 @@ Prompts appear in NO, NN, DE, EN, FR, PT, ES. Typical prompt: "Register travel e
 }
 ```
 
-## Known Gotchas
+**NOTICE:** `paymentType` appears ONLY inside each `costs[]` item. `count` (NOT countDays) on perDiemCompensations. `comments` (NOT description) on costs.
 
-### Field name traps (most common errors)
-- **rateCategory fields filter**: Use `?fields=id,name` — NOT `description`. The field is `name`, not `description`. Using `description` returns 400.
-- **costCategory fields filter**: Use `?fields=id,description` — NOT `name`. The field is `description`, not `name`. Using `name` returns 400.
-- **Per diem count field**: Use `count` — NOT `countDays`. `countDays` does not exist.
-- **Cost item description**: Use `comments` — NOT `description`. Using `description` causes "Request mapping failed" (422).
-- **paymentType placement**: Put `paymentType` on each **cost item** only. Do NOT put it at the top level of the travel expense — it does not exist there and causes "Request mapping failed".
-
-### Rate category selection
+## Rate Category Selection
 - There are 459 rate categories spanning many years. You MUST filter by date range matching the travel dates.
 - For 2026 domestic overnight trips: look for `name` containing "Overnatting" with `fromDate=2026-01-01`.
 - For 2026 domestic day trips over 12h: look for "Dagsreise over 12 timer" with `fromDate=2026-01-01`.
 - For 2026 domestic day trips 6-12h: look for "Dagsreise 6-12 timer" with `fromDate=2026-01-01`.
 - **Do NOT use /travelExpense/rate** — it returns 10000+ results (422 "Result set too large"). Use /travelExpense/rateCategory instead.
 
-### Employee handling
+## Employee Handling
 - **Search before creating**: GET /employee?email=X first. Most sandbox employees already exist.
 - If employee creation returns 422 "e-postadressen er i bruk", search by email and use existing ID.
 
-### Other
+## Other
 - Embed ALL perDiemCompensations and costs in the single POST /travelExpense call.
 - `currency: {"id": 1}` = NOK.
 - Match cost descriptions from the prompt to the closest costCategory by `description` (e.g., "Fly" for flights, "Taxi" for taxi, "Hotell" for hotel).

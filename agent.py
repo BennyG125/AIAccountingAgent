@@ -276,6 +276,7 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
 
     # Step 3: Agentic loop
     iteration = 0
+    _proxy_expired = False
     for iteration in range(MAX_ITERATIONS):
         elapsed = time.time() - start_time
         if elapsed > TIMEOUT_SECONDS:
@@ -391,6 +392,13 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
                         "error": error_msg,
                     })
 
+                # Early termination on 403 — always means expired proxy token
+                # in the sandbox environment. Stop immediately to avoid wasting calls.
+                if status == 403:
+                    logger.error(f"403 on {block.input.get('path', '?')} — session expired. Stopping agent.")
+                    _proxy_expired = True
+                    break
+
                 if tool_span:
                     tool_outputs = {
                         "status_code": status,
@@ -415,6 +423,11 @@ def run_agent(prompt: str, file_contents: list[dict], base_url: str, session_tok
             })
 
         messages.append({"role": "user", "content": tool_results})
+
+        # Break outer loop if proxy token expired
+        if _proxy_expired:
+            logger.warning("Stopping agent loop — proxy token expired (403)")
+            break
 
     total_ms = int((time.time() - start_time) * 1000)
     iterations_used = iteration + 1

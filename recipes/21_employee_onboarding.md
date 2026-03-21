@@ -1,5 +1,10 @@
 # Employee Onboarding from PDF Contract (Tier 3)
 
+## CRITICAL — Field Name Traps
+- **percentageOfFullTimeEquivalent**: NOT `percentOfFullTimeEquivalent`. The missing "age" causes 422.
+- **employment/details body**: Only these fields: `employment`, `date`, `employmentType`, `occupationCode`, `percentageOfFullTimeEquivalent`, `annualSalary`. Any other field name causes "Request mapping failed".
+- **nationalIdentityNumber**: May be invalid in the PDF. If 422, retry WITHOUT it.
+
 ## Task Pattern
 Create an employee in Tripletex with full employment details extracted from an attached PDF contract or offer letter.
 Prompts appear in FR, PT, DE, EN, NO, NN, ES. Typical prompt: "You received an employment contract (see attached PDF). Create the employee in Tripletex with all contract details: national identity number, date of birth, department, occupation code, salary, employment percentage, and start date."

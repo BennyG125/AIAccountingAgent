@@ -17,6 +17,8 @@ CSV/Text: decode to string.
 """
 
 import base64
+import csv
+import io
 import logging
 
 logger = logging.getLogger(__name__)
@@ -48,8 +50,12 @@ def process_files(files: list[dict]) -> list[dict]:
             entry["images"] = _pdf_to_images(raw_bytes)
         elif mime_type.startswith("image/"):
             entry["images"] = [{"data": raw_bytes, "mime_type": mime_type}]
+        elif mime_type == "text/csv" or filename.lower().endswith(".csv"):
+            # CSV — decode and normalize to pipe-delimited table for clarity
+            raw_text = _decode_text(raw_bytes)
+            entry["text_content"] = _normalize_csv(raw_text, filename)
         else:
-            # Text/CSV/other — decode to string
+            # Text/other — decode to string
             entry["text_content"] = _decode_text(raw_bytes)
 
         processed.append(entry)
@@ -85,6 +91,43 @@ def _pdf_to_images(pdf_bytes: bytes) -> list[dict]:
     except Exception as e:
         logger.error(f"PDF→image conversion failed: {e}")
     return images
+
+
+def _normalize_csv(raw_text: str, filename: str) -> str:
+    """Normalize CSV to pipe-delimited table for clearer LLM parsing.
+
+    Handles semicolon delimiters and European number formats common in
+    Norwegian bank exports. Falls back to raw text if parsing fails.
+    """
+    try:
+        # Detect delimiter
+        first_line = raw_text.split("\n", 1)[0]
+        if first_line.count(";") > first_line.count(","):
+            delimiter = ";"
+        else:
+            delimiter = ","
+
+        reader = csv.reader(io.StringIO(raw_text), delimiter=delimiter)
+        rows = list(reader)
+
+        if len(rows) < 2:
+            return raw_text
+
+        # Build pipe-delimited table (unambiguous for LLM)
+        header = rows[0]
+        data_rows = rows[1:]
+        lines = [" | ".join(cell.strip() for cell in header)]
+        lines.append(" | ".join("---" for _ in header))
+        for row in data_rows:
+            if any(cell.strip() for cell in row):  # skip empty rows
+                lines.append(" | ".join(cell.strip() for cell in row))
+
+        data_count = len(data_rows)
+        logger.info(f"CSV normalized: {filename} — {data_count} data rows, delimiter='{delimiter}'")
+        return f"[CSV: {data_count} rows, delimiter='{delimiter}']\n" + "\n".join(lines)
+    except Exception as e:
+        logger.warning(f"CSV normalization failed for {filename}: {e} — using raw text")
+        return raw_text
 
 
 def _decode_text(raw_bytes: bytes) -> str:

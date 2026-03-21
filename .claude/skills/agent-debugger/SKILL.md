@@ -54,6 +54,8 @@ Default to **competition** unless the user specifies dev. Competition is where s
 
 ## Debugging Workflow
 
+**MANDATORY:** Every trace you read during a debug session MUST be tagged as analyzed before you present your findings. Do NOT skip step 6. If you analyzed it, you tag it.
+
 ### 1. Identify what you're looking for
 
 - **Specific request by task_id** → jump to step 2 with the task_id
@@ -233,9 +235,11 @@ Look for these common issues:
 | **cache_read >> 0** | Prompt caching working correctly | Good — no action needed |
 | **Repeated calls to same endpoint** | Agent retrying without changing approach | Add guidance for when to stop retrying |
 
-### 6. Mark the trace as analyzed
+### 6. Mark every analyzed trace (MANDATORY — DO NOT SKIP)
 
-After completing your analysis, add feedback to the root run so it's not re-analyzed:
+**This step is NOT optional.** You MUST tag every trace you read during this debug session before presenting findings or moving to step 7. Track all root run IDs as you go and tag them here.
+
+For each trace you analyzed, run:
 
 ```bash
 python3 -c "
@@ -248,11 +252,13 @@ client.create_feedback(
     value='analyzed',
     comment='Investigated via agent-debugger skill'
 )
-print('Marked as analyzed')
+print('Marked <ROOT_RUN_ID> as analyzed')
 "
 ```
 
-To see which traces have been analyzed, use `--include-feedback` and look for non-empty `feedback_stats`:
+If you analyzed multiple traces, tag all of them — run the above for each root run ID.
+
+**Verify tagging succeeded** before proceeding:
 ```bash
 langsmith trace list --project $LANGSMITH_PROJECT --limit 20 --include-feedback --format json \
   | python3 -c "

@@ -79,7 +79,7 @@ Optional: endDate, division ({id}), employmentId,
 Create employment details (salary, job title, etc.).
 Required: employment ({id}), date (YYYY-MM-DD)
 Optional: employmentType, maritimeEmploymentType, salaryType, scheduleType,
-          percentOfFullTimeEquivalent, annualSalary, hourlyWage,
+          percentageOfFullTimeEquivalent, annualSalary, hourlyWage,
           occupationCode ({id})
 
 ### GET /employee/employment
