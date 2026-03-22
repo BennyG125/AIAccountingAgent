@@ -44,8 +44,13 @@ EXTRACTION_SCHEMA = {
             "description": "Total invoice amount including VAT in NOK (required)",
         },
         "vat_rate": {
-            "type": "number",
-            "description": "VAT rate as a decimal fraction, e.g. 0.25 for 25% (default 0.25 if not mentioned)",
+            "type": ["number", "null"],
+            "description": (
+                "VAT rate as decimal fraction. MUST extract from prompt/PDF context. "
+                "Common rates by country: Norway=0.25, Germany=0.19, France=0.20, "
+                "Spain=0.21, Portugal=0.23. Infer from supplier country, currency, or language. "
+                "Use null ONLY if absolutely no VAT info or country can be determined."
+            ),
         },
         "expense_account": {
             "type": "integer",

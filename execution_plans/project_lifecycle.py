@@ -429,7 +429,11 @@ class ProjectLifecyclePlan(ExecutionPlan):
             bulk_ts = client.post("/timesheet/entry/list", body=timesheet_entries)
             api_calls += 1
             if not bulk_ts["success"]:
-                # Fallback: register individually
+                # Bulk failed — fall back to individual entries (no secondary GETs)
+                logger.info(
+                    "Bulk timesheet POST failed (status=%s) — falling back to individual entries",
+                    bulk_ts.get("status_code"),
+                )
                 api_calls, api_errors = self._register_hours(
                     client, pm_id, project_id, activity_id, pm_hours, today,
                     api_calls, api_errors,
@@ -615,9 +619,14 @@ class ProjectLifecyclePlan(ExecutionPlan):
         self, client, employee_id, project_id, activity_id, hours, date_str,
         api_calls, api_errors,
     ):
-        """POST a timesheet entry; handles duplicate gracefully.
+        """POST a timesheet entry; splits across dates if hours exceed daily limit.
+
+        If a single entry fails with 422 and hours > 7.5, splits into multiple
+        consecutive-day entries of up to 7.5h each.
 
         Returns updated (api_calls, api_errors). Never raises.
+        Does NOT do secondary GET lookups on failure — that doubles call count
+        for no recovery benefit.
         """
         r = client.post(
             "/timesheet/entry",
@@ -631,28 +640,47 @@ class ProjectLifecyclePlan(ExecutionPlan):
         )
         api_calls += 1
         if not r["success"]:
-            if r.get("status_code") in (400, 409, 422):
-                # Possible duplicate — try to look up
-                lookup = client.get(
-                    "/timesheet/entry",
-                    params={
-                        "employeeId": employee_id,
-                        "projectId": project_id,
-                        "activityId": activity_id,
-                        "dateFrom": date_str,
-                        "dateTo": date_str,
-                        "fields": "id,hours",
-                    },
+            # If hours exceed daily limit, split across consecutive dates
+            if r.get("status_code") == 422 and hours > 7.5:
+                logger.info(
+                    "Timesheet entry for employee %s with %.1fh rejected — "
+                    "splitting across multiple dates",
+                    employee_id, hours,
                 )
-                api_calls += 1
-                if not (lookup["success"] and lookup["body"].get("values")):
-                    api_errors += 1
-                    logger.warning(
-                        "Failed to register timesheet entry for employee %s "
-                        "and could not find existing: status=%s, error=%s",
-                        employee_id, r.get("status_code"), r.get("error"),
+                remaining = hours
+                day_offset = 0
+                base_date = datetime.date.fromisoformat(date_str)
+                split_failed = False
+                while remaining > 0:
+                    chunk = min(remaining, 7.5)
+                    entry_date = (base_date - datetime.timedelta(days=day_offset)).isoformat()
+                    rs = client.post(
+                        "/timesheet/entry",
+                        body={
+                            "activity": {"id": activity_id},
+                            "employee": {"id": employee_id},
+                            "project": {"id": project_id},
+                            "date": entry_date,
+                            "hours": chunk,
+                        },
                     )
+                    api_calls += 1
+                    if not rs["success"]:
+                        api_errors += 1
+                        split_failed = True
+                        logger.warning(
+                            "Failed to register split timesheet entry for employee %s "
+                            "on %s (%.1fh): status=%s, error=%s",
+                            employee_id, entry_date, chunk,
+                            rs.get("status_code"), rs.get("error"),
+                        )
+                        break  # Stop splitting on first failure
+                    remaining -= chunk
+                    day_offset += 1
+                if not split_failed:
+                    return api_calls, api_errors
             else:
+                # Non-split failure — just log and move on (no secondary GET)
                 api_errors += 1
                 logger.warning(
                     "Failed to register timesheet entry for employee %s: "

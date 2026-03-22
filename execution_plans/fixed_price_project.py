@@ -250,21 +250,46 @@ class FixedPriceProjectPlan(ExecutionPlan):
         if invoice_percentage is not None:
             unit_price = fixed_price * invoice_percentage / 100
 
-            # 5a: Create a product for the invoice line
-            product_name = f"{params['project_name']} — {invoice_percentage}%"
-            product_result = client.post(
-                "/product",
-                body={
-                    "name": product_name,
-                    "priceExcludingVatCurrency": unit_price,
-                },
-            )
+            # 5a: Find or create a product for the invoice line (NEVER include vatType)
+            product_name = f"{params['project_name']} - {int(invoice_percentage)}% milestone"
+            product_id = None
+
+            # Search for existing product first
+            product_search = client.get("/product", params={"name": product_name, "count": 1})
             api_calls += 1
-            if not product_result["success"]:
+            if product_search["success"] and product_search["body"].get("values"):
+                product_id = product_search["body"]["values"][0]["id"]
+            else:
+                # Not found — create (minimal body: name + price, no vatType)
+                product_result = client.post(
+                    "/product",
+                    body={
+                        "name": product_name,
+                        "priceExcludingVatCurrency": unit_price,
+                    },
+                )
+                api_calls += 1
+                if product_result["success"]:
+                    product_id = product_result["body"]["value"]["id"]
+                elif product_result.get("status_code") == 422:
+                    # 422 may mean product number conflict or name collision —
+                    # try to find by a broader name search
+                    logger.warning(
+                        "Product creation 422, trying fallback search: %s",
+                        product_result.get("error"),
+                    )
+                    fallback = client.get(
+                        "/product",
+                        params={"name": params["project_name"], "count": 5},
+                    )
+                    api_calls += 1
+                    if fallback["success"] and fallback["body"].get("values"):
+                        product_id = fallback["body"]["values"][0]["id"]
+
+            if product_id is None:
                 err_msg = (
-                    f"Failed to create product for invoice: "
-                    f"status={product_result.get('status_code')}, "
-                    f"error={product_result.get('error')}"
+                    f"Failed to find or create product for invoice: "
+                    f"product_name='{product_name}'"
                 )
                 logger.warning(err_msg)
                 api_errors += 1
@@ -275,7 +300,6 @@ class FixedPriceProjectPlan(ExecutionPlan):
                     api_errors=api_errors,
                     error_details=error_details,
                 )
-            product_id = product_result["body"]["value"]["id"]
 
             self._check_timeout(start_time)
 

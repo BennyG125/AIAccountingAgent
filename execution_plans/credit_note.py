@@ -1,12 +1,15 @@
 """Execution plan: Credit Note (Tier 2).
 
 Sequence:
-  1. GET /customer?organizationNumber=X  → find customer ID
-  2. GET /invoice?customerId=X           → find matching invoice by description/amount
-  3. PUT /invoice/{id}/:createCreditNote?date=YYYY-MM-DD  → issue credit note
+  1. GET /customer?organizationNumber=X  -> find customer ID
+  2. GET /invoice?customerId=X           -> find matching invoice by description/amount
+  3. PUT /invoice/{id}/:createCreditNote?date=YYYY-MM-DD  -> issue credit note
 
 CRITICAL: The ?date=YYYY-MM-DD query param is REQUIRED on the PUT call.
 Omitting it causes a 422 "date: Kan ikke vaere null" error.
+
+CRITICAL: Filter out invoices that are already credit notes (invoiceIsCreditNote=true).
+Trying to create a credit note on a credit note causes 422 "Validering feilet."
 """
 import datetime
 import logging
@@ -36,7 +39,7 @@ class CreditNotePlan(ExecutionPlan):
         api_errors = 0
         error_details = []
         today = datetime.date.today().isoformat()  # YYYY-MM-DD
-        # invoiceDateTo is EXCLUSIVE in the Tripletex API — add 1 day to include today
+        # invoiceDateTo is EXCLUSIVE in the Tripletex API -- add 1 day to include today
         tomorrow = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
 
         # Step 1: Find customer by organizationNumber
@@ -91,13 +94,14 @@ class CreditNotePlan(ExecutionPlan):
         # Step 2: Find invoices for this customer
         # The /invoice endpoint REQUIRES invoiceDateFrom and invoiceDateTo.
         # Use a wide date range to find all invoices.
+        # CRITICAL: Request invoiceIsCreditNote to filter out credit notes.
         result = client.get(
             "/invoice",
             params={
                 "customerId": customer_id,
                 "invoiceDateFrom": "2020-01-01",
                 "invoiceDateTo": tomorrow,
-                "fields": "id,invoiceDate,amountExcludingVatCurrency,orders",
+                "fields": "id,invoiceDate,invoiceNumber,amountExcludingVatCurrency,invoiceIsCreditNote,orders",
             },
         )
         api_calls += 1
@@ -110,54 +114,96 @@ class CreditNotePlan(ExecutionPlan):
             logger.warning("credit_note plan: invoice fetch failed: %s", result.get("error"))
             return self._make_result(api_calls=api_calls, api_errors=api_errors, error_details=error_details)
 
-        invoices = result["body"].get("values", [])
+        all_invoices = result["body"].get("values", [])
+
+        # Filter out credit notes -- you cannot create a credit note on a credit note
+        invoices = [inv for inv in all_invoices if not inv.get("invoiceIsCreditNote", False)]
+
         if not invoices:
             api_errors += 1
-            error_details.append(f"No invoices found for customerId={customer_id}")
-            logger.warning("credit_note plan: no invoices found for customer %s", customer_id)
+            if all_invoices:
+                error_details.append(
+                    f"All {len(all_invoices)} invoices for customerId={customer_id} are credit notes"
+                )
+                logger.warning("credit_note plan: all invoices are credit notes for customer %s", customer_id)
+            else:
+                error_details.append(f"No invoices found for customerId={customer_id}")
+                logger.warning("credit_note plan: no invoices found for customer %s", customer_id)
             return self._make_result(api_calls=api_calls, api_errors=api_errors, error_details=error_details)
 
-        # Select the matching invoice — prefer matching by description/amount;
-        # fall back to most recent (last in list or highest id).
-        invoice_id = self._pick_invoice(invoices, params)
+        # Select the matching invoice(s) -- ranked by best match
+        ranked_invoices = self._rank_invoices(invoices, params)
 
         self._check_timeout(start_time)
 
-        # Step 3: Create credit note — date query param is REQUIRED
-        result = client.put(
-            f"/invoice/{invoice_id}/:createCreditNote",
-            body=None,
-            params={"date": today},
-        )
-        api_calls += 1
-        if not result["success"]:
+        # Step 3: Create credit note -- try the best match first, then fallback
+        # The date query param is REQUIRED.
+        for invoice_id in ranked_invoices:
+            result = client.put(
+                f"/invoice/{invoice_id}/:createCreditNote",
+                body={},
+                params={"date": today},
+            )
+            api_calls += 1
+            if result["success"]:
+                logger.info("credit_note plan: credit note created for invoice %s", invoice_id)
+                return self._make_result(
+                    api_calls=api_calls,
+                    api_errors=api_errors,
+                    error_details=error_details or None,
+                )
+
+            # Failed -- log and try next candidate
             api_errors += 1
-            error_details.append(
+            error_msg = (
                 f"Failed to create credit note for invoice {invoice_id}: "
                 f"status={result.get('status_code')}, error={result.get('error')}"
             )
-            logger.warning("credit_note plan: credit note creation failed: %s", result.get("error"))
-            return self._make_result(api_calls=api_calls, api_errors=api_errors, error_details=error_details)
+            error_details.append(error_msg)
+            logger.warning("credit_note plan: %s", error_msg)
 
-        return self._make_result(api_calls=api_calls, api_errors=api_errors, error_details=error_details or None)
+            # If there are more candidates, try them
+            self._check_timeout(start_time)
+
+        # All candidates failed
+        return self._make_result(api_calls=api_calls, api_errors=api_errors, error_details=error_details)
 
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
 
-    def _pick_invoice(self, invoices: list, params: dict) -> int:
-        """Pick the best matching invoice from the list.
+    def _rank_invoices(self, invoices: list, params: dict) -> list[int]:
+        """Rank invoices by match quality, return list of invoice IDs (best first).
 
         Matching strategy (in priority order):
-          1. If amount provided, find invoice whose amountExcludingVatCurrency matches.
-          2. Fall back to the most recent invoice (highest id).
+          1. If amount provided, invoices whose amountExcludingVatCurrency matches
+             (within tolerance) come first.
+          2. Remaining invoices sorted by ID descending (most recent first).
+
+        Returns at most 3 candidates to avoid excessive API calls.
         """
         amount = params.get("amount")
+        amount_matched = []
+        others = []
 
-        if amount is not None:
-            for inv in invoices:
-                if inv.get("amountExcludingVatCurrency") == amount:
-                    return inv["id"]
+        for inv in invoices:
+            inv_amount = inv.get("amountExcludingVatCurrency")
+            if amount is not None and inv_amount is not None:
+                # Use tolerance for float comparison (handles 35700 vs 35700.0 etc.)
+                try:
+                    if abs(float(inv_amount) - float(amount)) < 0.01:
+                        amount_matched.append(inv)
+                        continue
+                except (ValueError, TypeError):
+                    pass
+            others.append(inv)
 
-        # Fall back: most recent = highest id
-        return max(invoices, key=lambda i: i["id"])["id"]
+        # Sort both lists by id descending (most recent first)
+        amount_matched.sort(key=lambda i: i["id"], reverse=True)
+        others.sort(key=lambda i: i["id"], reverse=True)
+
+        # Combine: amount-matched first, then others
+        ranked = amount_matched + others
+
+        # Return at most 3 invoice IDs to limit retries
+        return [inv["id"] for inv in ranked[:3]]

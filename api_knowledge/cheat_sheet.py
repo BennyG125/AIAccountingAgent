@@ -297,7 +297,10 @@ Send invoice. Query params (NOT body): sendType ("EMAIL"|"EHF"|"EFAKTURA"|"AVTAL
               overrideEmailAddress (string, optional)
 
 ### PUT /invoice/{id}/:createCreditNote
-Create credit note for an invoice.
+Create credit note for an invoice. REQUIRED query param: ?date=YYYY-MM-DD
+Optional query params: comment, creditNoteEmail, sendToCustomer, sendType
+No body required (send empty {} or omit). The credit note reverses the original invoice.
+NOTE: The invoice must NOT already be a credit note (invoiceIsCreditNote=true).
 
 ### PUT /invoice/{id}/:createReminder
 Create and send invoice reminder.
