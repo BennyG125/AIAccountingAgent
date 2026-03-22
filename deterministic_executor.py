@@ -140,7 +140,7 @@ def detect_and_translate(prompt: str) -> tuple[str, str]:
             model="gemini-2.0-flash-lite",
             contents=[types.Content(role="user", parts=[
                 types.Part.from_text(
-                    f"Task: Detect the language and translate to English.\n\n"
+                    text=f"Task: Detect the language and translate to English.\n\n"
                     f"Text:\n{prompt}\n\n"
                     f"Reply in EXACTLY this format (two lines, nothing else):\n"
                     f"LANGUAGE: <language name>\n"
@@ -231,8 +231,6 @@ def extract_params(prompt: str, task_type: str, language: str = "Unknown") -> tu
             f"- Return ONLY a valid JSON object. No markdown, no explanation."
         )
 
-    # Simple schemas: disable thinking and use shorter max_tokens for speed
-    thinking_config = {"type": "disabled"} if is_simple else {"type": "adaptive"}
     max_tokens = 1024 if is_simple else 4096
 
     try:
@@ -242,16 +240,22 @@ def extract_params(prompt: str, task_type: str, language: str = "Unknown") -> tu
         response = client.messages.create(
             model=CLAUDE_MODEL,
             max_tokens=max_tokens,
-            thinking=thinking_config,
+            thinking={"type": "adaptive"},
             messages=[{"role": "user", "content": extraction_prompt}],
         )
 
         # With thinking enabled, find the text block (skip thinking blocks)
         text = ""
+        block_types = [b.type for b in response.content]
         for block in response.content:
             if block.type == "text":
                 text = (block.text or "").strip()
                 break
+        if not text:
+            logger.warning(
+                f"No text block in response for '{task_type}', "
+                f"block_types={block_types}, raw={str(response.content)[:300]}"
+            )
         # Strip markdown code fences if present
         text = re.sub(r"^```(?:json)?\s*", "", text)
         text = re.sub(r"\s*```$", "", text)
