@@ -107,7 +107,68 @@ for _info in _pkgutil.iter_modules(_ep_pkg.__path__):
 _ALL_TASK_TYPES = sorted(DETERMINISTIC_WHITELIST)
 
 
-def extract_params(prompt: str, task_type: str) -> tuple[dict | None, str | None]:
+def detect_and_translate(prompt: str) -> tuple[str, str]:
+    """Detect language and translate prompt to English in one Gemini call.
+
+    Returns (language_name, english_prompt).
+    If already English, returns the original prompt unchanged.
+    Falls back to heuristic detection + original prompt on error.
+    """
+    # Quick check: if it looks English already, skip the API call
+    from execution_plans._classifier import detect_language
+    heuristic = detect_language(prompt)
+    if heuristic == "en":
+        return "English", prompt
+
+    try:
+        from google import genai
+        from google.genai import types
+        import os
+
+        client = genai.Client(
+            vertexai=True,
+            project=os.getenv("GCP_PROJECT_ID"),
+            location=os.getenv("GCP_LOCATION", "global"),
+        )
+        response = client.models.generate_content(
+            model="gemini-2.0-flash-lite",
+            contents=[types.Content(role="user", parts=[
+                types.Part.from_text(
+                    f"Task: Detect the language and translate to English.\n\n"
+                    f"Text:\n{prompt}\n\n"
+                    f"Reply in EXACTLY this format (two lines, nothing else):\n"
+                    f"LANGUAGE: <language name>\n"
+                    f"TRANSLATION: <full English translation preserving all names, numbers, emails, dates, org numbers exactly as-is>"
+                ),
+            ])],
+            config=types.GenerateContentConfig(temperature=0.0, max_output_tokens=2048),
+        )
+        text = (response.text or "").strip()
+
+        # Parse the two-line response
+        language = "Unknown"
+        translation = prompt  # fallback to original
+        for line in text.split("\n"):
+            line = line.strip()
+            if line.upper().startswith("LANGUAGE:"):
+                language = line.split(":", 1)[1].strip().rstrip(".")
+            elif line.upper().startswith("TRANSLATION:"):
+                translation = line.split(":", 1)[1].strip()
+
+        # If translation is suspiciously short, keep original
+        if len(translation) < len(prompt) * 0.3:
+            translation = prompt
+
+        logger.info(f"Gemini: lang={language}, translated {len(prompt)}→{len(translation)} chars")
+        return language, translation
+    except Exception as e:
+        logger.warning(f"Gemini detect+translate failed: {e}")
+        lang_map = {"no": "Norwegian", "nn": "Nynorsk", "de": "German",
+                     "fr": "French", "es": "Spanish", "pt": "Portuguese", "en": "English"}
+        return lang_map.get(heuristic, "Unknown"), prompt
+
+
+def extract_params(prompt: str, task_type: str, language: str = "Unknown") -> tuple[dict | None, str | None]:
     """Extract task parameters from the prompt using Claude Opus 4.6.
 
     Also asks Claude to verify the regex classification is correct.
@@ -125,22 +186,28 @@ def extract_params(prompt: str, task_type: str) -> tuple[dict | None, str | None
 
     extraction_prompt = (
         f"You are extracting structured data from an accounting task prompt.\n"
-        f"The regex classifier assigned task type: {task_type}\n\n"
-        f"Here is the prompt (may be in Norwegian, English, German, French, Spanish, or Portuguese):\n"
+        f"The regex classifier assigned task type: {task_type}\n"
+        f"Detected language: {language}\n\n"
+        f"Here is the prompt (in {language}):\n"
         f'"""\n{prompt}\n"""\n\n'
-        f"Step 1 — VERIFY CLASSIFICATION:\n"
-        f"Is '{task_type}' the correct task type for this prompt?\n"
-        f"Valid task types: {all_types_str}\n"
-        f"Set confirmed_task_type to the correct one (same as '{task_type}' if correct).\n\n"
+        f"Step 1 — REFLECT AND VERIFY:\n"
+        f"Before extracting anything, read the prompt carefully word by word.\n"
+        f"Question every assumption:\n"
+        f"- Is '{task_type}' the correct task type for this prompt?\n"
+        f"- Valid task types: {all_types_str}\n"
+        f"- Set confirmed_task_type to the correct one (same as '{task_type}' if correct).\n\n"
         f"Step 2 — EXTRACT PARAMETERS for the confirmed task type:\n"
         f"Extract ALL relevant fields into this JSON structure:\n"
         f"{json.dumps(schema, indent=2)}\n\n"
-        f"Rules:\n"
-        f"- Extract actual values from the prompt text, not the schema descriptions\n"
-        f"- For names, amounts, dates, emails — copy them exactly from the prompt\n"
-        f"- For dates, use YYYY-MM-DD format\n"
-        f"- For amounts, use numbers without currency symbols\n"
-        f"- If a field is not mentioned in the prompt, use null\n"
+        f"EXTRACTION RULES — follow these relentlessly:\n"
+        f"- ONLY extract values that appear VERBATIM in the prompt text\n"
+        f"- For names: preserve exact spelling, accents, and special characters from the prompt\n"
+        f"- For amounts: extract the exact number from the prompt — never round, convert, or infer\n"
+        f"- For dates: use YYYY-MM-DD format, converting from the prompt's format\n"
+        f"- For emails: copy character-for-character from the prompt\n"
+        f"- For account numbers: ONLY extract accounts explicitly mentioned — never infer\n"
+        f"- If a field is not explicitly mentioned in the prompt, use null — NEVER guess\n"
+        f"- If the prompt mentions additional items (allowances, supplements, tillegg), extract ALL of them\n"
         f'- ALWAYS include "confirmed_task_type": "<task_type>" as the FIRST field\n'
         f"- Return ONLY a valid JSON object. No markdown, no explanation."
     )
@@ -152,10 +219,16 @@ def extract_params(prompt: str, task_type: str) -> tuple[dict | None, str | None
         response = client.messages.create(
             model=CLAUDE_MODEL,
             max_tokens=4096,
+            thinking={"type": "adaptive"},
             messages=[{"role": "user", "content": extraction_prompt}],
         )
 
-        text = (response.content[0].text or "").strip()
+        # With thinking enabled, find the text block (skip thinking blocks)
+        text = ""
+        for block in response.content:
+            if block.type == "text":
+                text = (block.text or "").strip()
+                break
         # Strip markdown code fences if present
         text = re.sub(r"^```(?:json)?\s*", "", text)
         text = re.sub(r"\s*```$", "", text)
@@ -270,27 +343,30 @@ class DeterministicExecutor:
         if csv_text:
             full_prompt = f"{full_prompt}\n\nCSV content:\n{csv_text}"
 
-        # 2. Classify (keyword — instant, no LLM)
-        task_type = classify_task(full_prompt)
+        # 2. Detect language + translate to English (single Gemini call, ~300ms)
+        language, english_prompt = detect_and_translate(full_prompt)
+
+        # 3. Classify on English translation (single pattern set, no language confusion)
+        task_type = classify_task(english_prompt, language="English")
         if task_type is None:
-            logger.info("Deterministic: no classifier match, falling back")
+            logger.info(f"Deterministic: no classifier match (lang={language}), falling back")
             return None
 
-        # 2b. Whitelist check — only proven task types run deterministically
+        # 3b. Whitelist check — only proven task types run deterministically
         if task_type not in DETERMINISTIC_WHITELIST:
             logger.info(f"Deterministic: '{task_type}' not in whitelist, falling back to Claude")
             return None
 
-        # 3. Check if we have an execution plan
+        # 3c. Check if we have an execution plan
         plan = PLANS.get(task_type)
         if plan is None:
             logger.info(f"Deterministic: no plan for '{task_type}', falling back")
             return None
 
-        logger.info(f"Deterministic: regex matched '{task_type}'")
+        logger.info(f"Deterministic: lang={language}, regex matched '{task_type}'")
 
         # 4. Extract parameters + verify classification (single Claude call)
-        params, confirmed_type = extract_params(full_prompt, task_type)
+        params, confirmed_type = extract_params(full_prompt, task_type, language=language)
         if params is None:
             logger.warning(
                 f"Deterministic: param extraction failed for '{task_type}', falling back"
@@ -306,7 +382,7 @@ class DeterministicExecutor:
             override_plan = PLANS.get(confirmed_type)
             if override_plan and confirmed_type in DETERMINISTIC_WHITELIST:
                 # Re-extract with the correct schema
-                params2, _ = extract_params(full_prompt, confirmed_type)
+                params2, _ = extract_params(full_prompt, confirmed_type, language=language)
                 if params2 is not None:
                     task_type = confirmed_type
                     plan = override_plan
