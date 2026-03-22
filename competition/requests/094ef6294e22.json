@@ -1,0 +1,17 @@
+{
+  "task_id": "094ef6294e22",
+  "timestamp": "2026-03-22T12:25:50.318716+00:00",
+  "prompt": "Gjennomfør heile prosjektsyklusen for 'Dataplattform Strandvik' (Strandvik AS, org.nr 982465958): 1) Prosjektet har budsjett 412400 kr. 2) Registrer timar: Olav Stølsvik (prosjektleiar, olav.stlsvik@example.org) 29 timar og Jorunn Eide (konsulent, jorunn.eide@example.org) 100 timar. 3) Registrer leverandørkostnad 49600 kr frå Skogheim AS (org.nr 950515430). 4) Opprett kundefaktura for prosjektet.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 20,
+    "api_errors": 0,
+    "time_ms": 47883,
+    "error_details": null
+  },
+  "task_type": "project_lifecycle",
+  "classified_by": "auto",
+  "tier": 3
+}

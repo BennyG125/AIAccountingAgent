@@ -1,0 +1,17 @@
+{
+  "task_id": "bcf16e05ceb6",
+  "timestamp": "2026-03-22T11:51:17.917283+00:00",
+  "prompt": "Enviamos una factura por 2835 EUR a Viento SL (org. nº 878886569) cuando el tipo de cambio era 11.25 NOK/EUR. El cliente ha pagado ahora, pero el tipo es 10.71 NOK/EUR. Registre el pago y contabilice la diferencia de tipo de cambio (disagio) en la cuenta correcta.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 13,
+    "api_errors": 0,
+    "time_ms": 28021,
+    "error_details": null
+  },
+  "task_type": "forex_payment",
+  "classified_by": "auto",
+  "tier": 2
+}

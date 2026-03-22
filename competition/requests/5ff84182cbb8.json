@@ -1,0 +1,17 @@
+{
+  "task_id": "5ff84182cbb8",
+  "timestamp": "2026-03-22T09:57:23.635904+00:00",
+  "prompt": "El pago de Solmar SL (org. nº 840739201) por la factura \"Horas de consultoría\" (40550 NOK sin IVA) fue devuelto por el banco. Revierta el pago para que la factura vuelva a mostrar el importe pendiente.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 4,
+    "api_errors": 0,
+    "time_ms": 38978,
+    "error_details": null
+  },
+  "task_type": "reverse_payment",
+  "classified_by": "auto",
+  "tier": 2
+}

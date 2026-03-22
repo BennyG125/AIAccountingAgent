@@ -1,0 +1,17 @@
+{
+  "task_id": "aabbda040ff3",
+  "timestamp": "2026-03-22T09:55:19.458402+00:00",
+  "prompt": "Cree una dimensión contable personalizada \"Prosjekttype\" con los valores \"Forskning\" y \"Utvikling\". Luego registre un asiento en la cuenta 7000 por 14550 NOK, vinculado al valor de dimensión \"Forskning\".",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 7,
+    "api_errors": 0,
+    "time_ms": 17419,
+    "error_details": null
+  },
+  "task_type": "custom_dimension",
+  "classified_by": "auto",
+  "tier": 2
+}

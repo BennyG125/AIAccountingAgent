@@ -1,0 +1,17 @@
+{
+  "task_id": "a13adccf1f70",
+  "timestamp": "2026-03-22T10:42:02.216738+00:00",
+  "prompt": "Create a custom accounting dimension \"Marked\" with the values \"Offentlig\" and \"Privat\". Then post a voucher on account 7300 for 37250 NOK, linked to the dimension value \"Privat\".",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 7,
+    "api_errors": 0,
+    "time_ms": 71030,
+    "error_details": null
+  },
+  "task_type": "custom_dimension",
+  "classified_by": "auto",
+  "tier": 2
+}

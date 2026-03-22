@@ -1,0 +1,17 @@
+{
+  "task_id": "626f29f0ac1d",
+  "timestamp": "2026-03-22T11:01:20.977896+00:00",
+  "prompt": "Kjør lønn for Anders Strand (anders.strand@example.org) for denne måneden. Grunnlønn er 38850 kr. Legg til en engangsbonus på 16600 kr i tillegg til grunnlønnen. Dersom lønns-API-et ikke fungerer, kan du bruke manuelle bilag på lønnskontoer (5000-serien) for å registrere lønnskostnaden.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 3,
+    "api_errors": 1,
+    "time_ms": 3786,
+    "error_details": null
+  },
+  "task_type": "run_salary",
+  "classified_by": "auto",
+  "tier": 2
+}

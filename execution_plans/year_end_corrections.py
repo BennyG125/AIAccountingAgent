@@ -120,6 +120,8 @@ def _posting(row: int, account_id: int, amount: float, description: str) -> dict
         "account": {"id": account_id},
         "amount": amt,
         "amountCurrency": amt,
+        "amountGross": amt,
+        "amountGrossCurrency": amt,
         "currency": {"id": 1},
         "description": description,
     }
@@ -169,6 +171,7 @@ class YearEndCorrectionsPlan(ExecutionPlan):
                 str(dup["account_number"]),
                 str(mv["net_account_number"]),
                 "2710",  # VAT account always needed for missing VAT correction
+                "2400",  # Supplier payable — counterpart for duplicate/amount corrections
                 str(ia["account_number"]),
             }
         )
@@ -198,6 +201,7 @@ class YearEndCorrectionsPlan(ExecutionPlan):
         dup_account_id = account_ids.get(str(dup["account_number"]))
         net_account_id = account_ids.get(str(mv["net_account_number"]))
         vat_account_id = account_ids.get("2710")
+        supplier_account_id = account_ids.get("2400")
         incorrect_account_id = account_ids.get(str(ia["account_number"]))
 
         missing = [
@@ -207,6 +211,7 @@ class YearEndCorrectionsPlan(ExecutionPlan):
                 (str(dup["account_number"]), dup_account_id),
                 (str(mv["net_account_number"]), net_account_id),
                 ("2710", vat_account_id),
+                ("2400", supplier_account_id),
                 (str(ia["account_number"]), incorrect_account_id),
             ] if not aid
         ]
@@ -225,11 +230,22 @@ class YearEndCorrectionsPlan(ExecutionPlan):
         vat_type_id = None
         if vat_result["success"]:
             target_pct = round(vat_rate * 100)
-            for vt in vat_result["body"].get("values", []):
-                pct = vt.get("percentage")
-                if pct is not None and round(float(pct)) == target_pct:
-                    vat_type_id = vt["id"]
-                    break
+            # Map percentage to incoming (inngående) VAT type numbers
+            incoming_vat_numbers = {25: "3", 15: "31", 12: "33"}
+            incoming_number = incoming_vat_numbers.get(target_pct)
+            # Pass 1: prefer incoming VAT type by number
+            if incoming_number:
+                for vt in vat_result["body"].get("values", []):
+                    if str(vt.get("number")) == incoming_number:
+                        vat_type_id = vt["id"]
+                        break
+            # Pass 2: fall back to first percentage match
+            if vat_type_id is None:
+                for vt in vat_result["body"].get("values", []):
+                    pct = vt.get("percentage")
+                    if pct is not None and round(float(pct)) == target_pct:
+                        vat_type_id = vt["id"]
+                        break
             if vat_type_id is None:
                 values = vat_result["body"].get("values", [])
                 if values:
@@ -269,9 +285,9 @@ class YearEndCorrectionsPlan(ExecutionPlan):
 
         # ------------------------------------------------------------------
         # Step 4: Correction 2 — Duplicate voucher
-        # Reverse the duplicate entry (credit the account, debit the counterpart)
-        # Since we don't know the original counterpart, we self-balance on same account
-        # using standard practice: reverse posting to the same account
+        # Reverse the duplicate entry: credit the expense account (undo the
+        # duplicate debit) and debit the supplier payable account 2400 (undo
+        # the duplicate credit to the payable).
         # ------------------------------------------------------------------
         self._check_timeout(start_time)
         dup_amount = float(dup["amount"])
@@ -289,9 +305,9 @@ class YearEndCorrectionsPlan(ExecutionPlan):
                 ),
                 _posting(
                     2,
-                    dup_account_id,
+                    supplier_account_id,
                     dup_amount,
-                    "Motkonto dobbeltpostering",
+                    "Motkonto leverandørgjeld 2400",
                 ),
             ],
         }
@@ -373,7 +389,8 @@ class YearEndCorrectionsPlan(ExecutionPlan):
         # Post the difference: if posted_amount > correct_amount, we overposted
         # and need to reverse the excess. If posted_amount < correct_amount,
         # we underposted and need to add the shortfall.
-        # The correction voucher self-balances on the same account.
+        # Row 1: adjust the expense account by -difference
+        # Row 2: adjust supplier payable (2400) by +difference
         # ------------------------------------------------------------------
         self._check_timeout(start_time)
         posted_amount = float(ia["posted_amount"])
@@ -395,9 +412,9 @@ class YearEndCorrectionsPlan(ExecutionPlan):
                 ),
                 _posting(
                     2,
-                    incorrect_account_id,
+                    supplier_account_id,
                     difference,
-                    "Korrekt beløp",
+                    "Motkonto leverandørgjeld 2400",
                 ),
             ],
         }

@@ -1,0 +1,17 @@
+{
+  "task_id": "254261c0b962",
+  "timestamp": "2026-03-22T10:26:43.978721+00:00",
+  "prompt": "Establezca un precio fijo de 152400 NOK en el proyecto \"Mejora de infraestructura\" para Estrella SL (org. nº 808166283). El director del proyecto es Rafael García (rafael.garcia@example.org). Facture al cliente el 75 % del precio fijo como pago parcial.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 7,
+    "api_errors": 0,
+    "time_ms": 19622,
+    "error_details": null
+  },
+  "task_type": "fixed_price_project",
+  "classified_by": "auto",
+  "tier": 2
+}

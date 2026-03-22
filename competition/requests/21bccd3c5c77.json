@@ -1,0 +1,17 @@
+{
+  "task_id": "21bccd3c5c77",
+  "timestamp": "2026-03-22T10:26:15.065879+00:00",
+  "prompt": "Opprett produktet \"Analyserapport\" med produktnummer 3637. Prisen er 31900 kr eksklusiv MVA, og standard MVA-sats på 25 % skal nyttast.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 1,
+    "api_errors": 0,
+    "time_ms": 12043,
+    "error_details": null
+  },
+  "task_type": "create_product",
+  "classified_by": "auto",
+  "tier": 1
+}

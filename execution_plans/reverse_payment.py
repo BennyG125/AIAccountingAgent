@@ -166,7 +166,7 @@ class ReversePaymentPlan(ExecutionPlan):
                 "paymentDate": today,
                 "paymentTypeId": payment_type_id,
                 "paidAmount": amount_incl_vat,
-                "paidAmountCurrency": 1,
+                "paidAmountCurrency": amount_incl_vat,
             },
         )
         api_calls += 1

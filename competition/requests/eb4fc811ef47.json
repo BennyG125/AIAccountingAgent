@@ -1,0 +1,17 @@
+{
+  "task_id": "eb4fc811ef47",
+  "timestamp": "2026-03-22T09:34:18.940494+00:00",
+  "prompt": "Enregistrez 15 heures pour Nathan Bernard (nathan.bernard@example.org) sur l'activité \"Utvikling\" du projet \"Développement d'app\" pour Colline SARL (nº org. 815345991). Taux horaire : 1000 NOK/h. Générez une facture de projet au client basée sur les heures enregistrées.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 9,
+    "api_errors": 0,
+    "time_ms": 105210,
+    "error_details": null
+  },
+  "task_type": "register_hours",
+  "classified_by": "auto",
+  "tier": 2
+}

@@ -1,0 +1,17 @@
+{
+  "task_id": "95bc1c547643",
+  "timestamp": "2026-03-22T11:11:55.583725+00:00",
+  "prompt": "Perform simplified year-end closing for 2025: 1) Calculate and post annual depreciation for three assets: IT-utstyr (204150 NOK, 4 years straight-line, account 1210), Inventar (237550 NOK, 8 years, account 1240), Programvare (307500 NOK, 4 years, account 1250). Use account 6010 for depreciation expense and 1209 for accumulated depreciation. 2) Reverse prepaid expenses (total 44300 NOK on account 1700). 3) Calculate and post tax provision (22% of taxable profit) on account 8700/2920. Post each depreciation as a separate voucher.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 5,
+    "api_calls": 13,
+    "api_errors": 0,
+    "time_ms": 120391,
+    "error_details": null
+  },
+  "task_type": "year_end_close",
+  "classified_by": "auto",
+  "tier": 3
+}

@@ -1,0 +1,17 @@
+{
+  "task_id": "c81830ee4e27",
+  "timestamp": "2026-03-22T10:58:43.701515+00:00",
+  "prompt": "We have a new employee named Charles Taylor, born 21. October 1994. Please create them as an employee with email charles.taylor@example.org and start date 3. June 2026.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 3,
+    "api_errors": 0,
+    "time_ms": 7019,
+    "error_details": null
+  },
+  "task_type": "employee_onboarding",
+  "classified_by": "auto",
+  "tier": 2
+}

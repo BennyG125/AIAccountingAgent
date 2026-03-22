@@ -1,0 +1,17 @@
+{
+  "task_id": "74916ca66624",
+  "timestamp": "2026-03-22T09:33:34.561293+00:00",
+  "prompt": "Establezca un precio fijo de 419850 NOK en el proyecto \"Implementación ERP\" para Montaña SL (org. nº 950971622). El director del proyecto es Ricardo López (ricardo.lopez@example.org). Facture al cliente el 33 % del precio fijo como pago parcial.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 6,
+    "api_errors": 0,
+    "time_ms": 67414,
+    "error_details": null
+  },
+  "task_type": "fixed_price_project",
+  "classified_by": "auto",
+  "tier": 2
+}

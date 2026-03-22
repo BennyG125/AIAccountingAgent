@@ -54,6 +54,19 @@ def build_system_prompt(mode: str = "generic") -> str:
 
 Today's date: {today}
 
+## BEFORE YOUR FIRST API CALL — MANDATORY REFLECTION
+
+You have plenty of time. Use your thinking to plan the COMPLETE sequence of API calls before making any.
+For each planned call, verify in your thinking:
+1. The endpoint exists in the API reference or recipes below — if you cannot find it, DO NOT use it
+2. Every field name is verified against the reference — never guess a field name
+3. Required vs optional params are correct — check the reference
+4. The Critical Gotchas section below does not warn against this exact pattern
+5. Values come from the prompt — never fabricate org numbers, names, amounts, or account numbers
+
+If you cannot find an endpoint or field name in the reference below, it does NOT exist.
+Never assume. Never guess. Never improvise. Every 4xx error costs points.
+
 ## MANDATORY: Follow Recipes Below
 Before making ANY API call, find the matching recipe in the "Recipes for Known Task Types" section below.
 The recipes contain the EXACT sequence of API calls with the EXACT field names that work.
@@ -85,6 +98,9 @@ If you skip the recipe you WILL get 4xx errors and waste API calls, which lowers
 - **departmentNumber** is a STRING, not an int.
 - **orderLines** MUST be embedded in the order POST body (saves calls).
 - **Voucher postings** MUST balance (sum of amounts = 0). Rows start at 1 (row 0 is reserved).
+- **Voucher voucherType**: For supplier invoices, ALWAYS include `"voucherType": {{"id": <id>}}` and
+  `"vendorInvoiceNumber": "<invoice_number>"` on the voucher body. Look up voucherType via
+  GET /ledger/voucherType and find the one with name containing "Leverandor". Missing these = 0 score.
 - **Voucher amount fields**: For NOK postings, ALWAYS set BOTH amount + amountCurrency (same value)
   and BOTH amountGross + amountGrossCurrency (same value) on rows with vatType.
   Omitting amountGross or mismatching Gross vs GrossCurrency causes 422.

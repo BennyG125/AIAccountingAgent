@@ -1,0 +1,17 @@
+{
+  "task_id": "fcac35e4425f",
+  "timestamp": "2026-03-22T12:18:59.090399+00:00",
+  "prompt": "Enregistrez 9 heures pour Chloé Moreau (chloe.moreau@example.org) sur l'activité \"Utvikling\" du projet \"Mise à niveau système\" pour Étoile SARL (nº org. 832109428). Taux horaire : 1900 NOK/h. Générez une facture de projet au client basée sur les heures enregistrées.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 9,
+    "api_errors": 0,
+    "time_ms": 23710,
+    "error_details": null
+  },
+  "task_type": "register_hours",
+  "classified_by": "auto",
+  "tier": 2
+}

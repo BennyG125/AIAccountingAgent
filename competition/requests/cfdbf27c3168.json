@@ -1,0 +1,42 @@
+{
+  "task_id": "cfdbf27c3168",
+  "timestamp": "2026-03-22T11:00:12.914498+00:00",
+  "prompt": "Exécutez la paie de Jules Leroy (jules.leroy@example.org) pour ce mois. Le salaire de base est de 56950 NOK. Ajoutez une prime unique de 9350 NOK en plus du salaire de base.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 14,
+    "api_calls": 16,
+    "api_errors": 4,
+    "time_ms": 100722,
+    "error_details": [
+      {
+        "tool": "tripletex_post",
+        "path": "/division",
+        "status": 422,
+        "error": "Validering feilet."
+      },
+      {
+        "tool": "tripletex_get",
+        "path": "/company",
+        "status": 400,
+        "error": "HTTP 405 Method Not Allowed"
+      },
+      {
+        "tool": "tripletex_get",
+        "path": "/company/1",
+        "status": 404,
+        "error": "Object not found"
+      },
+      {
+        "tool": "tripletex_post",
+        "path": "/employee/employment",
+        "status": 422,
+        "error": "Validering feilet."
+      }
+    ]
+  },
+  "task_type": "run_salary",
+  "classified_by": "auto",
+  "tier": "T2"
+}

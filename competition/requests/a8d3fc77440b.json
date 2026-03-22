@@ -1,0 +1,23 @@
+{
+  "task_id": "a8d3fc77440b",
+  "timestamp": "2026-03-22T09:53:55.709456+00:00",
+  "prompt": "Sie haben eine Lieferantenrechnung erhalten (siehe beigefugte PDF). Registrieren Sie die Rechnung in Tripletex. Erstellen Sie den Lieferanten, falls er nicht existiert. Verwenden Sie das richtige Aufwandskonto und die Vorsteuer.",
+  "files": [
+    {
+      "filename": "files/leverandorfaktura_de_05.pdf",
+      "mime_type": "application/pdf",
+      "content_base64": "JVBERi0xLjMKJenr8b8KMSAwIG9iago8PAovQ291bnQgMQovS2lkcyBbMyAwIFJdCi9NZWRpYUJveCBbMCAwIDU5NS4yOCA4NDEuODldCi9UeXBlIC9QYWdlcwo+PgplbmRvYmoKMiAwIG9iago8PAovT3BlbkFjdGlvbiBbMyAwIFIgL0ZpdEggbnVsbF0KL1BhZ2VMYXlvdXQgL09uZUNvbHVtbgovUGFnZXMgMSAwIFIKL1R5cGUgL0NhdGFsb2cKPj4KZW5kb2JqCjMgMCBvYmoKPDwKL0NvbnRlbnRzIDQgMCBSCi9QYXJlbnQgMSAwIFIKL1Jlc291cmNlcyA3IDAgUgovVHlwZSAvUGFnZQo+PgplbmRvYmoKNCAwIG9iago8PAovRmlsdGVyIC9GbGF0ZURlY29kZQovTGVuZ3RoIDQzNQo+PgpzdHJlYW0KeJyVk1tv1DAQRt/7K+YFCSQ69fjuvO0KlksFRRD6btRsFHJDTtr+fZxNok22pVoebX1njj32cPh8wVAZeLzYpnC1IyCNjEG6h/fpsCUIyYJxcgild/B6m4X8MQslfKh/fXwD6e8peLXjQOw51gjU7sDehBybkIBznJOUgi34Kaz0HE7bkOe+96D1W2BkOdx0VbsyEvC1kUuHgoN2Dq04VNltrtOf3zcnGNEzB9XKII2X3Pmyvw++ua/rLCSnt1zDpCwauaQ/fb295IzrS1LGnWUWsb1sab7zfXum98iyGNA4mM+Sxt3Y1IO0DXtfVd1/WI/wYDVnW5UxaMfjpkWVwLui72FfhNrPNLcoFCguURLUEYsmmtcV/IBjLcFRqulXdmUoHrKqy+Y6a7AGpTU6cVJICYFKritV7Z+XezDZmUMzPvi30ObB1w8+ZFXRZU234BUnFGyZJuHig5Xh5eGRlqERIGO/5Mh9ud0AV68SENKaUz62m695EwfZgFQKNU0D1fuqT4CMFE/4fwyvjFW5PeDXbRN/x/Dfno6tcLF/48BtfVOWY1Qo5SznUpGdib+Imwl5CmVuZHN0cmVhbQplbmRvYmoKNSAwIG9iago8PAovQmFzZUZvbnQgL0hlbHZldGljYS1Cb2xkCi9FbmNvZGluZyAvV2luQW5zaUVuY29kaW5nCi9TdWJ0eXBlIC9UeXBlMQovVHlwZSAvRm9udAo+PgplbmRvYmoKNiAwIG9iago8PAovQmFzZUZvbnQgL0hlbHZldGljYQovRW5jb2RpbmcgL1dpbkFuc2lFbmNvZGluZwovU3VidHlwZSAvVHlwZTEKL1R5cGUgL0ZvbnQKPj4KZW5kb2JqCjcgMCBvYmoKPDwKL0ZvbnQgPDwvRjEgNSAwIFIKL0YyIDYgMCBSPj4KL1Byb2NTZXQgWy9QREYgL1RleHQgL0ltYWdlQiAvSW1hZ2VDIC9JbWFnZUldCj4+CmVuZG9iago4IDAgb2JqCjw8Ci9DcmVhdGlvbkRhdGUgKEQ6MjAyNjAzMDQxOTE4MDVaKQo+PgplbmRvYmoKeHJlZgowIDkKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDE1IDAwMDAwIG4gCjAwMDAwMDAxMDIgMDAwMDAgbiAKMDAwMDAwMDIwNSAwMDAwMCBuIAowMDAwMDAwMjg1IDAwMDAwIG4gCjAwMDAwMDA3OTIgMDAwMDAgbiAKMDAwMDAwMDg5NCAwMDAwMCBuIAowMDAwMDAwOTkxIDAwMDAwIG4gCjAwMDAwMDEwODggMDAwMDAgbiAKdHJhaWxlcgo8PAovU2l6ZSA5Ci9Sb290IDIgMCBSCi9JbmZvIDggMCBSCi9JRCBbPEJBNUUwNzAwNjREMzZCOUE3MDVGNkJBMDM1MEM2RkU5PjxCQTVFMDcwMDY0RDM2QjlBNzA1RjZCQTAzNTBDNkZFOT5dCj4+CnN0YXJ0eHJlZgoxMTQzCiUlRU9GCg=="
+    }
+  ],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 5,
+    "api_errors": 0,
+    "time_ms": 18504,
+    "error_details": null
+  },
+  "task_type": "register_supplier_invoice",
+  "classified_by": "auto",
+  "tier": 2
+}

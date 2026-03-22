@@ -1,0 +1,17 @@
+{
+  "task_id": "4fbb159fb338",
+  "timestamp": "2026-03-22T09:50:28.682840+00:00",
+  "prompt": "Run payroll for Lucy Walker (lucy.walker@example.org) for this month. The base salary is 43050 NOK. Add a one-time bonus of 6100 NOK on top of the base salary.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 3,
+    "api_errors": 1,
+    "time_ms": 8421,
+    "error_details": null
+  },
+  "task_type": "run_salary",
+  "classified_by": "auto",
+  "tier": 2
+}

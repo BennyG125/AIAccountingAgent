@@ -1,0 +1,17 @@
+{
+  "task_id": "2480018ecd3d",
+  "timestamp": "2026-03-22T09:54:13.369607+00:00",
+  "prompt": "Le paiement de Colline SARL (nº org. 804499180) pour la facture \"Heures de conseil\" (8850 NOK HT) a été retourné par la banque. Annulez le paiement afin que la facture affiche à nouveau le montant impayé.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 4,
+    "api_errors": 0,
+    "time_ms": 51894,
+    "error_details": null
+  },
+  "task_type": "reverse_payment",
+  "classified_by": "auto",
+  "tier": 2
+}

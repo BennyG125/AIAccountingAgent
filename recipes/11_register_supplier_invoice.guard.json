@@ -5,6 +5,6 @@
       "body_strip": []
     }
   },
-  "expected_calls_range": [4, 6],
+  "expected_calls_range": [5, 8],
   "max_errors": 0
 }

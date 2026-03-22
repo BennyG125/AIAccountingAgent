@@ -1,0 +1,17 @@
+{
+  "task_id": "e7d6d863587d",
+  "timestamp": "2026-03-22T10:44:15.815055+00:00",
+  "prompt": "Enregistrez le fournisseur Cascade SARL avec le numéro d'organisation 999591027. E-mail : faktura@cascadesarl.no.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 1,
+    "api_errors": 0,
+    "time_ms": 11958,
+    "error_details": null
+  },
+  "task_type": "create_supplier",
+  "classified_by": "auto",
+  "tier": 1
+}

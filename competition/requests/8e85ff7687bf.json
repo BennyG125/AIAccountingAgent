@@ -1,0 +1,17 @@
+{
+  "task_id": "8e85ff7687bf",
+  "timestamp": "2026-03-22T10:00:05.932398+00:00",
+  "prompt": "Le paiement de Montagne SARL (nº org. 807182978) pour la facture \"Rapport d'analyse\" (20700 NOK HT) a été retourné par la banque. Annulez le paiement afin que la facture affiche à nouveau le montant impayé.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 4,
+    "api_errors": 0,
+    "time_ms": 9320,
+    "error_details": null
+  },
+  "task_type": "reverse_payment",
+  "classified_by": "auto",
+  "tier": 2
+}

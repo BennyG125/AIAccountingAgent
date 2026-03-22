@@ -300,7 +300,7 @@ Send invoice. Query params (NOT body): sendType ("EMAIL"|"EHF"|"EFAKTURA"|"AVTAL
 Create credit note for an invoice. REQUIRED query param: ?date=YYYY-MM-DD
 Optional query params: comment, creditNoteEmail, sendToCustomer, sendType
 No body required (send empty {} or omit). The credit note reverses the original invoice.
-NOTE: The invoice must NOT already be a credit note (invoiceIsCreditNote=true).
+NOTE: The invoice must NOT already be a credit note (isCreditNote=true).
 
 ### PUT /invoice/{id}/:createReminder
 Create and send invoice reminder.
@@ -337,20 +337,57 @@ Delete supplier.
 
 ### GET /supplierInvoice
 Search supplier invoices.
+REQUIRED params:
+  invoiceDateFrom (YYYY-MM-DD) — from and including (MANDATORY, not optional!)
+  invoiceDateTo (YYYY-MM-DD) — to and excluding (MANDATORY, not optional!)
+Optional params:
+  id (string) — list of IDs
+  invoiceNumber (string), kid (string), voucherId (string), supplierId (string)
+  fields, from, count, sorting
+IMPORTANT: Both invoiceDateFrom and invoiceDateTo are REQUIRED. Without them you get 422.
+Use a wide range like invoiceDateFrom=2020-01-01&invoiceDateTo=2030-01-01 when searching broadly.
+Response: SupplierInvoice objects with fields: id, invoiceNumber, invoiceDate, invoiceDueDate,
+  supplier ({id, name}), voucher ({id}), amount, amountCurrency, amountExcludingVat,
+  amountExcludingVatCurrency, currency, isCreditNote, orderLines, payments,
+  kidOrReceiverReference, outstandingAmount
 
 ### GET /supplierInvoice/{id}
-Get supplier invoice.
+Get supplier invoice by ID. Params: fields
+
+### PUT /supplierInvoice/voucher/{id}/postings
+Put debit postings on a supplier invoice. [BETA]
+Path param: id (int) — the VOUCHER id (not the supplier invoice id)
+Query params:
+  sendToLedger (boolean, default false) — requires special setup by Tripletex
+  voucherDate (YYYY-MM-DD, optional) — if set, updates date on voucher and invoice
+Body: array of OrderLinePosting objects. Each has:
+  posting ({account: {id}, amount, amountCurrency, currency: {id}, vatType: {id},
+            department: {id}, project: {id}, product: {id}, description, row})
+  orderLine (optional, {id} — reference to existing order line)
+Returns: SupplierInvoice object.
+Use this to set/change the debit-side account postings on a supplier invoice voucher.
 
 ### POST /supplierInvoice/{invoiceId}/:addPayment
-Register payment on supplier invoice.
-Body: paymentType (int), amount (number), paymentDate (YYYY-MM-DD),
-      basisPercentage (number)
+Register payment on supplier invoice. Uses QUERY PARAMS (not JSON body):
+Required: paymentType (int) — set to 0 to auto-find last payment type for this vendor
+Optional: amount (number), kidOrReceiverReference (string), bban (string),
+          paymentDate (YYYY-MM-DD),
+          useDefaultPaymentType (boolean, default false) — auto-select payment type,
+          partialPayment (boolean, default false) — set true to allow multiple payments
 
 ### PUT /supplierInvoice/{invoiceId}/:approve
-Approve a supplier invoice.
+Approve a supplier invoice. Query param: comment (string, optional)
 
 ### PUT /supplierInvoice/{invoiceId}/:reject
-Reject a supplier invoice.
+Reject a supplier invoice. Query param: comment (string, REQUIRED)
+
+### PUT /supplierInvoice/{invoiceId}/:changeDimension
+Change a dimension on debit postings of a supplier invoice. Uses QUERY PARAMS:
+Required:
+  debitPostingIds (string) — comma-separated list of posting IDs to change
+  dimension (string) — one of: "PROJECT", "DEPARTMENT", "EMPLOYEE", "PRODUCT",
+    "FREE_DIMENSION_1", "FREE_DIMENSION_2", "FREE_DIMENSION_3"
+  dimensionId (int) — the ID of the new dimension value
 
 ---
 
@@ -530,15 +567,35 @@ Search. Params: travelExpenseId, fields
 Create a voucher (journal entry).
 Required: date (YYYY-MM-DD), description (string),
           postings (array of Posting objects)
+Optional voucher-level fields:
+  voucherType ({id}) — reference to a VoucherType. Look up with GET /ledger/voucherType.
+    Must NOT be 'Utgående faktura' (Outgoing Invoice) on new vouchers; use null or Invoice endpoint.
+  externalVoucherNumber (string) — external reference, max 70 characters.
+  vendorInvoiceNumber (string) — the supplier's own invoice number.
+  supplierVoucherType (string, READ-ONLY) — set by the system, one of:
+    "TYPE_SUPPLIER_INVOICE_SIMPLE", "TYPE_SUPPLIER_INVOICE_DETAILED"
+Query param: sendToLedger (boolean, default true) — set false to create without posting to ledger.
+
 Each Posting needs: account ({id}), amount (number), row (integer, MUST be >= 1)
   Row 0 is reserved for system-generated postings and will be rejected.
   Number rows sequentially starting from 1.
-Optional posting fields: amountCurrency, currency ({id}), description,
+Optional posting fields: amountCurrency, amountGross, amountGrossCurrency,
+          currency ({id}), description, invoiceNumber (string), termOfPayment (string),
           customer ({id}), supplier ({id}), employee ({id}),
           project ({id}), department ({id}), product ({id}),
-          vatType ({id}), date (YYYY-MM-DD)
+          vatType ({id}), date (YYYY-MM-DD),
+          freeAccountingDimension1 ({id}), freeAccountingDimension2 ({id}),
+          freeAccountingDimension3 ({id}),
+          amortizationAccount ({id}), amortizationStartDate, amortizationEndDate,
+          quantityAmount1 (number), quantityType1 ({id}),
+          quantityAmount2 (number), quantityType2 ({id})
 IMPORTANT: Postings must balance (sum of amounts = 0). Only gross amounts needed.
 IMPORTANT: Look up real account IDs with GET /ledger/account?number=XXXX — do NOT guess IDs.
+
+### PUT /ledger/voucher/{id}
+Update a voucher. Send full Voucher object with version field.
+Query param: sendToLedger (boolean, default true).
+Note: Postings with row==0 will be deleted and regenerated by the system.
 
 ### GET /ledger/voucher
 Search: ?dateFrom=X&dateTo=X&number=X&fields=...
@@ -554,8 +611,66 @@ Delete voucher.
 ### PUT /ledger/voucher/{id}/:reverse
 Reverse a voucher.
 
+### PUT /ledger/voucher/{id}/:sendToLedger
+Send a non-posted voucher to ledger. Query params:
+  version (int) — version of the voucher
+  number (int, default 0) — voucher number to use, 0 = auto-assign
+
+### PUT /ledger/voucher/{id}/:sendToInbox
+Send a voucher back to inbox (e.g. after rejection). Query params:
+  version (int), comment (string, optional)
+
+### GET /ledger/voucher/>nonPosted
+Find non-posted vouchers. Params:
+  dateFrom, dateTo, includeNonApproved (boolean, REQUIRED, default false)
+
+### GET /ledger/voucher/>externalVoucherNumber
+Find vouchers by external voucher number.
+  Params: externalVoucherNumber (string), fields
+
 ### POST /ledger/voucher/{voucherId}/attachment
 Upload attachment to voucher (multipart form data).
+
+### POST /ledger/voucher/importDocument
+Upload a document (PDF, PNG, JPEG, TIFF) to create voucher(s). Multipart form.
+  Query param: split (boolean, default false) — split multi-page into one voucher per page.
+  Form fields: file (binary, required), description (string, optional).
+
+---
+
+## LEDGER / VOUCHER TYPE
+
+### GET /ledger/voucherType
+Search voucher types. Params: name (string, containing match), fields
+Returns: list of VoucherType objects with id, name, displayName.
+Use this to look up the correct voucherType ID before creating vouchers.
+
+### GET /ledger/voucherType/{id}
+Get single voucher type by ID.
+
+---
+
+## LEDGER / VOUCHER — OPENING BALANCE
+
+### GET /ledger/voucher/openingBalance
+Get the opening balance voucher. [BETA]
+Params: fields
+
+### POST /ledger/voucher/openingBalance
+Create an opening balance on a given date. [BETA]
+All movements before this date will be zeroed out in a correction voucher.
+The date must be the first day of a month (first day of year recommended).
+If postings don't balance, the difference is auto-posted to a help account.
+Body (OpeningBalance):
+  voucherDate (YYYY-MM-DD),
+  balancePostings (array): each has account ({id}), amount, amountCurrency,
+    project ({id}), department ({id}), product ({id}), employee ({id})
+  customerPostings (array): each has customer ({id}), amount, description
+  supplierPostings (array): each has supplier ({id}), amount, description
+  employeePostings (array): each has employee ({id}), amount, description
+
+### DELETE /ledger/voucher/openingBalance
+Delete the opening balance.
 
 ---
 
@@ -585,20 +700,22 @@ Params: dateFrom, dateTo, accountNumberFrom, accountNumberTo, fields
 
 ### POST /ledger/accountingDimensionName
 Create a custom accounting dimension. Returns the created dimension with its dimensionIndex.
-Body: {"name": "Prosjekttype"}
-Response includes: id, name, dimensionIndex (auto-assigned, e.g. 1, 2, 3)
+Body: {"dimensionName": "Prosjekttype"}
+Response includes: id, dimensionName, dimensionIndex (auto-assigned, e.g. 1, 2, 3)
 
 ### GET /ledger/accountingDimensionName
 List existing custom dimension names.
 Params: fields, count
+Response field: dimensionName (NOT "name")
 
 ### POST /ledger/accountingDimensionValue
 Create a value under a custom dimension.
-Body: {"dimensionName": {"id": <dimension_name_id>}, "name": "Forskning"}
+Body: {"displayName": "Forskning", "dimensionIndex": 1, "active": true, "showInVoucherRegistration": true}
 
 ### GET /ledger/accountingDimensionValue
 List existing custom dimension values.
-Params: dimensionNameId, fields, count
+Params: dimensionIndex, fields, count
+Response field: displayName (NOT "name")
 
 ### Using custom dimensions in vouchers
 When posting a voucher with a custom dimension, add the dimension as a field on each

@@ -182,7 +182,7 @@ class CreateOrderPlan(ExecutionPlan):
                     "paymentDate": today,
                     "paymentTypeId": str(payment_type_id),
                     "paidAmount": str(invoice_amount),
-                    "paidAmountCurrency": "1",
+                    "paidAmountCurrency": str(invoice_amount),
                 },
             )
             api_calls += 1

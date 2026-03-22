@@ -1,0 +1,17 @@
+{
+  "task_id": "9669626f6816",
+  "timestamp": "2026-03-22T11:43:37.307266+00:00",
+  "prompt": "Créez et envoyez une facture au client Lumière SARL (nº org. 827689114) de 8750 NOK hors TVA. La facture concerne Maintenance.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 4,
+    "api_errors": 0,
+    "time_ms": 7998,
+    "error_details": null
+  },
+  "task_type": "create_invoice",
+  "classified_by": "auto",
+  "tier": 1
+}

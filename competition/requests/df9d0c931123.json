@@ -1,0 +1,17 @@
+{
+  "task_id": "df9d0c931123",
+  "timestamp": "2026-03-22T09:19:36.544412+00:00",
+  "prompt": "Opprett produktet \"Frokostblanding\" med produktnummer 1391. Prisen er 37450 kr eksklusiv MVA, og MVA-sats for næringsmidler på 15 % skal brukes.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 1,
+    "api_errors": 0,
+    "time_ms": 2274,
+    "error_details": null
+  },
+  "task_type": "create_product",
+  "classified_by": "auto",
+  "tier": 1
+}

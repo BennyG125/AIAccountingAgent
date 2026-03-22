@@ -1,0 +1,17 @@
+{
+  "task_id": "eb3db1a910b4",
+  "timestamp": "2026-03-22T09:20:10.815312+00:00",
+  "prompt": "Le client Montagne SARL (nº org. 882988155) a réclamé concernant la facture pour \"Heures de conseil\" (40900 NOK HT). Émettez un avoir complet qui annule l'intégralité de la facture.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 3,
+    "api_errors": 0,
+    "time_ms": 3349,
+    "error_details": null
+  },
+  "task_type": "credit_note",
+  "classified_by": "auto",
+  "tier": 2
+}

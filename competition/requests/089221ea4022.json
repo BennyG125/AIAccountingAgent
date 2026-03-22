@@ -1,0 +1,17 @@
+{
+  "task_id": "089221ea4022",
+  "timestamp": "2026-03-22T09:20:36.210568+00:00",
+  "prompt": "Effectuez la clôture annuelle simplifiée pour 2025 : 1) Calculez et comptabilisez l'amortissement annuel de trois immobilisations : Inventar (340300 NOK, 7 ans linéaire, compte 1240), Programvare (218450 NOK, 6 ans, compte 1250), Kjøretøy (216150 NOK, 8 ans, compte 1230). Utilisez le compte 6010 pour les charges d'amortissement et 1209 pour les amortissements cumulés. 2) Extournez les charges constatées d'avance (total 23750 NOK au compte 1700). 3) Calculez et comptabilisez la provision d'impôt (22 % du bénéfice imposable) sur compte 8700/2920. Comptabilisez chaque amortissement comme une pièce comptable séparée.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 3,
+    "api_errors": 3,
+    "time_ms": 6343,
+    "error_details": null
+  },
+  "task_type": "year_end_close",
+  "classified_by": "auto",
+  "tier": 3
+}

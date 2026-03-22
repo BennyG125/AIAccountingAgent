@@ -1,0 +1,17 @@
+{
+  "task_id": "3df3be3c8f6b",
+  "timestamp": "2026-03-22T10:45:51.583094+00:00",
+  "prompt": "Die Gesamtkosten sind von Januar bis Februar 2026 deutlich gestiegen. Analysieren Sie das Hauptbuch und identifizieren Sie die drei Aufwandskonten mit dem größten Anstieg. Erstellen Sie für jedes der drei Konten ein internes Projekt mit dem Kontonamen. Erstellen Sie außerdem eine Aktivität für jedes Projekt.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 12,
+    "api_errors": 0,
+    "time_ms": 28515,
+    "error_details": null
+  },
+  "task_type": "cost_analysis_projects",
+  "classified_by": "auto",
+  "tier": 3
+}

@@ -98,6 +98,10 @@ EXTRACTION_SCHEMA = {
             "type": ["number", "null"],
             "description": "Gross supplier cost amount in NOK (including 25% VAT), or null",
         },
+        "supplier_invoice_number": {
+            "type": ["string", "null"],
+            "description": "Supplier invoice/faktura number if mentioned, else null",
+        },
         "activity_name": {
             "type": "string",
             "description": "Activity name for timesheet entries. Default: 'Consulting'",
@@ -159,6 +163,7 @@ class ProjectLifecyclePlan(ExecutionPlan):
         supplier_name = params.get("supplier_name")
         supplier_org = params.get("supplier_org_number")
         supplier_cost = params.get("supplier_cost_amount")
+        supplier_invoice_number = params.get("supplier_invoice_number")
         has_supplier_cost = bool(supplier_name and supplier_cost)
 
         api_calls = 0
@@ -458,6 +463,7 @@ class ProjectLifecyclePlan(ExecutionPlan):
             api_calls, api_errors = self._register_supplier_cost(
                 client, supplier_name, supplier_org, float(supplier_cost),
                 project_id, today, api_calls, api_errors, start_time,
+                supplier_invoice_number=supplier_invoice_number,
             )
 
         self._check_timeout(start_time)
@@ -691,6 +697,7 @@ class ProjectLifecyclePlan(ExecutionPlan):
     def _register_supplier_cost(
         self, client, supplier_name, supplier_org, gross_amount,
         project_id, date_str, api_calls, api_errors, start_time,
+        supplier_invoice_number=None,
     ):
         """Find/create supplier, look up accounts + VAT type, post ledger voucher.
 
@@ -777,11 +784,22 @@ class ProjectLifecyclePlan(ExecutionPlan):
         vat_type_id = None
         if r["success"]:
             target_pct = round(vat_rate * 100)
-            for vt in r["body"].get("values", []):
-                pct = vt.get("percentage")
-                if pct is not None and round(float(pct)) == target_pct:
-                    vat_type_id = vt["id"]
-                    break
+            # Map percentage to incoming (inngående) VAT type numbers
+            incoming_vat_numbers = {25: "3", 15: "31", 12: "33"}
+            incoming_number = incoming_vat_numbers.get(target_pct)
+            # Pass 1: prefer incoming VAT type by number
+            if incoming_number:
+                for vt in r["body"].get("values", []):
+                    if str(vt.get("number")) == incoming_number:
+                        vat_type_id = vt["id"]
+                        break
+            # Pass 2: fall back to first percentage match
+            if vat_type_id is None:
+                for vt in r["body"].get("values", []):
+                    pct = vt.get("percentage")
+                    if pct is not None and round(float(pct)) == target_pct:
+                        vat_type_id = vt["id"]
+                        break
             if vat_type_id is None:
                 values = r["body"].get("values", [])
                 if values:
@@ -791,6 +809,18 @@ class ProjectLifecyclePlan(ExecutionPlan):
             api_errors += 1
             logger.warning("No VAT types available in this sandbox — skipping supplier voucher")
             return api_calls, api_errors
+
+        # Look up voucherType "Leverandørfaktura"
+        self._check_timeout(start_time)
+        vt_leverandor_id = None
+        vt_r = client.get("/ledger/voucherType", params={})
+        api_calls += 1
+        if vt_r["success"]:
+            for vt in vt_r["body"].get("values", []):
+                vt_name = vt.get("name", "").lower()
+                if "leverandørfaktura" in vt_name or "leverandorfaktura" in vt_name:
+                    vt_leverandor_id = vt["id"]
+                    break
 
         # Post supplier cost voucher with project link on expense row
         self._check_timeout(start_time)
@@ -826,6 +856,10 @@ class ProjectLifecyclePlan(ExecutionPlan):
                 },
             ],
         }
+        if vt_leverandor_id:
+            voucher_body["voucherType"] = {"id": vt_leverandor_id}
+        if supplier_invoice_number:
+            voucher_body["vendorInvoiceNumber"] = supplier_invoice_number
 
         r = client.post("/ledger/voucher", body=voucher_body)
         api_calls += 1
@@ -833,7 +867,10 @@ class ProjectLifecyclePlan(ExecutionPlan):
             # vatType may be invalid in this sandbox — retry without it
             cleaned_body = copy.deepcopy(voucher_body)
             for posting in cleaned_body.get("postings", []):
-                posting.pop("vatType", None)
+                if "vatType" in posting:
+                    posting.pop("vatType", None)
+                    posting["amountGross"] = posting["amount"]
+                    posting["amountGrossCurrency"] = posting["amountCurrency"]
             r = client.post("/ledger/voucher", body=cleaned_body)
             api_calls += 1
         if not r["success"]:

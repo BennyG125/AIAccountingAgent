@@ -1,0 +1,17 @@
+{
+  "task_id": "3a7d26febecf",
+  "timestamp": "2026-03-22T11:01:30.601782+00:00",
+  "prompt": "We sent an invoice for 11383 EUR to Brightstone Ltd (org no. 805418826) when the exchange rate was 10.63 NOK/EUR. The customer has now paid, but the rate is 10.33 NOK/EUR. Register the payment and post the exchange rate difference (disagio) to the correct account.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 13,
+    "api_errors": 0,
+    "time_ms": 11259,
+    "error_details": null
+  },
+  "task_type": "forex_payment",
+  "classified_by": "auto",
+  "tier": 2
+}

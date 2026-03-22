@@ -1,0 +1,23 @@
+{
+  "task_id": "b578560e47fd",
+  "timestamp": "2026-03-22T09:49:09.757697+00:00",
+  "prompt": "Du har mottatt en arbeidskontrakt (se vedlagt PDF). Opprett den ansatte i Tripletex med alle detaljer fra kontrakten: personnummer, fodselsdato, avdeling, stillingskode, lonn, stillingsprosent og startdato.",
+  "files": [
+    {
+      "filename": "files/arbeidskontrakt_nb_04.pdf",
+      "mime_type": "application/pdf",
+      "content_base64": "JVBERi0xLjMKJenr8b8KMSAwIG9iago8PAovQ291bnQgMQovS2lkcyBbMyAwIFJdCi9NZWRpYUJveCBbMCAwIDU5NS4yOCA4NDEuODldCi9UeXBlIC9QYWdlcwo+PgplbmRvYmoKMiAwIG9iago8PAovT3BlbkFjdGlvbiBbMyAwIFIgL0ZpdEggbnVsbF0KL1BhZ2VMYXlvdXQgL09uZUNvbHVtbgovUGFnZXMgMSAwIFIKL1R5cGUgL0NhdGFsb2cKPj4KZW5kb2JqCjMgMCBvYmoKPDwKL0NvbnRlbnRzIDQgMCBSCi9QYXJlbnQgMSAwIFIKL1Jlc291cmNlcyA3IDAgUgovVHlwZSAvUGFnZQo+PgplbmRvYmoKNCAwIG9iago8PAovRmlsdGVyIC9GbGF0ZURlY29kZQovTGVuZ3RoIDkyMAo+PgpzdHJlYW0KeJyVVttu4zYQfd+vmJcCG6BlKepG9akJNka3KXpJ/FIgQMGUY1mWTLkU493+aX9g/2OHlBzJqYtlBQOSSZ45h0czQwn48Q1neQkf3tys4dtVAolknMN6A7drPyR4wYocyiphSQZrDW+v729u3797uPvl5/X99d36Cta7aW2AJ2fwlGASyrRg+YS2T9jooW6OaL87w4rX2KQUrEqW4NWut7q1auPg+iGKOEmZLJfETrXRxDP4BzS2aeEfjfUnq2OYC29YNaru9YDdoJXr44gXWJEx7v/IMoq0kCxPAvBXtENvzPN+H7vdBVhkPJFllfIyiaLNcibTgLz95tAPLpJwhm2Dv4zsVVZ/jx/V/tAh620dRS9SlhQhzo0ybdubaKNnZC6qopRZmlbpa870AmcuOeNTRpsBnaMXjINGp7od2hjVeVaxbOS+PmrsGlN/SbQsGa+WwLtno3FAe2z+xChOUbBSBuiDazrPObS9Rnh8+7D+/f7u8SpSwhxH5ElUjuQ8Ywl/bdimt/tIyhm/UoODYdIfw53JhGUiYH+imhjc3weMY10gPWtHaPJqrwzqrqkfr6LYc8nK/Nz0g+0HNF+sk0nEHCDhlHZfRbFS1+Snzjd44ZFkM04KThe0UemcUZmkY89aN52zqP0LjuScsbyiASa4KF4j+Yz8C15o05JuQS6lh6Sq+PDS6Sm3tn1HJQkW6+cOLQ6gjlDvkAapbqDr6QyCvvbzNP01bNH6grKgxgj7ptv1fpVhsDw+gH5hYadqN+mE385k5dkkK6EjJA2ynlDbZuPQDHAIzVl1W2X0U996DY1xaA2SFmd8hlCaUCN54R0c+p0Q8RE1LEKFbmdpfE/j+8Zoi6CMCWtnabOwtDx1PHWkZkWF1PpQlM3s5PhyH1wyGc4EwVLBwz7eUezRRDLC+EczNLqpgZL6iK7RcFBQQCgSv4P3LxO0mjB6CULoD4eB7qEb2Ib2aYA+NLSqPfaW+sSlbQg6IeXYDc6DX4iWnqT49+yN2VgFlBw06WmgmeYJ79lAuUUUAxtlfLdBfckfUaRTLxZMZjL4s0LboH+lG/9wQEM7Ib4u3PzQpYzaKi/POaAOASKHY2NbDCYMI8jnDLSqwylBGazm8JccygqWjU3j2T35c4nSv6EUN74oAs1cCWQMdlQMLVtU3RgnqQTLx9r847+vBUzIgqX8/+MmOjqYp163/FK8EP9fC4ORp4WfAcRt8hgKZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqCjw8Ci9CYXNlRm9udCAvSGVsdmV0aWNhLUJvbGQKL0VuY29kaW5nIC9XaW5BbnNpRW5jb2RpbmcKL1N1YnR5cGUgL1R5cGUxCi9UeXBlIC9Gb250Cj4+CmVuZG9iago2IDAgb2JqCjw8Ci9CYXNlRm9udCAvSGVsdmV0aWNhCi9FbmNvZGluZyAvV2luQW5zaUVuY29kaW5nCi9TdWJ0eXBlIC9UeXBlMQovVHlwZSAvRm9udAo+PgplbmRvYmoKNyAwIG9iago8PAovRm9udCA8PC9GMSA1IDAgUgovRjIgNiAwIFI+PgovUHJvY1NldCBbL1BERiAvVGV4dCAvSW1hZ2VCIC9JbWFnZUMgL0ltYWdlSV0KPj4KZW5kb2JqCjggMCBvYmoKPDwKL0NyZWF0aW9uRGF0ZSAoRDoyMDI2MDMwNDE5MTgwNVopCj4+CmVuZG9iagp4cmVmCjAgOQowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMTUgMDAwMDAgbiAKMDAwMDAwMDEwMiAwMDAwMCBuIAowMDAwMDAwMjA1IDAwMDAwIG4gCjAwMDAwMDAyODUgMDAwMDAgbiAKMDAwMDAwMTI3NyAwMDAwMCBuIAowMDAwMDAxMzc5IDAwMDAwIG4gCjAwMDAwMDE0NzYgMDAwMDAgbiAKMDAwMDAwMTU3MyAwMDAwMCBuIAp0cmFpbGVyCjw8Ci9TaXplIDkKL1Jvb3QgMiAwIFIKL0luZm8gOCAwIFIKL0lEIFs8Q0ZFNUJBRjMyQzJDRDY3RTY5ODIxNTJCMDM5RTlCRjg+PENGRTVCQUYzMkMyQ0Q2N0U2OTgyMTUyQjAzOUU5QkY4Pl0KPj4Kc3RhcnR4cmVmCjE2MjgKJSVFT0YK"
+    }
+  ],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 6,
+    "api_errors": 0,
+    "time_ms": 20068,
+    "error_details": null
+  },
+  "task_type": "employee_onboarding",
+  "classified_by": "auto",
+  "tier": 2
+}

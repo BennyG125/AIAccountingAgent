@@ -1,0 +1,17 @@
+{
+  "task_id": "c42972ab219c",
+  "timestamp": "2026-03-22T10:09:16.590472+00:00",
+  "prompt": "Opprett en faktura til kunden Havbris AS (org.nr 927318113) med tre produktlinjer: Vedlikehold (3372) til 15700 kr med 25 % MVA, Programvarelisens (6488) til 14600 kr med 15 % MVA (næringsmiddel), og Konsulenttimer (4810) til 5950 kr med 0 % MVA (avgiftsfri).",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 5,
+    "api_errors": 1,
+    "time_ms": 17854,
+    "error_details": null
+  },
+  "task_type": "register_hours",
+  "classified_by": "auto",
+  "tier": 2
+}

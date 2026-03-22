@@ -1,0 +1,17 @@
+{
+  "task_id": "d7a4af2123ab",
+  "timestamp": "2026-03-22T10:46:16.955126+00:00",
+  "prompt": "Crie uma fatura para o cliente Oceano Lda (org. nº 825975497) com três linhas de produto: Design web (9142) a 5650 NOK com 25 % IVA, Sessão de formação (6419) a 14650 NOK com 15 % IVA (alimentos), e Serviço de rede (7216) a 1000 NOK com 0 % IVA (isento).",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 11,
+    "api_errors": 0,
+    "time_ms": 94410,
+    "error_details": null
+  },
+  "task_type": "create_invoice",
+  "classified_by": "auto",
+  "tier": 1
+}

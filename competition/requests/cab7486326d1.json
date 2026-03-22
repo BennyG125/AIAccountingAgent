@@ -1,0 +1,17 @@
+{
+  "task_id": "cab7486326d1",
+  "timestamp": "2026-03-22T09:39:45.453495+00:00",
+  "prompt": "Registe 30 horas para Leonor Almeida (leonor.almeida@example.org) na atividade \"Utvikling\" do projeto \"Migração de dados\" para Estrela Lda (org. nº 911889307). Taxa horária: 1550 NOK/h. Gere uma fatura de projeto ao cliente com base nas horas registadas.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 9,
+    "api_errors": 0,
+    "time_ms": 114719,
+    "error_details": null
+  },
+  "task_type": "register_hours",
+  "classified_by": "auto",
+  "tier": 2
+}

@@ -1,0 +1,17 @@
+{
+  "task_id": "b1ee75970049",
+  "timestamp": "2026-03-22T10:00:14.793389+00:00",
+  "prompt": "Opprett og send en faktura til kunden Stormberg AS (org.nr 921996144) på 31250 kr eksklusiv MVA. Fakturaen gjelder Opplæring.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 4,
+    "api_errors": 0,
+    "time_ms": 30062,
+    "error_details": null
+  },
+  "task_type": "create_invoice",
+  "classified_by": "auto",
+  "tier": 1
+}

@@ -1,0 +1,17 @@
+{
+  "task_id": "2317e1880253",
+  "timestamp": "2026-03-22T09:38:45.990895+00:00",
+  "prompt": "Kunden Nordhav AS (org.nr 841333608) har en utestående faktura på 14200 kr eksklusiv MVA for \"Skylagring\". Registrer full betaling på denne fakturaen.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 4,
+    "api_errors": 0,
+    "time_ms": 55800,
+    "error_details": null
+  },
+  "task_type": "register_payment",
+  "classified_by": "auto",
+  "tier": 2
+}

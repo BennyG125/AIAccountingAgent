@@ -1,0 +1,17 @@
+{
+  "task_id": "4eddaf28aec9",
+  "timestamp": "2026-03-22T11:15:10.789834+00:00",
+  "prompt": "Erstellen und senden Sie eine Rechnung an den Kunden Flussgold GmbH (Org.-Nr. 918267581) über 6400 NOK ohne MwSt. Die Rechnung betrifft Webdesign.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 4,
+    "api_errors": 0,
+    "time_ms": 8635,
+    "error_details": null
+  },
+  "task_type": "create_invoice",
+  "classified_by": "auto",
+  "tier": 1
+}

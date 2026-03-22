@@ -1,0 +1,17 @@
+{
+  "task_id": "15c10db10a2e",
+  "timestamp": "2026-03-22T11:15:12.942832+00:00",
+  "prompt": "Erstellen Sie den Kunden Sonnental GmbH mit der Organisationsnummer 929940016. Die Adresse ist Solveien 21, 9008 Tromsø. E-Mail: post@sonnental.no.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 1,
+    "api_errors": 0,
+    "time_ms": 3801,
+    "error_details": null
+  },
+  "task_type": "create_customer",
+  "classified_by": "auto",
+  "tier": 1
+}

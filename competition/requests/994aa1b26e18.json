@@ -1,0 +1,17 @@
+{
+  "task_id": "994aa1b26e18",
+  "timestamp": "2026-03-22T11:39:24.954252+00:00",
+  "prompt": "Create and send an invoice to the customer Ridgepoint Ltd (org no. 941587437) for 40400 NOK excluding VAT. The invoice is for Maintenance.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 4,
+    "api_errors": 0,
+    "time_ms": 8920,
+    "error_details": null
+  },
+  "task_type": "create_invoice",
+  "classified_by": "auto",
+  "tier": 1
+}

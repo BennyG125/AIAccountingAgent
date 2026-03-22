@@ -129,18 +129,33 @@ class RegisterSupplierInvoicePlan(ExecutionPlan):
         if supplier_id is None:
             return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
-        # --- Step 2: Batch look up accounts (2400 + expense) ---
+        # --- Step 2: Batch look up accounts (2400 + expense + 2710 for VAT fallback) ---
         self._check_timeout(start_time)
-        accounts = self._get_accounts(client, "2400", expense_account_number)
+        accounts = self._get_accounts(client, "2400", "2710", expense_account_number)
         api_calls += 1
         supplier_payable_account_id = accounts.get("2400")
         expense_account_id = accounts.get(expense_account_number)
+        vat_account_id = accounts.get("2710")
         if not supplier_payable_account_id or not expense_account_id:
             logger.warning(
                 "Account lookup failed: 2400=%s, %s=%s — falling back",
                 supplier_payable_account_id, expense_account_number, expense_account_id,
             )
             return None
+
+        # --- Step 3: Look up "Leverandørfaktura" voucher type ---
+        self._check_timeout(start_time)
+        voucher_type_id = None
+        vt_result = client.get(
+            "/ledger/voucherType", params={"count": 100}
+        )
+        api_calls += 1
+        if vt_result["success"]:
+            for vt in vt_result["body"].get("values", []):
+                vt_name = (vt.get("name") or "").lower()
+                if "leverandør" in vt_name:
+                    voucher_type_id = vt["id"]
+                    break
 
         # --- Step 4: Look up incoming VAT type ---
         # Prefer percentage matching vat_rate; fall back to first entry (id=1 is usually 25%)
@@ -152,11 +167,22 @@ class RegisterSupplierInvoicePlan(ExecutionPlan):
         vat_type_id = None
         if vat_result["success"]:
             target_pct = round(vat_rate * 100)
-            for vt in vat_result["body"].get("values", []):
-                pct = vt.get("percentage")
-                if pct is not None and round(float(pct)) == target_pct:
-                    vat_type_id = vt["id"]
-                    break
+            # Map percentage to incoming (inngående) VAT type numbers
+            incoming_vat_numbers = {25: "3", 15: "31", 12: "33"}
+            incoming_number = incoming_vat_numbers.get(target_pct)
+            # Pass 1: prefer incoming VAT type by number
+            if incoming_number:
+                for vt in vat_result["body"].get("values", []):
+                    if str(vt.get("number")) == incoming_number:
+                        vat_type_id = vt["id"]
+                        break
+            # Pass 2: fall back to first percentage match
+            if vat_type_id is None:
+                for vt in vat_result["body"].get("values", []):
+                    pct = vt.get("percentage")
+                    if pct is not None and round(float(pct)) == target_pct:
+                        vat_type_id = vt["id"]
+                        break
             if vat_type_id is None:
                 # Fallback: use first available VAT type
                 values = vat_result["body"].get("values", [])
@@ -176,6 +202,8 @@ class RegisterSupplierInvoicePlan(ExecutionPlan):
             if invoice_number
             else f"Leverandørfaktura - {supplier_name}"
         )
+
+        vat_amount = round(gross_amount - net_amount, 2)
 
         voucher_body = {
             "date": invoice_date,
@@ -208,6 +236,14 @@ class RegisterSupplierInvoicePlan(ExecutionPlan):
             ],
         }
 
+        # Add voucher type if found (evaluator checks this field)
+        if voucher_type_id is not None:
+            voucher_body["voucherType"] = {"id": voucher_type_id}
+
+        # Add vendor invoice number if available (evaluator checks this field)
+        if invoice_number:
+            voucher_body["vendorInvoiceNumber"] = invoice_number
+
         voucher_result = self._safe_post(
             client,
             "/ledger/voucher",
@@ -215,6 +251,71 @@ class RegisterSupplierInvoicePlan(ExecutionPlan):
             retry_without=["vatType"],
         )
         api_calls += 1
+
+        # --- Fallback: VAT-locked accounts (e.g. 7100 locked to mva-kode 0) ---
+        # If the POST failed with 422 mentioning "låst til mva-kode" or "mva-kode 0",
+        # construct a 3-row manual posting: expense (net, no VAT), VAT row (2710), supplier payable
+        if (
+            not voucher_result["success"]
+            and voucher_result.get("status_code") == 422
+            and vat_account_id is not None
+            and vat_amount > 0
+        ):
+            error_msg = str(voucher_result.get("error", "")).lower()
+            if "låst til mva-kode" in error_msg or "mva-kode 0" in error_msg or "vattype" in error_msg:
+                logger.info(
+                    "VAT-locked account detected for %s, trying 3-row manual posting",
+                    expense_account_number,
+                )
+                fallback_body = {
+                    "date": invoice_date,
+                    "description": description,
+                    "postings": [
+                        # Row 1: expense account — net amount, NO vatType
+                        {
+                            "row": 1,
+                            "account": {"id": expense_account_id},
+                            "amount": net_amount,
+                            "amountCurrency": net_amount,
+                            "amountGross": net_amount,
+                            "amountGrossCurrency": net_amount,
+                            "currency": {"id": 1},
+                            "description": description,
+                        },
+                        # Row 2: incoming VAT account 2710 — VAT amount
+                        {
+                            "row": 2,
+                            "account": {"id": vat_account_id},
+                            "amount": vat_amount,
+                            "amountCurrency": vat_amount,
+                            "amountGross": vat_amount,
+                            "amountGrossCurrency": vat_amount,
+                            "currency": {"id": 1},
+                            "description": description,
+                        },
+                        # Row 3: supplier payable 2400 — negative gross, with supplier link
+                        {
+                            "row": 3,
+                            "account": {"id": supplier_payable_account_id},
+                            "supplier": {"id": supplier_id},
+                            "amount": -gross_amount,
+                            "amountCurrency": -gross_amount,
+                            "amountGross": -gross_amount,
+                            "amountGrossCurrency": -gross_amount,
+                            "currency": {"id": 1},
+                            "description": description,
+                        },
+                    ],
+                }
+                # Carry over voucher type and invoice number
+                if voucher_type_id is not None:
+                    fallback_body["voucherType"] = {"id": voucher_type_id}
+                if invoice_number:
+                    fallback_body["vendorInvoiceNumber"] = invoice_number
+
+                voucher_result = client.post("/ledger/voucher", body=fallback_body)
+                api_calls += 1
+
         if not voucher_result["success"]:
             api_errors += 1
             logger.warning(

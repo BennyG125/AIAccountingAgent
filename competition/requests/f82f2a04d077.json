@@ -1,0 +1,23 @@
+{
+  "task_id": "f82f2a04d077",
+  "timestamp": "2026-03-22T11:43:31.725157+00:00",
+  "prompt": "Du har motteke ein leverandorfaktura (sjaa vedlagt PDF). Registrer fakturaen i Tripletex. Opprett leverandoren viss den ikkje finst. Bruk rett utgiftskonto og inngaaande MVA.",
+  "files": [
+    {
+      "filename": "files/leverandorfaktura_nn_04.pdf",
+      "mime_type": "application/pdf",
+      "content_base64": "JVBERi0xLjMKJenr8b8KMSAwIG9iago8PAovQ291bnQgMQovS2lkcyBbMyAwIFJdCi9NZWRpYUJveCBbMCAwIDU5NS4yOCA4NDEuODldCi9UeXBlIC9QYWdlcwo+PgplbmRvYmoKMiAwIG9iago8PAovT3BlbkFjdGlvbiBbMyAwIFIgL0ZpdEggbnVsbF0KL1BhZ2VMYXlvdXQgL09uZUNvbHVtbgovUGFnZXMgMSAwIFIKL1R5cGUgL0NhdGFsb2cKPj4KZW5kb2JqCjMgMCBvYmoKPDwKL0NvbnRlbnRzIDQgMCBSCi9QYXJlbnQgMSAwIFIKL1Jlc291cmNlcyA3IDAgUgovVHlwZSAvUGFnZQo+PgplbmRvYmoKNCAwIG9iago8PAovRmlsdGVyIC9GbGF0ZURlY29kZQovTGVuZ3RoIDQ0NQo+PgpzdHJlYW0KeJyVk81u2zAQhO95ir0UaIFmQy65/PHNRmsgDZoCiZq7ANOGIlkuKDp99R5LWzZsKWngHkXsN0OOdgi+XQlkC7+vZgXczCVIg0JAsYSvxe5ISZQOrNe7oWIBH2d/mlWoY7lMMH38BMXzYfBmTiDFW6xVaPye/RFX2MYJOGattXLijD8MszkO37aLbZdi9RKq0IKUn4GFUDALcRXagbEEGhqT9qgIjPfo1F5sPr0rfj5MR5iUb9zXsEXZv3Ve1mkby3a7Xoc4GT92CEt2aPU5fXv/dE2CzLWTni5yVjllce68KNPmQt8TSwqFxJ3zRab51FFvuonLsmm6/3A9wUQo6GJXthZdf92iaibwpUoJllVcl0eaHCoGJo1awjpj2Ukevxt4hJOWItTcL2fo6t3GNF046gzBNbAx6NVIiJVC1kOlZvPr/QwO7sKj7X/4fUjpJcS6S8+hDV0K8UyASaIS5+PG2yxXx/dLpC3vFkrnwHTPfX+aAvGHCUiriccCOXAaCeRGZwFmNLJPfJPKJuUaWvma/0eLdVYlt8fvNm3ej7xx4nV/lc8J9pWblW1d96NsjfDaOCf8kfgLLAwNmwplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmoKPDwKL0Jhc2VGb250IC9IZWx2ZXRpY2EtQm9sZAovRW5jb2RpbmcgL1dpbkFuc2lFbmNvZGluZwovU3VidHlwZSAvVHlwZTEKL1R5cGUgL0ZvbnQKPj4KZW5kb2JqCjYgMCBvYmoKPDwKL0Jhc2VGb250IC9IZWx2ZXRpY2EKL0VuY29kaW5nIC9XaW5BbnNpRW5jb2RpbmcKL1N1YnR5cGUgL1R5cGUxCi9UeXBlIC9Gb250Cj4+CmVuZG9iago3IDAgb2JqCjw8Ci9Gb250IDw8L0YxIDUgMCBSCi9GMiA2IDAgUj4+Ci9Qcm9jU2V0IFsvUERGIC9UZXh0IC9JbWFnZUIgL0ltYWdlQyAvSW1hZ2VJXQo+PgplbmRvYmoKOCAwIG9iago8PAovQ3JlYXRpb25EYXRlIChEOjIwMjYwMzA0MTkxODA1WikKPj4KZW5kb2JqCnhyZWYKMCA5CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAxNSAwMDAwMCBuIAowMDAwMDAwMTAyIDAwMDAwIG4gCjAwMDAwMDAyMDUgMDAwMDAgbiAKMDAwMDAwMDI4NSAwMDAwMCBuIAowMDAwMDAwODAyIDAwMDAwIG4gCjAwMDAwMDA5MDQgMDAwMDAgbiAKMDAwMDAwMTAwMSAwMDAwMCBuIAowMDAwMDAxMDk4IDAwMDAwIG4gCnRyYWlsZXIKPDwKL1NpemUgOQovUm9vdCAyIDAgUgovSW5mbyA4IDAgUgovSUQgWzwwRTc0REM2MjQxMUU4RUVFMUE5OTU0QzNDRjgwQ0E5Qj48MEU3NERDNjI0MTFFOEVFRTFBOTk1NEMzQ0Y4MENBOUI+XQo+PgpzdGFydHhyZWYKMTE1MwolJUVPRgo="
+    }
+  ],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 5,
+    "api_errors": 0,
+    "time_ms": 9829,
+    "error_details": null
+  },
+  "task_type": "register_supplier_invoice",
+  "classified_by": "auto",
+  "tier": 2
+}

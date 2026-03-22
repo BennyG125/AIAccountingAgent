@@ -353,6 +353,16 @@ class ForexPaymentPlan(ExecutionPlan):
 
         self._check_timeout(start_time)
 
+        # --- Look up voucherType "Betaling" for forex voucher ---
+        vt_betaling_id = None
+        vt_result = client.get("/ledger/voucherType", params={})
+        api_calls += 1
+        if vt_result["success"]:
+            for vt in vt_result["body"].get("values", []):
+                if "betaling" in vt.get("name", "").lower():
+                    vt_betaling_id = vt["id"]
+                    break
+
         # --- Post forex difference voucher ---
         # Skip voucher if rates are identical (no difference)
         if abs_diff == 0.0:
@@ -407,14 +417,14 @@ class ForexPaymentPlan(ExecutionPlan):
                 },
             ]
 
-        voucher_result = client.post(
-            "/ledger/voucher",
-            body={
-                "date": today,
-                "description": voucher_description,
-                "postings": postings,
-            },
-        )
+        forex_voucher_body = {
+            "date": today,
+            "description": voucher_description,
+            "postings": postings,
+        }
+        if vt_betaling_id:
+            forex_voucher_body["voucherType"] = {"id": vt_betaling_id}
+        voucher_result = client.post("/ledger/voucher", body=forex_voucher_body)
         api_calls += 1
         if not voucher_result["success"]:
             api_errors += 1

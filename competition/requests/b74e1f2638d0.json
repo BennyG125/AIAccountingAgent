@@ -1,0 +1,17 @@
+{
+  "task_id": "b74e1f2638d0",
+  "timestamp": "2026-03-22T10:49:22.746527+00:00",
+  "prompt": "En av kundene dine har en forfalt faktura. Finn den forfalte fakturaen og bokfor et purregebyr pa 55 kr. Debet kundefordringer (1500), kredit purregebyr (3400). Opprett også en faktura for purregebyret til kunden og send den. Registrer i tillegg en delbetaling på 5000 kr på den forfalte fakturaen.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 11,
+    "api_errors": 1,
+    "time_ms": 21879,
+    "error_details": null
+  },
+  "task_type": "overdue_invoice_reminder",
+  "classified_by": "auto",
+  "tier": 2
+}

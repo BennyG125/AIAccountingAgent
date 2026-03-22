@@ -1,0 +1,17 @@
+{
+  "task_id": "93a801600e8d",
+  "timestamp": "2026-03-22T10:41:02.819711+00:00",
+  "prompt": "Créez le client Lumière SARL avec le numéro d'organisation 917096112. L'adresse est Havnegata 112, 5003 Bergen. E-mail : post@lumiere.no.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 1,
+    "api_errors": 0,
+    "time_ms": 3867,
+    "error_details": null
+  },
+  "task_type": "create_customer",
+  "classified_by": "auto",
+  "tier": 1
+}

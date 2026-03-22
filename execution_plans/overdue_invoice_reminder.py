@@ -160,6 +160,18 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
         self._check_timeout(start_time)
 
         # ------------------------------------------------------------------
+        # Step 2b: Look up voucherType "Purring"
+        # ------------------------------------------------------------------
+        vt_purring_id = None
+        vt_result = client.get("/ledger/voucherType", params={})
+        api_calls += 1
+        if vt_result["success"]:
+            for vt in vt_result["body"].get("values", []):
+                if "purring" in vt.get("name", "").lower():
+                    vt_purring_id = vt["id"]
+                    break
+
+        # ------------------------------------------------------------------
         # Step 3: Post reminder fee voucher (debit 1500, credit 3400)
         # ------------------------------------------------------------------
         voucher_body = {
@@ -185,6 +197,8 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
                 },
             ],
         }
+        if vt_purring_id:
+            voucher_body["voucherType"] = {"id": vt_purring_id}
         voucher_result = client.post("/ledger/voucher", body=voucher_body)
         api_calls += 1
         if not voucher_result["success"]:

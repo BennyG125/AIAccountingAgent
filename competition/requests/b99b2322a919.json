@@ -1,0 +1,24 @@
+{
+  "task_id": "b99b2322a919",
+  "timestamp": "2026-03-22T12:03:05.904355+00:00",
+  "prompt": "Vi har oppdaget feil i hovedboken for januar og februar 2026. Gå gjennom alle bilag og finn de 4 feilene: en postering på feil konto (konto 6300 brukt i stedet for 7100, beløp 7150 kr), et duplisert bilag (konto 7100, beløp 5000 kr), en manglende MVA-linje (konto 4300, beløp ekskl. 16750 kr mangler MVA på konto 2710), og et feil beløp (konto 6300, 14600 kr bokført i stedet for 11050 kr). Korriger alle feil med riktige bilag.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 1,
+    "api_errors": 1,
+    "time_ms": 16191,
+    "error_details": [
+      {
+        "tool": "tripletex_get",
+        "path": "/ledger/account",
+        "status": 403,
+        "error": "{'error': 'Invalid or expired proxy token. Each submission receives a unique token - do not reuse tokens from previous submissions.', 'source': 'nmiai-proxy'}"
+      }
+    ]
+  },
+  "task_type": "year_end_corrections",
+  "classified_by": "auto",
+  "tier": 3
+}

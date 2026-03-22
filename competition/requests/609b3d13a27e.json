@@ -1,0 +1,17 @@
+{
+  "task_id": "609b3d13a27e",
+  "timestamp": "2026-03-22T11:47:10.833113+00:00",
+  "prompt": "Erstellen Sie das Produkt \"Datenberatung\" mit der Produktnummer 7855. Der Preis beträgt 41550 NOK ohne MwSt., mit dem Standardsatz von 25 %.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 1,
+    "api_errors": 0,
+    "time_ms": 2745,
+    "error_details": null
+  },
+  "task_type": "create_product",
+  "classified_by": "auto",
+  "tier": 1
+}

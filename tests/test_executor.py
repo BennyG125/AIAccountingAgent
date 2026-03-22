@@ -44,6 +44,47 @@ class TestExecutionPlanBase:
         second_call_body = client.post.call_args_list[1][1].get("body") or client.post.call_args_list[1][0][1]
         assert "vatType" not in second_call_body
 
+    def test_safe_post_strips_nested_vatType_from_postings(self):
+        """Regression test: retry_without must strip vatType from postings[] items."""
+        plan = ExecutionPlan()
+        client = MagicMock()
+        client.post.side_effect = [
+            {"success": False, "status_code": 422, "error": "vatType invalid"},
+            {"success": True, "body": {"value": {"id": 1}}},
+        ]
+        body = {
+            "date": "2026-01-01",
+            "postings": [
+                {
+                    "account": {"id": 10},
+                    "amount": 800,
+                    "amountCurrency": 800,
+                    "amountGross": 1000,
+                    "amountGrossCurrency": 1000,
+                    "vatType": {"id": 5},
+                },
+                {
+                    "account": {"id": 20},
+                    "amount": -1000,
+                    "amountCurrency": -1000,
+                    "amountGross": -1000,
+                    "amountGrossCurrency": -1000,
+                },
+            ],
+        }
+        result = plan._safe_post(
+            client, "/ledger/voucher", body, retry_without=["vatType"]
+        )
+        assert result["success"]
+        retry_body = client.post.call_args_list[1][1].get("body") or client.post.call_args_list[1][0][1]
+        # vatType must be gone from the posting that had it
+        assert "vatType" not in retry_body["postings"][0]
+        # amountGross must be adjusted to equal amount (no VAT auto-calc)
+        assert retry_body["postings"][0]["amountGross"] == 800
+        assert retry_body["postings"][0]["amountGrossCurrency"] == 800
+        # The second posting (no vatType) should be unchanged
+        assert retry_body["postings"][1]["amountGross"] == -1000
+
     def test_safe_post_does_not_mutate_original_body(self):
         plan = ExecutionPlan()
         client = MagicMock()
@@ -54,6 +95,21 @@ class TestExecutionPlanBase:
         original = {"name": "x", "vatType": "bad"}
         plan._safe_post(client, "/test", original, retry_without=["vatType"])
         assert "vatType" in original  # original unchanged
+
+    def test_safe_post_does_not_mutate_nested_postings(self):
+        """Ensure recursive stripping does not mutate the original postings."""
+        plan = ExecutionPlan()
+        client = MagicMock()
+        client.post.side_effect = [
+            {"success": False, "status_code": 422, "error": "bad"},
+            {"success": True, "body": {"value": {"id": 1}}},
+        ]
+        posting = {"amount": 100, "amountGross": 125, "vatType": {"id": 3}}
+        original = {"postings": [posting]}
+        plan._safe_post(client, "/test", original, retry_without=["vatType"])
+        # Original posting must still have vatType and original amountGross
+        assert "vatType" in posting
+        assert posting["amountGross"] == 125
 
     def test_find_or_create_finds_existing(self):
         plan = ExecutionPlan()

@@ -1,0 +1,17 @@
+{
+  "task_id": "687a2c2fd4ed",
+  "timestamp": "2026-03-22T11:39:59.858191+00:00",
+  "prompt": "Betalingen fra Tindra AS (org.nr 939161937) for fakturaen \"Webdesign\" (24350 kr ekskl. MVA) ble returnert av banken. Reverser betalingen slik at fakturaen igjen viser utestående beløp.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 8,
+    "api_errors": 0,
+    "time_ms": 21175,
+    "error_details": []
+  },
+  "task_type": "reverse_payment",
+  "classified_by": "auto",
+  "tier": 2
+}

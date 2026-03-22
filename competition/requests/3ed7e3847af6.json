@@ -1,0 +1,17 @@
+{
+  "task_id": "3ed7e3847af6",
+  "timestamp": "2026-03-22T09:57:03.232652+00:00",
+  "prompt": "Crea el producto \"Servicio de red\" con número de producto 6866. El precio es 19100 NOK sin IVA, utilizando la tasa estándar del 25 %.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 1,
+    "api_errors": 0,
+    "time_ms": 12078,
+    "error_details": null
+  },
+  "task_type": "create_product",
+  "classified_by": "auto",
+  "tier": 1
+}

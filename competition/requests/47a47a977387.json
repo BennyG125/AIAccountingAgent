@@ -1,0 +1,17 @@
+{
+  "task_id": "47a47a977387",
+  "timestamp": "2026-03-22T09:39:38.378069+00:00",
+  "prompt": "Gjennomfør heile prosjektsyklusen for 'Dataplattform Fossekraft' (Fossekraft AS, org.nr 992409274): 1) Prosjektet har budsjett 322600 kr. 2) Registrer timar: Geir Berge (prosjektleiar, geir.berge@example.org) 22 timar og Randi Vik (konsulent, randi.vik@example.org) 61 timar. 3) Registrer leverandørkostnad 84650 kr frå Sjøbris AS (org.nr 937539266). 4) Opprett kundefaktura for prosjektet.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 21,
+    "api_errors": 1,
+    "time_ms": 53919,
+    "error_details": null
+  },
+  "task_type": "project_lifecycle",
+  "classified_by": "auto",
+  "tier": 3
+}

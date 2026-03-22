@@ -1,0 +1,17 @@
+{
+  "task_id": "f03707e504d5",
+  "timestamp": "2026-03-22T10:10:09.869936+00:00",
+  "prompt": "L'un de vos clients a une facture en retard. Trouvez la facture en retard et enregistrez des frais de rappel de 65 NOK. Debit creances clients (1500), credit revenus de rappel (3400). Créez également une facture pour les frais de rappel au client et envoyez-la. De plus, enregistrez un paiement partiel de 5000 NOK sur la facture en retard.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 11,
+    "api_errors": 1,
+    "time_ms": 27815,
+    "error_details": null
+  },
+  "task_type": "overdue_invoice_reminder",
+  "classified_by": "auto",
+  "tier": 2
+}

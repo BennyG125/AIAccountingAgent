@@ -1,0 +1,17 @@
+{
+  "task_id": "a48f2964065a",
+  "timestamp": "2026-03-22T11:47:40.724279+00:00",
+  "prompt": "Créez une facture pour le client Lumière SARL (nº org. 925760838) avec trois lignes de produit : Maintenance (3644) à 1850 NOK avec 25 % TVA, Licence logicielle (4934) à 14850 NOK avec 15 % TVA (alimentaire), et Service réseau (8806) à 17250 NOK avec 0 % TVA (exonéré).",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 11,
+    "api_errors": 0,
+    "time_ms": 16675,
+    "error_details": null
+  },
+  "task_type": "create_invoice",
+  "classified_by": "auto",
+  "tier": 1
+}

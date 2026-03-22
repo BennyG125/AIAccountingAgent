@@ -56,6 +56,9 @@ class ExecutionPlan:
         """
         numbers_str = ",".join(str(n) for n in account_numbers)
         result = client.get("/ledger/account", params={"number": numbers_str})
+        if not result["success"] and result.get("status_code") in (502, 503, 504):
+            time.sleep(1)
+            result = client.get("/ledger/account", params={"number": numbers_str})
         if not result["success"]:
             logger.warning("Failed to look up accounts %s: %s", numbers_str, result)
             return {}
@@ -81,7 +84,11 @@ class ExecutionPlan:
         """POST with optional field removal on 422 failure.
 
         If the first POST returns 422 and retry_without is specified,
-        retries with those fields removed from the body.
+        retries with those fields recursively removed from the body
+        (including nested dicts and lists like postings[]).
+        When stripping 'vatType' from a posting dict, also adjusts
+        amountGross = amount and amountGrossCurrency = amountCurrency
+        so gross equals net (no auto-VAT calculation without vatType).
         Does NOT mutate the original body dict.
         """
         result = client.post(path, body=body)
@@ -90,9 +97,40 @@ class ExecutionPlan:
             and retry_without
             and result.get("status_code") == 422
         ):
-            cleaned = {k: v for k, v in body.items() if k not in retry_without}
+            cleaned = self._strip_fields_recursive(body, retry_without)
             result = client.post(path, body=cleaned)
         return result
+
+    @staticmethod
+    def _strip_fields_recursive(obj, fields: list[str]):
+        """Recursively strip specified fields from dicts, traversing lists.
+
+        When stripping 'vatType' from a dict that also has 'amount',
+        sets amountGross = amount and amountGrossCurrency = amountCurrency
+        so the posting remains valid without VAT auto-calculation.
+
+        Returns a new object (never mutates the original).
+        """
+        if isinstance(obj, dict):
+            cleaned = {}
+            stripped_vat = False
+            for k, v in obj.items():
+                if k in fields:
+                    if k == "vatType":
+                        stripped_vat = True
+                    continue
+                cleaned[k] = ExecutionPlan._strip_fields_recursive(v, fields)
+            # When vatType was stripped, gross must equal net
+            if stripped_vat:
+                if "amount" in cleaned:
+                    cleaned["amountGross"] = cleaned["amount"]
+                if "amountCurrency" in cleaned:
+                    cleaned["amountGrossCurrency"] = cleaned["amountCurrency"]
+            return cleaned
+        elif isinstance(obj, list):
+            return [ExecutionPlan._strip_fields_recursive(item, fields) for item in obj]
+        else:
+            return obj
 
     def _find_or_create(
         self,

@@ -324,6 +324,16 @@ class RunSalaryPlan(ExecutionPlan):
             if acct_1920["success"] and acct_1920["body"].get("values"):
                 bank_id = acct_1920["body"]["values"][0]["id"]
 
+            # Look up voucherType "Lønnsbilag"
+            vt_lonn_id = None
+            vt_result = client.get("/ledger/voucherType", params={})
+            api_calls += 1
+            if vt_result["success"]:
+                for vt in vt_result["body"].get("values", []):
+                    if "lønnsbilag" in vt.get("name", "").lower() or "lonnsbilag" in vt.get("name", "").lower():
+                        vt_lonn_id = vt["id"]
+                        break
+
             if expense_id and bank_id:
                 voucher_body = {
                     "date": date_str,
@@ -347,6 +357,8 @@ class RunSalaryPlan(ExecutionPlan):
                         },
                     ],
                 }
+                if vt_lonn_id:
+                    voucher_body["voucherType"] = {"id": vt_lonn_id}
                 voucher_result = client.post("/ledger/voucher", body=voucher_body)
                 api_calls += 1
                 if voucher_result["success"]:

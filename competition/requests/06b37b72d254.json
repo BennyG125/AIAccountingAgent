@@ -1,0 +1,17 @@
+{
+  "task_id": "06b37b72d254",
+  "timestamp": "2026-03-22T11:09:03.001378+00:00",
+  "prompt": "Establezca un precio fijo de 261700 NOK en el proyecto \"Integración CRM\" para Luna SL (org. nº 847950021). El director del proyecto es Andrés López (andres.lopez@example.org). Facture al cliente el 75 % del precio fijo como pago parcial.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 7,
+    "api_errors": 0,
+    "time_ms": 17278,
+    "error_details": null
+  },
+  "task_type": "fixed_price_project",
+  "classified_by": "auto",
+  "tier": 2
+}

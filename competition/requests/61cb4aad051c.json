@@ -1,0 +1,17 @@
+{
+  "task_id": "61cb4aad051c",
+  "timestamp": "2026-03-22T10:27:28.801529+00:00",
+  "prompt": "Registre 11 horas para Ana Romero (ana.romero@example.org) en la actividad \"Design\" del proyecto \"Integración de plataforma\" para Costa Brava SL (org. nº 886098499). Tarifa por hora: 1850 NOK/h. Genere una factura de proyecto al cliente basada en las horas registradas.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 9,
+    "api_errors": 0,
+    "time_ms": 90868,
+    "error_details": null
+  },
+  "task_type": "register_hours",
+  "classified_by": "auto",
+  "tier": 2
+}

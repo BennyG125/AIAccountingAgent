@@ -343,6 +343,22 @@ class BankReconciliationPlan(ExecutionPlan):
                 # Non-fatal — continue with other rows
 
         # ------------------------------------------------------------------ #
+        # Step 8b: Look up voucherTypes for supplier payments and bank fees
+        # ------------------------------------------------------------------ #
+        self._check_timeout(start_time)
+        vt_betaling_id = None
+        vt_bankavstemming_id = None
+        vt_result = client.get("/ledger/voucherType", params={})
+        api_calls += 1
+        if vt_result["success"]:
+            for vt in vt_result["body"].get("values", []):
+                vt_name = vt.get("name", "").lower()
+                if vt_betaling_id is None and "betaling" in vt_name:
+                    vt_betaling_id = vt["id"]
+                if vt_bankavstemming_id is None and "bankavstemming" in vt_name:
+                    vt_bankavstemming_id = vt["id"]
+
+        # ------------------------------------------------------------------ #
         # Step 9: Post vouchers for supplier payments
         # Debit 2400 (supplier payable, negative), credit 1920 (bank, positive)
         # 2400 posting MUST include supplier id
@@ -380,6 +396,8 @@ class BankReconciliationPlan(ExecutionPlan):
                     },
                 ],
             }
+            if vt_betaling_id:
+                voucher_body["voucherType"] = {"id": vt_betaling_id}
             voucher_result = client.post("/ledger/voucher", body=voucher_body)
             api_calls += 1
             if not voucher_result["success"]:
@@ -445,6 +463,8 @@ class BankReconciliationPlan(ExecutionPlan):
                 "description": "Bankgebyr",
                 "postings": postings,
             }
+            if vt_bankavstemming_id:
+                voucher_body["voucherType"] = {"id": vt_bankavstemming_id}
             voucher_result = client.post("/ledger/voucher", body=voucher_body)
             api_calls += 1
             if not voucher_result["success"]:

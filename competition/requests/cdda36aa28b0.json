@@ -1,0 +1,17 @@
+{
+  "task_id": "cdda36aa28b0",
+  "timestamp": "2026-03-22T12:19:15.434292+00:00",
+  "prompt": "Registrer 30 timar for Randi Lunde (randi.lunde@example.org) på aktiviteten \"Analyse\" i prosjektet \"Sikkerheitsrevisjon\" for Dalheim AS (org.nr 950103175). Timesats: 850 kr/t. Generer ein prosjektfaktura til kunden basert på dei registrerte timane.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 9,
+    "api_errors": 0,
+    "time_ms": 22354,
+    "error_details": null
+  },
+  "task_type": "register_hours",
+  "classified_by": "auto",
+  "tier": 2
+}

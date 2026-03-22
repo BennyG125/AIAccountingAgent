@@ -1,0 +1,17 @@
+{
+  "task_id": "49f3bceba480",
+  "timestamp": "2026-03-22T11:09:53.330700+00:00",
+  "prompt": "Führen Sie den vollständigen Projektzyklus für 'Cloud-Migration Bergwerk' (Bergwerk GmbH, Org.-Nr. 887439559) durch: 1) Das Projekt hat ein Budget von 249400 NOK. 2) Erfassen Sie Stunden: Leonie Schneider (Projektleiter, leonie.schneider@example.org) 36 Stunden und Finn Müller (Berater, finn.muller@example.org) 153 Stunden. 3) Erfassen Sie Lieferantenkosten von 38900 NOK von Nordlicht GmbH (Org.-Nr. 975524515). 4) Erstellen Sie eine Kundenrechnung für das Projekt.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 20,
+    "api_errors": 0,
+    "time_ms": 53210,
+    "error_details": null
+  },
+  "task_type": "project_lifecycle",
+  "classified_by": "auto",
+  "tier": 3
+}

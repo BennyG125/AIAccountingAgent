@@ -1,0 +1,23 @@
+{
+  "task_id": "6e32f7f34af6",
+  "timestamp": "2026-03-22T12:24:43.426609+00:00",
+  "prompt": "Du har motteke eit tilbodsbrev (sjaa vedlagt PDF) for ein ny tilsett. Utfor komplett onboarding: opprett den tilsette, tilknytt rett avdeling, set opp tilsetjingsforhold med stillingsprosent og arslonn, og konfigurer standard arbeidstid.",
+  "files": [
+    {
+      "filename": "files/tilbudsbrev_nn_02.pdf",
+      "mime_type": "application/pdf",
+      "content_base64": "JVBERi0xLjMKJenr8b8KMSAwIG9iago8PAovQ291bnQgMQovS2lkcyBbMyAwIFJdCi9NZWRpYUJveCBbMCAwIDU5NS4yOCA4NDEuODldCi9UeXBlIC9QYWdlcwo+PgplbmRvYmoKMiAwIG9iago8PAovT3BlbkFjdGlvbiBbMyAwIFIgL0ZpdEggbnVsbF0KL1BhZ2VMYXlvdXQgL09uZUNvbHVtbgovUGFnZXMgMSAwIFIKL1R5cGUgL0NhdGFsb2cKPj4KZW5kb2JqCjMgMCBvYmoKPDwKL0NvbnRlbnRzIDQgMCBSCi9QYXJlbnQgMSAwIFIKL1Jlc291cmNlcyA3IDAgUgovVHlwZSAvUGFnZQo+PgplbmRvYmoKNCAwIG9iago8PAovRmlsdGVyIC9GbGF0ZURlY29kZQovTGVuZ3RoIDYwMwo+PgpzdHJlYW0KeJyNVMtu2zAQvOcr9lKgBVqGeku51Ujcpk1a1HZ7LWhwLdOmSZVUHOTvu5Jsy4+0kACDMjU7M0vubghfrjhLMni+Gs3gehxAkDPOYbaAu1mzFfKYBTFkRdAsMwlvZ/cPo5+38P0RpvT6cP/t0zuYrXbw63EIQXDCEFFkDlmUsSJtCb6uBDqEiTBSwQhdie+PGHZwnrIsb+G/FCyFg1KjRANiCwJqpecvILEET69amZK+eLuBKRpl3VO9VWuNDhTBJTbfYYKl8WtRsROzlG70itk0TRjv1G+xFnqF7jzstRzTKGYJb8PGVnrUXora3vz/eIIsZEVwHMsTRpigKIpBorSbh93NKF07OiXtcaBoHxtyxjMW8jAdIprkxb4cPhqPdd1o+oV1m2HCR/Fj4evDNQ7STlMWd5U03YX5ylmPph4o3hMEnNJ+M0g1jlhWdBk7r60xA8X6uDTi9MB6UC0lIS3BTm+OStIRyYGSfWjGEmqWDbVCRT8pynMC3hP8gYN4nOUsb01zFocEeG7aUK+Fu4HT+15aLbEGh+UTNRz6tj87vxulV1bbLbWmLWGO0qlFjcY3Vrw1Qi9pAMztmgH1GJQrJCYHhKbL3CJlC5WAfTXCjxN/KdVt258RS/K49bcRBhuCDUqg0qJcSaahNV5JVYKtKq/KzrdTvmZwR2m4gxoJ079zFO1GsKNmMEankLLpTfWW4pjlWXvoiwZVIQ0lBwur26XZas+CXYy6iEYr75rwkbwTxmjyu1RkwlxOxigJWBS18N//fi7DaIm7Ovw8+bAfi2j2wL8y9Z8qCmVuZHN0cmVhbQplbmRvYmoKNSAwIG9iago8PAovQmFzZUZvbnQgL0hlbHZldGljYS1Cb2xkCi9FbmNvZGluZyAvV2luQW5zaUVuY29kaW5nCi9TdWJ0eXBlIC9UeXBlMQovVHlwZSAvRm9udAo+PgplbmRvYmoKNiAwIG9iago8PAovQmFzZUZvbnQgL0hlbHZldGljYQovRW5jb2RpbmcgL1dpbkFuc2lFbmNvZGluZwovU3VidHlwZSAvVHlwZTEKL1R5cGUgL0ZvbnQKPj4KZW5kb2JqCjcgMCBvYmoKPDwKL0ZvbnQgPDwvRjEgNSAwIFIKL0YyIDYgMCBSPj4KL1Byb2NTZXQgWy9QREYgL1RleHQgL0ltYWdlQiAvSW1hZ2VDIC9JbWFnZUldCj4+CmVuZG9iago4IDAgb2JqCjw8Ci9DcmVhdGlvbkRhdGUgKEQ6MjAyNjAzMDQxOTE4MDZaKQo+PgplbmRvYmoKeHJlZgowIDkKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDE1IDAwMDAwIG4gCjAwMDAwMDAxMDIgMDAwMDAgbiAKMDAwMDAwMDIwNSAwMDAwMCBuIAowMDAwMDAwMjg1IDAwMDAwIG4gCjAwMDAwMDA5NjAgMDAwMDAgbiAKMDAwMDAwMTA2MiAwMDAwMCBuIAowMDAwMDAxMTU5IDAwMDAwIG4gCjAwMDAwMDEyNTYgMDAwMDAgbiAKdHJhaWxlcgo8PAovU2l6ZSA5Ci9Sb290IDIgMCBSCi9JbmZvIDggMCBSCi9JRCBbPEUyNkE0RTQ3QUQ4MEMwODQ4ODFEOTQ0RUUwNTlGN0U1PjxFMjZBNEU0N0FEODBDMDg0ODgxRDk0NEVFMDU5RjdFNT5dCj4+CnN0YXJ0eHJlZgoxMzExCiUlRU9GCg=="
+    }
+  ],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 6,
+    "api_errors": 0,
+    "time_ms": 20324,
+    "error_details": null
+  },
+  "task_type": "create_departments",
+  "classified_by": "auto",
+  "tier": 1
+}

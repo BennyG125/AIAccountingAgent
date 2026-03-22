@@ -1,0 +1,17 @@
+{
+  "task_id": "a63ec19e007f",
+  "timestamp": "2026-03-22T10:41:26.179232+00:00",
+  "prompt": "Vi har en ny ansatt som heter Lars Berg, født 10. April 1995. Opprett vedkommende som ansatt med e-post lars.berg@example.org og startdato 16. November 2026.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 3,
+    "api_errors": 0,
+    "time_ms": 41846,
+    "error_details": null
+  },
+  "task_type": "employee_onboarding",
+  "classified_by": "auto",
+  "tier": 2
+}

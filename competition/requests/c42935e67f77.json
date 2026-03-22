@@ -1,0 +1,17 @@
+{
+  "task_id": "c42935e67f77",
+  "timestamp": "2026-03-22T12:00:40.582825+00:00",
+  "prompt": "Erfassen Sie 18 Stunden für Mia Meyer (mia.meyer@example.org) auf der Aktivität \"Testing\" im Projekt \"Sicherheitsaudit\" für Nordlicht GmbH (Org.-Nr. 934651995). Stundensatz: 1400 NOK/h. Erstellen Sie eine Projektrechnung an den Kunden basierend auf den erfassten Stunden.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 9,
+    "api_errors": 0,
+    "time_ms": 13040,
+    "error_details": null
+  },
+  "task_type": "register_hours",
+  "classified_by": "auto",
+  "tier": 2
+}
