@@ -103,6 +103,8 @@ GET /currency?code=EUR&fields=id            → eur_currency_id
       "account": {"id": <ar_account_id>},
       "amount": <diff_nok>,
       "amountCurrency": <diff_nok>,
+      "amountGross": <diff_nok>,
+      "amountGrossCurrency": <diff_nok>,
       "currency": {"id": 1},
       "description": "Agio valutagevinst",
       "row": 1
@@ -111,6 +113,8 @@ GET /currency?code=EUR&fields=id            → eur_currency_id
       "account": {"id": <agio_account_id>},
       "amount": <negative_diff_nok>,
       "amountCurrency": <negative_diff_nok>,
+      "amountGross": <negative_diff_nok>,
+      "amountGrossCurrency": <negative_diff_nok>,
       "currency": {"id": 1},
       "description": "Agio valutagevinst",
       "row": 2
@@ -129,6 +133,8 @@ GET /currency?code=EUR&fields=id            → eur_currency_id
       "account": {"id": <disagio_account_id>},
       "amount": <abs_diff_nok>,
       "amountCurrency": <abs_diff_nok>,
+      "amountGross": <abs_diff_nok>,
+      "amountGrossCurrency": <abs_diff_nok>,
       "currency": {"id": 1},
       "description": "Disagio valutatap",
       "row": 1
@@ -137,6 +143,8 @@ GET /currency?code=EUR&fields=id            → eur_currency_id
       "account": {"id": <ar_account_id>},
       "amount": <negative_abs_diff_nok>,
       "amountCurrency": <negative_abs_diff_nok>,
+      "amountGross": <negative_abs_diff_nok>,
+      "amountGrossCurrency": <negative_abs_diff_nok>,
       "currency": {"id": 1},
       "description": "Disagio valutatap",
       "row": 2
@@ -147,9 +155,9 @@ GET /currency?code=EUR&fields=id            → eur_currency_id
 
 **CRITICAL rules:**
 - Postings MUST balance (sum of amounts = 0).
-- ALWAYS set both `amount` AND `amountCurrency` (same value) — omitting `amountCurrency` silently results in 0.0.
+- ALWAYS set ALL FOUR amount fields: `amount`, `amountCurrency`, `amountGross`, `amountGrossCurrency` — omitting amountGross silently stores 0.0.
+- For non-VAT rows: amountGross = amount, amountGrossCurrency = amountCurrency.
 - Do NOT include `vatType` on exchange rate difference postings.
-- Do NOT include `amountGross` or `amountGrossCurrency` — these are NOK-only postings with no VAT.
 - Rows start at 1.
 
 ## IMPORTANT

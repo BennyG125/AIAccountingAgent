@@ -539,6 +539,8 @@ IMPORTANT: Look up real account IDs with GET /ledger/account?number=XXXX — do 
 
 ### GET /ledger/voucher
 Search: ?dateFrom=X&dateTo=X&number=X&fields=...
+IMPORTANT: dateFrom and dateTo are REQUIRED. dateTo must be strictly AFTER dateFrom (same date → 422).
+Use a wide range like dateFrom=2026-01-01&dateTo=2026-12-31 when searching.
 
 ### GET /ledger/voucher/{id}
 Get voucher by ID.

@@ -15,8 +15,8 @@ Typical prompt (translated): "One of your customers has an overdue invoice. Find
 - Customer: NOT given by name — must be discovered from the overdue invoice
 
 ## Step 1: Find the overdue invoice
-**API call:** `GET /invoice?invoiceDateFrom=<one_year_ago>&invoiceDateTo={today}&fields=id,invoiceNumber,invoiceDueDate,amountRemainingCurrency,customer`
-**Capture:** Pick the invoice with the earliest `invoiceDueDate` in the past AND non-zero `amountRemainingCurrency`. Capture `overdue_invoice_id` and `customer_id` (from `customer.id`).
+**API call:** `GET /invoice?invoiceDateFrom=<one_year_ago>&invoiceDateTo={today}&fields=id,invoiceNumber,invoiceDueDate,amountOutstanding,customer`
+**Capture:** Pick the invoice with the earliest `invoiceDueDate` in the past AND non-zero `amountOutstanding`. Capture `overdue_invoice_id` and `customer_id` (from `customer.id`).
 **CRITICAL:** Do NOT use `invoiceDateFrom=2000-01-01` — this causes 422. Use a 1-year lookback: `invoiceDateFrom=<today minus 365 days>`.
 **On error 422:** Try a narrower date window, e.g. 6 months back.
 
@@ -40,6 +40,8 @@ GET /ledger/account?number=3400&fields=id,number,name   → credit_account_id
       "account": {"id": <debit_account_id>},
       "amount": <reminder_fee_amount>,
       "amountCurrency": <reminder_fee_amount>,
+      "amountGross": <reminder_fee_amount>,
+      "amountGrossCurrency": <reminder_fee_amount>,
       "currency": {"id": 1},
       "customer": {"id": <customer_id>},
       "description": "Reminder fee — accounts receivable",
@@ -49,6 +51,8 @@ GET /ledger/account?number=3400&fields=id,number,name   → credit_account_id
       "account": {"id": <credit_account_id>},
       "amount": <negative_reminder_fee>,
       "amountCurrency": <negative_reminder_fee>,
+      "amountGross": <negative_reminder_fee>,
+      "amountGrossCurrency": <negative_reminder_fee>,
       "currency": {"id": 1},
       "description": "Reminder fee income",
       "row": 2
@@ -110,7 +114,7 @@ GET /ledger/account?number=3400&fields=id,number,name   → credit_account_id
 **CRITICAL:** All parameters are QUERY PARAMS, NOT a request body.
 
 ## IMPORTANT
-- The sandbox contains exactly ONE overdue invoice — find it by looking for past `invoiceDueDate` with non-zero `amountRemainingCurrency`.
+- The sandbox contains exactly ONE overdue invoice — find it by looking for past `invoiceDueDate` with non-zero `amountOutstanding`.
 - Do NOT use `PUT /invoice/{id}/:createReminder` — that is a different action (send reminder on existing invoice). This task requires creating a NEW standalone invoice for the fee.
 - The voucher (Step 3) records the accounting entry. The invoice (Steps 5-7) sends a formal bill. Both are required.
 - Do NOT verify with GET calls after successful creates.

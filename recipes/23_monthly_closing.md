@@ -55,6 +55,8 @@ Deduplicate — if same account number appears in multiple roles, look it up onc
       "account": {"id": <accrual_expense_id>},
       "amount": <accrual_amount>,
       "amountCurrency": <accrual_amount>,
+      "amountGross": <accrual_amount>,
+      "amountGrossCurrency": <accrual_amount>,
       "currency": {"id": 1},
       "row": 1,
       "description": "Periodisert kostnad"
@@ -63,6 +65,8 @@ Deduplicate — if same account number appears in multiple roles, look it up onc
       "account": {"id": <accrual_source_id>},
       "amount": <negative_accrual_amount>,
       "amountCurrency": <negative_accrual_amount>,
+      "amountGross": <negative_accrual_amount>,
+      "amountGrossCurrency": <negative_accrual_amount>,
       "currency": {"id": 1},
       "row": 2,
       "description": "Reduksjon forskuddsbetalt"
@@ -84,6 +88,8 @@ Row 1 = debit (positive). Row 2 = credit (negative). MUST sum to 0.
       "account": {"id": <depr_expense_id>},
       "amount": <monthly_depreciation>,
       "amountCurrency": <monthly_depreciation>,
+      "amountGross": <monthly_depreciation>,
+      "amountGrossCurrency": <monthly_depreciation>,
       "currency": {"id": 1},
       "row": 1,
       "description": "Avskrivning driftsmidler"
@@ -92,6 +98,8 @@ Row 1 = debit (positive). Row 2 = credit (negative). MUST sum to 0.
       "account": {"id": <acc_depr_id>},
       "amount": <negative_monthly_depreciation>,
       "amountCurrency": <negative_monthly_depreciation>,
+      "amountGross": <negative_monthly_depreciation>,
+      "amountGrossCurrency": <negative_monthly_depreciation>,
       "currency": {"id": 1},
       "row": 2,
       "description": "Akkumulert avskrivning"
@@ -112,6 +120,8 @@ Row 1 = debit (positive). Row 2 = credit (negative). MUST sum to 0.
       "account": {"id": <salary_expense_id>},
       "amount": <salary_amount>,
       "amountCurrency": <salary_amount>,
+      "amountGross": <salary_amount>,
+      "amountGrossCurrency": <salary_amount>,
       "currency": {"id": 1},
       "row": 1,
       "description": "Lønnskostnad"
@@ -120,6 +130,8 @@ Row 1 = debit (positive). Row 2 = credit (negative). MUST sum to 0.
       "account": {"id": <accrued_wages_id>},
       "amount": <negative_salary_amount>,
       "amountCurrency": <negative_salary_amount>,
+      "amountGross": <negative_salary_amount>,
+      "amountGrossCurrency": <negative_salary_amount>,
       "currency": {"id": 1},
       "row": 2,
       "description": "Skyldig lønn"
