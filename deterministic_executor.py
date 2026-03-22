@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # Task types with flat, simple schemas (<=5 fields) — use faster extraction
 SIMPLE_SCHEMAS = {
     "create_product", "create_customer", "create_supplier",
-    "create_departments", "credit_note",
+    "create_departments", "credit_note", "cost_analysis_projects",
 }
 
 # Only these task types are allowed to run deterministically.
