@@ -43,6 +43,8 @@ DETERMINISTIC_WHITELIST = {
     "monthly_closing",
     "year_end_close",
     "year_end_corrections",
+    "run_salary",
+    "custom_dimension",
 }
 
 # Import all plan modules to trigger @register decorators
