@@ -12,5 +12,10 @@
    ]} → capture order_id
 4. POST /invoice {invoiceDate: "{today}", invoiceDueDate: "30 days later",
    orders: [{id: order_id}]} → capture invoice_id
-5. If prompt says "send": PUT /invoice/{invoice_id}/:send — Body: {"sendType": "EMAIL"}
+5. If prompt says "send": PUT /invoice/{invoice_id}/:send — QUERY PARAMS (not body): ?sendType=EMAIL
+   - sendType is REQUIRED as a query parameter, NOT in the request body
+   - CRITICAL: Customer MUST have email or invoiceEmail set before sending.
+     If send fails with 422, first update the customer: PUT /customer/{customer_id} with {email: "customer@example.com", version: N}
+     Then retry the send.
+   - If the task specifies a recipient email: ?sendType=EMAIL&overrideEmailAddress=recipient@example.com
 NOTE: orderLines do NOT need vatType — it's optional and Tripletex uses the product's default.

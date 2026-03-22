@@ -115,6 +115,12 @@ If you skip the recipe you WILL get 4xx errors and waste API calls, which lowers
   Template MUST be one of: "ALL_PRIVILEGES", "NONE_PRIVILEGES", "INVOICING_MANAGER",
   "PERSONELL_MANAGER", "ACCOUNTANT", "AUDITOR", "DEPARTMENT_LEADER".
   Use ALL_PRIVILEGES for project managers. Any other value → 404.
+- **GET /invoice/paymentType**: Use fields=* — PaymentTypeDTO does NOT have a `name` field.
+  Do NOT use ?fields=id,name — it causes 400. Use ?fields=* or ?fields=id,description.
+- **GET /invoice field filters**: `amountRemainingCurrency` and `amountRemaining` are NOT valid fields on InvoiceDTO.
+  The correct field is `amountOutstanding`. Use ?fields=id,amountOutstanding or ?fields=* to get all fields.
+- **GET /travelExpense/costCategory**: Use ?fields=id,description — `name` does NOT exist (400).
+- **GET /travelExpense/rateCategory**: Use ?fields=id,name — `description` does NOT exist (400).
 - **Employee already exists**: If POST /employee fails with "e-postadressen er i bruk",
   use GET /employee?email=X to find the existing employee and use their ID.
 
