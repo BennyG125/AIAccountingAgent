@@ -123,24 +123,17 @@ class MonthlyClosingPlan(ExecutionPlan):
 
         # Batch look up all accounts in 1 call instead of up to 6
         if account_numbers_needed:
-            try:
-                account_ids = self._get_accounts(client, *account_numbers_needed)
-            except RuntimeError:
-                # Some accounts may not exist — look up individually and create missing ones
-                account_ids = {}
-                numbers_str = ",".join(str(n) for n in account_numbers_needed)
-                result = client.get("/ledger/account", params={"number": numbers_str})
-                if result["success"]:
-                    for acc in result["body"].get("values", []):
-                        account_ids[str(acc["number"])] = acc["id"]
-                # Create any missing accounts
-                for num in account_numbers_needed:
-                    if str(num) not in account_ids:
-                        cr = client.post("/ledger/account", body={"number": int(num), "name": f"Konto {num}"})
-                        api_calls += 1
-                        if cr["success"]:
-                            account_ids[str(num)] = cr["body"]["value"]["id"]
+            account_ids = self._get_accounts(client, *account_numbers_needed)
             api_calls += 1
+            # Create any missing accounts (sandbox may not have all standard accounts)
+            for num in account_numbers_needed:
+                if str(num) not in account_ids:
+                    cr = client.post("/ledger/account", body={"number": int(num), "name": f"Konto {num}"})
+                    api_calls += 1
+                    if cr["success"]:
+                        account_ids[str(num)] = cr["body"]["value"]["id"]
+                    else:
+                        logger.warning("Failed to create account %s: %s", num, cr.get("error"))
         else:
             account_ids = {}
 
@@ -154,43 +147,46 @@ class MonthlyClosingPlan(ExecutionPlan):
                 params.get("accrual_description")
                 or f"Periodisering kostnad {closing_date[:7]}"
             )
-            expense_acc_id = account_ids[accrual_expense_acc]
-            prepaid_acc_id = account_ids["1700"]
-
-            accrual_body = {
-                "date": closing_date,
-                "description": description,
-                "postings": [
-                    {
-                        "row": 1,
-                        "account": {"id": expense_acc_id},
-                        "amount": amount,
-                        "amountCurrency": amount,
-                        "amountGross": amount,
-                        "amountGrossCurrency": amount,
-                        "currency": {"id": 1},
-                        "description": description,
-                    },
-                    {
-                        "row": 2,
-                        "account": {"id": prepaid_acc_id},
-                        "amount": -amount,
-                        "amountCurrency": -amount,
-                        "amountGross": -amount,
-                        "amountGrossCurrency": -amount,
-                        "currency": {"id": 1},
-                        "description": description,
-                    },
-                ],
-            }
-            accrual_result = client.post("/ledger/voucher", body=accrual_body)
-            api_calls += 1
-            if not accrual_result["success"]:
+            expense_acc_id = account_ids.get(accrual_expense_acc)
+            prepaid_acc_id = account_ids.get("1700")
+            if expense_acc_id is None or prepaid_acc_id is None:
                 api_errors += 1
-                logger.warning(
-                    f"Accrual voucher failed: status={accrual_result.get('status_code')}, "
-                    f"error={accrual_result.get('error')}"
-                )
+                logger.warning("Accrual skipped: missing account %s or 1700", accrual_expense_acc)
+            else:
+                accrual_body = {
+                    "date": closing_date,
+                    "description": description,
+                    "postings": [
+                        {
+                            "row": 1,
+                            "account": {"id": expense_acc_id},
+                            "amount": amount,
+                            "amountCurrency": amount,
+                            "amountGross": amount,
+                            "amountGrossCurrency": amount,
+                            "currency": {"id": 1},
+                            "description": description,
+                        },
+                        {
+                            "row": 2,
+                            "account": {"id": prepaid_acc_id},
+                            "amount": -amount,
+                            "amountCurrency": -amount,
+                            "amountGross": -amount,
+                            "amountGrossCurrency": -amount,
+                            "currency": {"id": 1},
+                            "description": description,
+                        },
+                    ],
+                }
+                accrual_result = client.post("/ledger/voucher", body=accrual_body)
+                api_calls += 1
+                if not accrual_result["success"]:
+                    api_errors += 1
+                    logger.warning(
+                        f"Accrual voucher failed: status={accrual_result.get('status_code')}, "
+                        f"error={accrual_result.get('error')}"
+                    )
 
         # ------------------------------------------------------------------
         # Voucher 2: Depreciation — debit 6010, credit accumulated dep. account
@@ -206,8 +202,12 @@ class MonthlyClosingPlan(ExecutionPlan):
                 params.get("depreciation_description")
                 or f"Avskrivning {closing_date[:7]}"
             )
-            dep_expense_id = account_ids["6010"]
-            dep_asset_id = account_ids[dep_asset_acc]
+            dep_expense_id = account_ids.get("6010")
+            dep_asset_id = account_ids.get(dep_asset_acc)
+            if dep_expense_id is None or dep_asset_id is None:
+                api_errors += 1
+                logger.warning("Depreciation skipped: missing account 6010 or %s", dep_asset_acc)
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
             dep_body = {
                 "date": closing_date,
@@ -254,8 +254,12 @@ class MonthlyClosingPlan(ExecutionPlan):
                 params.get("salary_description")
                 or f"Lønnsavsetning {closing_date[:7]}"
             )
-            salary_acc_id = account_ids["5000"]
-            payable_acc_id = account_ids["2900"]
+            salary_acc_id = account_ids.get("5000")
+            payable_acc_id = account_ids.get("2900")
+            if salary_acc_id is None or payable_acc_id is None:
+                api_errors += 1
+                logger.warning("Salary provision skipped: missing account 5000 or 2900")
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
             salary_body = {
                 "date": closing_date,

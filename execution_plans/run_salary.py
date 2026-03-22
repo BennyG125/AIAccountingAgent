@@ -132,6 +132,10 @@ class RunSalaryPlan(ExecutionPlan):
                         employment_body["division"] = {"id": division_id}
                         employment_result = client.post("/employee/employment", body=employment_body)
                         api_calls += 1
+            if not employment_result["success"]:
+                api_errors += 1
+                logger.warning("Failed to create employment: %s", employment_result.get("error"))
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
             employment_id = employment_result["body"]["value"]["id"]
 
             self._check_timeout(start_time)

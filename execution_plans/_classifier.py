@@ -69,13 +69,13 @@ TASK_PATTERNS: list[tuple[str, list[str]]] = [
         r"bank\s*statement", r"extracto\s*banc", r"extrato\s*banc",
     ]),
     ("register_supplier_invoice", [
-        r"leverandør.*faktura", r"faktura.*leverandør",
-        r"leverandor.*faktura", r"faktura.*leverandor",
+        r"leverandør.*faktura(?!@)", r"faktura(?!@).*leverandør",
+        r"leverandor.*faktura(?!@)", r"faktura(?!@).*leverandor",
         r"supplier.*invoice", r"invoice.*supplier",
-        r"proveedor.*factura", r"factura.*proveedor",
-        r"fornecedor.*fatura", r"fatura.*fornecedor",
+        r"proveedor.*factura(?!@)", r"factura(?!@).*proveedor",
+        r"fornecedor.*fatura(?!@)", r"fatura(?!@).*fornecedor",
         r"lieferant.*rechnung", r"rechnung.*lieferant",
-        r"fournisseur.*facture", r"facture.*fournisseur",
+        r"fournisseur.*facture(?!@)", r"facture(?!@).*fournisseur",
     ]),
     ("fixed_price_project", [
         r"fast\s*pris", r"fixed\s*price", r"precio\s*fijo", r"preço\s*fixo",
@@ -110,7 +110,7 @@ TASK_PATTERNS: list[tuple[str, list[str]]] = [
         r"receipt.*expense", r"kvittering", r"beleg.*ausgabe",
     ]),
     ("register_hours", [
-        r"timer", r"\d+\s*hours", r"register.*hours", r"erfassen.*stunden",
+        r"timer", r"timar", r"\d+\s*hours", r"register.*hours", r"erfassen.*stunden",
         r"\d+\s*horas", r"registe.*horas", r"\d+\s*stunden",
         r"\d+\s*heures", r"timeføring", r"timesheet",
     ]),

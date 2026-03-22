@@ -208,6 +208,21 @@ class YearEndClosePlan(ExecutionPlan):
             if cr["success"]:
                 shared_depr_expense_id = cr["body"]["value"]["id"]
                 all_accounts[default_depr_expense] = shared_depr_expense_id
+        if shared_acc_depr_id is None:
+            cr = client.post("/ledger/account", body={"number": int(default_acc_depr), "name": f"Konto {default_acc_depr}"})
+            api_calls[0] += 1
+            if cr["success"]:
+                shared_acc_depr_id = cr["body"]["value"]["id"]
+                all_accounts[default_acc_depr] = shared_acc_depr_id
+        # Create missing per-asset accounts
+        for asset in assets:
+            for acc_key in ("expense_account", "depreciation_account"):
+                acc_num = str(asset.get(acc_key, ""))
+                if acc_num and acc_num not in all_accounts:
+                    cr = client.post("/ledger/account", body={"number": int(acc_num), "name": f"Konto {acc_num}"})
+                    api_calls[0] += 1
+                    if cr["success"]:
+                        all_accounts[acc_num] = cr["body"]["value"]["id"]
         if prepaid_account_id is None and prepaid_amount > 0:
             cr = client.post("/ledger/account", body={"number": 1700, "name": "Forskuddsbetalte kostnader"})
             api_calls[0] += 1
@@ -219,6 +234,16 @@ class YearEndClosePlan(ExecutionPlan):
             api_calls[0] += 1
             if cr["success"]:
                 prepaid_expense_id = cr["body"]["value"]["id"]
+        if tax_expense_id is None and tax_provision_amount > 0:
+            cr = client.post("/ledger/account", body={"number": int(tax_expense_account_number), "name": f"Konto {tax_expense_account_number}"})
+            api_calls[0] += 1
+            if cr["success"]:
+                tax_expense_id = cr["body"]["value"]["id"]
+        if tax_provision_id is None and tax_provision_amount > 0:
+            cr = client.post("/ledger/account", body={"number": int(tax_provision_account_number), "name": f"Konto {tax_provision_account_number}"})
+            api_calls[0] += 1
+            if cr["success"]:
+                tax_provision_id = cr["body"]["value"]["id"]
 
         # ------------------------------------------------------------------
         # Phase 2: Post one depreciation voucher per asset
@@ -238,6 +263,11 @@ class YearEndClosePlan(ExecutionPlan):
             acc_depr_id = asset_account_ids.get(
                 str(asset.get("depreciation_account", "")), shared_acc_depr_id
             )
+
+            if depr_expense_id is None or acc_depr_id is None:
+                api_errors[0] += 1
+                logger.warning("Depreciation skipped for %s: missing account IDs", name)
+                continue
 
             voucher_body = {
                 "date": voucher_date,

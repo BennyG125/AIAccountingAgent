@@ -71,7 +71,11 @@ class RegisterSupplierInvoicePlan(ExecutionPlan):
         org_number = params.get("org_number")
         invoice_number = params.get("invoice_number", "")
         invoice_date = params.get("invoice_date") or datetime.date.today().isoformat()
-        gross_amount = float(params["gross_amount"])
+        raw_gross = params.get("gross_amount")
+        if raw_gross is None:
+            logger.warning("register_supplier_invoice: gross_amount is None, cannot proceed")
+            return self._make_result(api_calls=0, api_errors=1)
+        gross_amount = float(raw_gross)
         vat_rate = float(params.get("vat_rate") or 0.25)
         expense_account_number = str(params.get("expense_account") or 7000)
 
