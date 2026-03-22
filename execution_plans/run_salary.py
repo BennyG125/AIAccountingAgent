@@ -106,7 +106,6 @@ class RunSalaryPlan(ExecutionPlan):
             employment_body = {
                 "employee": {"id": emp_id},
                 "startDate": date_str,
-                "isMainEmployer": True,
             }
             if division_id is not None:
                 employment_body["division"] = {"id": division_id}

@@ -576,6 +576,35 @@ Params: dateFrom, dateTo, accountNumberFrom, accountNumberTo, fields
 
 ---
 
+## LEDGER / ACCOUNTING DIMENSION (Custom/Free Dimensions)
+
+### POST /ledger/accountingDimensionName
+Create a custom accounting dimension. Returns the created dimension with its dimensionIndex.
+Body: {"name": "Prosjekttype"}
+Response includes: id, name, dimensionIndex (auto-assigned, e.g. 1, 2, 3)
+
+### GET /ledger/accountingDimensionName
+List existing custom dimension names.
+Params: fields, count
+
+### POST /ledger/accountingDimensionValue
+Create a value under a custom dimension.
+Body: {"dimensionName": {"id": <dimension_name_id>}, "name": "Forskning"}
+
+### GET /ledger/accountingDimensionValue
+List existing custom dimension values.
+Params: dimensionNameId, fields, count
+
+### Using custom dimensions in vouchers
+When posting a voucher with a custom dimension, add the dimension as a field on each
+posting row: "freeAccountingDimension{N}": {"id": <dimension_value_id>}
+where N is the dimensionIndex from the dimensionName (e.g. freeAccountingDimension1).
+
+IMPORTANT: Do NOT use /dimension, /customDimension, /freeDimension, or any other path.
+Only /ledger/accountingDimensionName and /ledger/accountingDimensionValue exist.
+
+---
+
 ## LEDGER / VAT TYPE
 
 ### GET /ledger/vatType

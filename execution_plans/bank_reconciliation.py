@@ -203,7 +203,7 @@ class BankReconciliationPlan(ExecutionPlan):
         # Step 5: Look up payment type (shared by all customer payments)
         # ------------------------------------------------------------------ #
         self._check_timeout(start_time)
-        pt_result = client.get("/invoice/paymentType")
+        pt_result = client.get("/invoice/paymentType", params={"fields": "*"})
         api_calls += 1
         payment_type_id = 1  # fallback
         if pt_result["success"]:

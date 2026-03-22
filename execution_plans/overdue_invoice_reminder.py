@@ -240,7 +240,7 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
 
         self._check_timeout(start_time)
 
-        # Create reminder invoice with inline order and send in one step
+        # Create reminder invoice with inline order
         invoice_due_date = (today + datetime.timedelta(days=14)).isoformat()
         reminder_invoice_result = client.post(
             "/invoice",
@@ -262,7 +262,6 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
                     }
                 ],
             },
-            params={"sendToCustomer": "true"},
         )
         api_calls += 1
         if not reminder_invoice_result["success"]:
@@ -276,6 +275,25 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
 
         self._check_timeout(start_time)
 
+        # Send the reminder invoice via EMAIL (separate PUT call)
+        send_result = client.put(
+            f"/invoice/{reminder_invoice_id}/:send",
+            body={"sendType": "EMAIL"},
+        )
+        api_calls += 1
+        if not send_result["success"]:
+            # Fallback: try MANUAL send type if EMAIL fails
+            send_result2 = client.put(
+                f"/invoice/{reminder_invoice_id}/:send",
+                body={"sendType": "MANUAL"},
+            )
+            api_calls += 1
+            if not send_result2["success"]:
+                api_errors += 1
+                # Non-fatal — invoice was created, sending failed
+
+        self._check_timeout(start_time)
+
         # ------------------------------------------------------------------
         # Step 6 (optional): Register payment on the original overdue invoice
         # ------------------------------------------------------------------
@@ -286,7 +304,7 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
             )
 
             # Look up payment type
-            pt_result = client.get("/invoice/paymentType")
+            pt_result = client.get("/invoice/paymentType", params={"fields": "*"})
             api_calls += 1
             payment_type_id = 1  # fallback
             if pt_result["success"]:

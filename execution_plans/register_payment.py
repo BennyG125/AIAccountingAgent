@@ -216,7 +216,7 @@ class RegisterPaymentPlan(ExecutionPlan):
         calls = 0
 
         # Look up payment type
-        pt_result = client.get("/invoice/paymentType")
+        pt_result = client.get("/invoice/paymentType", params={"fields": "*"})
         calls += 1
         payment_type_id = 1  # fallback
         if pt_result["success"]:

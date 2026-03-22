@@ -296,39 +296,43 @@ class YearEndClosePlan(ExecutionPlan):
         # ------------------------------------------------------------------
         self._check_timeout(start_time)
 
-        bs_result = client.get(
-            "/balanceSheet",
+        # Use /ledger/posting to compute taxable profit (/balanceSheet and
+        # /resultSheet do NOT exist — they return 404).
+        posting_result = client.get(
+            "/ledger/posting",
             params={
                 "dateFrom": f"{fiscal_year}-01-01",
                 "dateTo": f"{fiscal_year}-12-31",
-                "fields": "rows,sumBalanceOut",
+                "count": 10000,
             },
         )
         api_calls[0] += 1
 
         tax_provision_amount = 0.0
-        if bs_result["success"]:
-            rows = bs_result["body"].get("rows", [])
-            total_revenue = 0.0   # accounts 3000–3999 (credit balance = negative)
-            total_expenses = 0.0  # accounts 4000–8699 (debit balance = positive)
+        if posting_result["success"]:
+            postings = posting_result["body"].get("values", [])
+            # Aggregate amounts by account number range
+            revenue = 0.0    # accounts 3000–3999
+            expenses = 0.0   # accounts 4000–8699
 
-            for row in rows:
-                acc_number = row.get("number") or row.get("accountNumber", 0)
+            for posting in postings:
+                account = posting.get("account", {})
+                acc_number = account.get("number", 0)
                 try:
                     acc_num = int(str(acc_number).strip())
                 except (ValueError, TypeError):
                     continue
 
-                balance = float(row.get("balanceOut") or row.get("sumBalanceOut") or 0)
+                amount = float(posting.get("amount", 0))
 
                 if 3000 <= acc_num <= 3999:
-                    # Revenue accounts: negative balance = credit = income
-                    total_revenue += abs(balance)
+                    # Revenue: credit entries are negative, accumulate absolute
+                    revenue += abs(amount)
                 elif 4000 <= acc_num <= 8699:
-                    # Expense accounts: positive balance = debit = cost
-                    total_expenses += max(balance, 0)
+                    # Expenses: debit entries are positive
+                    expenses += max(amount, 0)
 
-            net_profit = total_revenue - total_expenses
+            net_profit = revenue - expenses
             if net_profit > 0:
                 tax_provision_amount = round(net_profit * 0.22, 2)
 

@@ -136,6 +136,18 @@ If you skip the recipe you WILL get 4xx errors and waste API calls, which lowers
   /ledger/accountingDimensionValue. Do NOT try /dimension, /customDimension, /freeDimension,
   /freeAccountingDimension, or any other variant — they do NOT exist.
 - **Invoice amountOutstanding**: The field is `amountOutstanding` (NOT `amountRemaining`).
+- **Divisions**: NEVER try to POST /division or create a new division. Divisions already exist.
+  Use GET /company/divisions?fields=id to find an existing one. If no division is explicitly
+  mentioned in the prompt, use the first available division. Do NOT omit division from employment.
+- **Employee employment**: When creating employment via POST /employee/employment, do NOT include
+  isMainEmployer. Only include employee, startDate, and division.
+- **Sending invoices**: Use separate PUT /invoice/{{id}}/:send with body {{"sendType": "EMAIL"}}.
+  If EMAIL fails with 422, retry with {{"sendType": "MANUAL"}}. NEVER use sendToCustomer query param.
+- **Employment details field name**: The field is `percentageOfFullTimeEquivalent` (NOT
+  `percentOfFullTimeEquivalent`). Getting this wrong causes 422.
+- **Supplier invoices (vouchers)**: When creating voucher postings for supplier invoices,
+  ALWAYS include all four amount fields on each row: amount, amountCurrency, amountGross,
+  amountGrossCurrency (all set to the same value for NOK). Missing amountGross causes 422.
 
 ## Recipes for Known Task Types
 

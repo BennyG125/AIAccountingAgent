@@ -279,7 +279,7 @@ class ForexPaymentPlan(ExecutionPlan):
         self._check_timeout(start_time)
 
         # --- Register payment at invoice rate (NOK) ---
-        pt_result = client.get("/invoice/paymentType")
+        pt_result = client.get("/invoice/paymentType", params={"fields": "*"})
         api_calls += 1
         payment_type_id = 1  # fallback
         if pt_result["success"]:
