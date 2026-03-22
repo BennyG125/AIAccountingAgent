@@ -19,6 +19,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from execution_plans._classifier import classify_task
+from scripts._task_tiers import TASK_TIERS
+
 BUCKETS = {
     "comp": "ai-nm26osl-1799-competition-logs",
     "dev": "ai-nm26osl-1799-dev-logs",
@@ -89,9 +93,25 @@ def strip_and_save(payload: dict, gcs_filename: str) -> Path | None:
         },
     }
 
+    # Auto-tag with task_type
+    prompt = request.get("prompt", "")
+    task_type = classify_task(prompt)
+    saved["task_type"] = task_type
+    saved["classified_by"] = "auto"
+    saved["tier"] = TASK_TIERS.get(task_type) if task_type else None
+
     # Save
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     filepath = OUTPUT_DIR / f"{task_id}.json"
+
+    # Preserve manual classification on re-save
+    if filepath.exists():
+        existing = json.loads(filepath.read_text())
+        if existing.get("classified_by") == "manual":
+            saved["task_type"] = existing["task_type"]
+            saved["classified_by"] = "manual"
+            saved["tier"] = existing.get("tier")
+
     filepath.write_text(json.dumps(saved, indent=2, ensure_ascii=False) + "\n")
     return filepath
 
