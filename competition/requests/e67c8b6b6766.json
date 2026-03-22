@@ -1,0 +1,27 @@
+{
+  "task_id": "e67c8b6b6766",
+  "timestamp": "2026-03-22T07:15:41.575888+00:00",
+  "prompt": "We have a new employee named Lucy Wilson, born 28. December 1986. Please create them as an employee with email lucy.wilson@example.org and start date 25. April 2026.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 6,
+    "api_calls": 5,
+    "api_errors": 2,
+    "time_ms": 40587,
+    "error_details": [
+      {
+        "tool": "tripletex_post",
+        "path": "/employee",
+        "status": 422,
+        "error": "Validering feilet."
+      },
+      {
+        "tool": "tripletex_post",
+        "path": "/employee/employment",
+        "status": 422,
+        "error": "Validering feilet."
+      }
+    ]
+  }
+}

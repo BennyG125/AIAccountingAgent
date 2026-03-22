@@ -1,0 +1,14 @@
+{
+  "task_id": "78ea0760f400",
+  "timestamp": "2026-03-21T14:10:50.548904+00:00",
+  "prompt": "Realice el cierre mensual de marzo de 2026. Registre la periodificación (11900 NOK por mes de la cuenta 1700 a gasto). Contabilice la depreciación mensual de un activo fijo con costo de adquisición 107950 NOK y vida útil 6 años (depreciación lineal a cuenta 6010). Verifique que el balance de saldos sea cero. También registre una provisión salarial (débito cuenta de gastos salariales 5000, crédito cuenta de salarios acumulados 2900).",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 6,
+    "api_calls": 15,
+    "api_errors": 0,
+    "time_ms": 284634,
+    "error_details": null
+  }
+}

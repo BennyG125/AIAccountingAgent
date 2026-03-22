@@ -1,0 +1,14 @@
+{
+  "task_id": "8851694b7b35",
+  "timestamp": "2026-03-21T22:59:01.227702+00:00",
+  "prompt": "Log 34 hours for Charlotte Williams (charlotte.williams@example.org) on the activity \"Analyse\" in the project \"Security Audit\" for Windmill Ltd (org no. 851492623). Hourly rate: 1300 NOK/h. Generate a project invoice to the customer based on the logged hours.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 6,
+    "api_calls": 9,
+    "api_errors": 0,
+    "time_ms": 71294,
+    "error_details": null
+  }
+}

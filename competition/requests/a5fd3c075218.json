@@ -1,0 +1,27 @@
+{
+  "task_id": "a5fd3c075218",
+  "timestamp": "2026-03-21T14:33:02.247385+00:00",
+  "prompt": "Registe 35 horas para Inês Ferreira (ines.ferreira@example.org) na atividade \"Testing\" do projeto \"Configuração cloud\" para Floresta Lda (org. nº 949247589). Taxa horária: 1000 NOK/h. Gere uma fatura de projeto ao cliente com base nas horas registadas.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 8,
+    "api_calls": 12,
+    "api_errors": 2,
+    "time_ms": 106200,
+    "error_details": [
+      {
+        "tool": "tripletex_post",
+        "path": "/activity",
+        "status": 422,
+        "error": "Validering feilet."
+      },
+      {
+        "tool": "tripletex_post",
+        "path": "/project/hourlyRates",
+        "status": 409,
+        "error": "Duplicate entry"
+      }
+    ]
+  }
+}

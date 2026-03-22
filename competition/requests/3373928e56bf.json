@@ -1,0 +1,33 @@
+{
+  "task_id": "3373928e56bf",
+  "timestamp": "2026-03-21T21:35:08.829327+00:00",
+  "prompt": "Betalingen fra Polaris AS (org.nr 913083458) for fakturaen \"Analyserapport\" (21450 kr ekskl. MVA) ble returnert av banken. Reverser betalingen slik at fakturaen igjen viser utestående beløp.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 11,
+    "api_calls": 12,
+    "api_errors": 3,
+    "time_ms": 76047,
+    "error_details": [
+      {
+        "tool": "tripletex_get",
+        "path": "/ledger/voucher",
+        "status": 422,
+        "error": "Validering feilet."
+      },
+      {
+        "tool": "tripletex_put",
+        "path": "/ledger/voucher/609163795/:reverse",
+        "status": 422,
+        "error": "Validation failed"
+      },
+      {
+        "tool": "tripletex_put",
+        "path": "/ledger/voucher/609163795/:reverse",
+        "status": 422,
+        "error": "Validation failed"
+      }
+    ]
+  }
+}

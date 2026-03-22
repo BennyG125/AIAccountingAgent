@@ -1,0 +1,14 @@
+{
+  "task_id": "0f992c866aad",
+  "timestamp": "2026-03-21T15:53:00.340805+00:00",
+  "prompt": "Enviamos una factura por 5230 EUR a Río Verde SL (org. nº 875655612) cuando el tipo de cambio era 11.95 NOK/EUR. El cliente ha pagado ahora, pero el tipo es 12.20 NOK/EUR. Registre el pago y contabilice la diferencia de tipo de cambio (agio) en la cuenta correcta.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 6,
+    "api_calls": 11,
+    "api_errors": 0,
+    "time_ms": 151220,
+    "error_details": null
+  }
+}

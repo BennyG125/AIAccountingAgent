@@ -1,0 +1,14 @@
+{
+  "task_id": "269b0dfaf476",
+  "timestamp": "2026-03-21T21:57:54.170990+00:00",
+  "prompt": "Créez le projet \"Intégration Montagne\" lié au client Montagne SARL (nº org. 975615766). Le chef de projet est Jules Robert (jules.robert@example.org).",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 4,
+    "api_calls": 5,
+    "api_errors": 0,
+    "time_ms": 35708,
+    "error_details": null
+  }
+}

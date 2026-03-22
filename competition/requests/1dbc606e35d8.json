@@ -1,0 +1,27 @@
+{
+  "task_id": "1dbc606e35d8",
+  "timestamp": "2026-03-21T22:42:55.099855+00:00",
+  "prompt": "Processe o salário de Lucas Martins (lucas.martins@example.org) para este mês. O salário base é de 39000 NOK. Adicione um bónus único de 10500 NOK além do salário base.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 13,
+    "api_calls": 14,
+    "api_errors": 2,
+    "time_ms": 97521,
+    "error_details": [
+      {
+        "tool": "tripletex_post",
+        "path": "/division",
+        "status": 422,
+        "error": "Validering feilet."
+      },
+      {
+        "tool": "tripletex_post",
+        "path": "/employee/employment",
+        "status": 422,
+        "error": "Validering feilet."
+      }
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "task_id": "1b330b88f5ce",
+  "timestamp": "2026-03-21T12:42:52.282049+00:00",
+  "prompt": "Créez le produit \"Maintenance\" avec le numéro de produit 1327. Le prix est de 3700 NOK hors TVA, avec le taux standard de 25 %.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 2,
+    "api_calls": 1,
+    "api_errors": 0,
+    "time_ms": 17166,
+    "error_details": null
+  }
+}

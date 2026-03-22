@@ -1,0 +1,14 @@
+{
+  "task_id": "76cdf28742f9",
+  "timestamp": "2026-03-21T22:18:07.279411+00:00",
+  "prompt": "Der Kunde Waldstein GmbH (Org.-Nr. 898006263) hat die Rechnung für \"Beratungsstunden\" (36900 NOK ohne MwSt.) reklamiert. Erstellen Sie eine vollständige Gutschrift, die die gesamte Rechnung storniert.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 3,
+    "api_errors": 0,
+    "time_ms": 9804,
+    "error_details": null
+  }
+}

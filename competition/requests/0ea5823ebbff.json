@@ -1,0 +1,14 @@
+{
+  "task_id": "0ea5823ebbff",
+  "timestamp": "2026-03-21T23:36:11.661216+00:00",
+  "prompt": "Erstellen Sie einen Auftrag für den Kunden Flussgold GmbH (Org.-Nr. 819392137) mit den Produkten Schulung (1090) zu 8800 NOK und Netzwerkdienst (6094) zu 21900 NOK. Wandeln Sie den Auftrag in eine Rechnung um und registrieren Sie die vollständige Zahlung.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 9,
+    "api_errors": 0,
+    "time_ms": 18457,
+    "error_details": null
+  }
+}

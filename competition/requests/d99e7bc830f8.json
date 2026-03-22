@@ -1,0 +1,14 @@
+{
+  "task_id": "d99e7bc830f8",
+  "timestamp": "2026-03-21T22:02:48.834787+00:00",
+  "prompt": "Registe o fornecedor Floresta Lda com número de organização 883568885. E-mail: faktura@florestalda.no.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 2,
+    "api_calls": 1,
+    "api_errors": 0,
+    "time_ms": 11668,
+    "error_details": null
+  }
+}

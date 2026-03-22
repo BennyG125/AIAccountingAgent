@@ -1,0 +1,14 @@
+{
+  "task_id": "a996770227f3",
+  "timestamp": "2026-03-21T22:39:07.800101+00:00",
+  "prompt": "Registrer 27 timer for Ragnhild Moe (ragnhild.moe@example.org) på aktiviteten \"Design\" i prosjektet \"Plattformintegrasjon\" for Fjordkraft AS (org.nr 880259784). Timesats: 800 kr/t. Generer en prosjektfaktura til kunden basert på de registrerte timene.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 7,
+    "api_calls": 9,
+    "api_errors": 0,
+    "time_ms": 83081,
+    "error_details": null
+  }
+}

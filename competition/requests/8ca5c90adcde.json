@@ -1,0 +1,39 @@
+{
+  "task_id": "8ca5c90adcde",
+  "timestamp": "2026-03-21T23:03:33.699186+00:00",
+  "prompt": "Kjør lønn for Erik Nilsen (erik.nilsen@example.org) for denne måneden. Grunnlønn er 53350 kr. Legg til en engangsbonus på 11050 kr i tillegg til grunnlønnen. Dersom lønns-API-et ikke fungerer, kan du bruke manuelle bilag på lønnskontoer (5000-serien) for å registrere lønnskostnaden.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 19,
+    "api_calls": 21,
+    "api_errors": 4,
+    "time_ms": 173389,
+    "error_details": [
+      {
+        "tool": "tripletex_post",
+        "path": "/employee/employment",
+        "status": 422,
+        "error": "Validering feilet."
+      },
+      {
+        "tool": "tripletex_post",
+        "path": "/salary/transaction",
+        "status": 422,
+        "error": "Validering feilet."
+      },
+      {
+        "tool": "tripletex_get",
+        "path": "/company/1",
+        "status": 404,
+        "error": "Object not found"
+      },
+      {
+        "tool": "tripletex_get",
+        "path": "/company",
+        "status": 400,
+        "error": "HTTP 405 Method Not Allowed"
+      }
+    ]
+  }
+}

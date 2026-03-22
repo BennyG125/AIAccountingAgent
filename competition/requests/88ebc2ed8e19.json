@@ -1,0 +1,14 @@
+{
+  "task_id": "88ebc2ed8e19",
+  "timestamp": "2026-03-21T22:32:40.525567+00:00",
+  "prompt": "Opprett prosjektet \"Integrasjon Havbris\" knyttet til kunden Havbris AS (org.nr 999148387). Prosjektleder er Henrik Ødegård (henrik.degard@example.org).",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 4,
+    "api_calls": 5,
+    "api_errors": 0,
+    "time_ms": 42349,
+    "error_details": null
+  }
+}

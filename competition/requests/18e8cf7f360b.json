@@ -1,0 +1,27 @@
+{
+  "task_id": "18e8cf7f360b",
+  "timestamp": "2026-03-21T21:39:55.037675+00:00",
+  "prompt": "Gjer månavslutninga for mars 2026. Periodiser forskotsbetalt kostnad (8950 kr per månad frå konto 1700 til kostnadskonto). Bokfør månadleg avskriving for eit driftsmiddel med innkjøpskost 240050 kr og levetid 5 år (lineær avskriving til konto 6020). Kontroller at saldobalansen går i null. Bokfør også ei lønnsavsetjing (debet lønnskostnad konto 5000, kredit påløpt lønn konto 2900).",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 5,
+    "api_calls": 15,
+    "api_errors": 2,
+    "time_ms": 373362,
+    "error_details": [
+      {
+        "tool": "tripletex_delete",
+        "path": "/ledger/voucher/609164484",
+        "status": 422,
+        "error": "Validering feilet."
+      },
+      {
+        "tool": "tripletex_delete",
+        "path": "/ledger/voucher/609164486",
+        "status": 422,
+        "error": "Validering feilet."
+      }
+    ]
+  }
+}

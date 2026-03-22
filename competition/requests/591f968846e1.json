@@ -1,0 +1,14 @@
+{
+  "task_id": "591f968846e1",
+  "timestamp": "2026-03-21T21:42:34.884603+00:00",
+  "prompt": "Le client Montagne SARL (nº org. 893135979) a une facture impayée de 19050 NOK hors TVA pour \"Service réseau\". Enregistrez le paiement intégral de cette facture.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 4,
+    "api_errors": 0,
+    "time_ms": 24694,
+    "error_details": null
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "task_id": "739870c7959a",
+  "timestamp": "2026-03-22T07:05:11.500215+00:00",
+  "prompt": "Me sende ein faktura på 2716 EUR til Fossekraft AS (org.nr 928230651) då kursen var 10.11 NOK/EUR. Kunden har no betalt, men kursen er 9.33 NOK/EUR. Registrer betalinga og bokfør valutadifferansen (disagio) på rett konto.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 13,
+    "api_errors": 0,
+    "time_ms": 13130,
+    "error_details": null
+  }
+}

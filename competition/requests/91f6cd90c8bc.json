@@ -1,0 +1,14 @@
+{
+  "task_id": "91f6cd90c8bc",
+  "timestamp": "2026-03-21T23:28:01.924554+00:00",
+  "prompt": "One of your customers has an overdue invoice. Find the overdue invoice and post a reminder fee of 35 NOK. Debit accounts receivable (1500), credit reminder fees (3400). Also create an invoice for the reminder fee to the customer and send it. Additionally, register a partial payment of 5000 NOK on the overdue invoice.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 9,
+    "api_errors": 0,
+    "time_ms": 23109,
+    "error_details": null
+  }
+}

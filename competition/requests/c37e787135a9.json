@@ -1,0 +1,14 @@
+{
+  "task_id": "c37e787135a9",
+  "timestamp": "2026-03-21T21:51:12.666962+00:00",
+  "prompt": "Erstellen und senden Sie eine Rechnung an den Kunden Bergwerk GmbH (Org.-Nr. 886515340) über 38300 NOK ohne MwSt. Die Rechnung betrifft Beratungsstunden.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 4,
+    "api_errors": 0,
+    "time_ms": 20272,
+    "error_details": null
+  }
+}

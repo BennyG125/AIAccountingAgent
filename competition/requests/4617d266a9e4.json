@@ -1,0 +1,14 @@
+{
+  "task_id": "4617d266a9e4",
+  "timestamp": "2026-03-22T07:51:15.289186+00:00",
+  "prompt": "Enregistrez le fournisseur Océan SARL avec le numéro d'organisation 975630749. E-mail : faktura@ocansarl.no.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 1,
+    "api_errors": 0,
+    "time_ms": 26019,
+    "error_details": null
+  }
+}

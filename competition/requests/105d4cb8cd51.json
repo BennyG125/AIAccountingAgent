@@ -1,0 +1,27 @@
+{
+  "task_id": "105d4cb8cd51",
+  "timestamp": "2026-03-21T22:27:39.801209+00:00",
+  "prompt": "Führen Sie die Gehaltsabrechnung für Laura Müller (laura.muller@example.org) für diesen Monat durch. Das Grundgehalt beträgt 57650 NOK. Fügen Sie einen einmaligen Bonus von 15450 NOK zum Grundgehalt hinzu.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 12,
+    "api_calls": 13,
+    "api_errors": 2,
+    "time_ms": 103411,
+    "error_details": [
+      {
+        "tool": "tripletex_post",
+        "path": "/division",
+        "status": 422,
+        "error": "Validering feilet."
+      },
+      {
+        "tool": "tripletex_post",
+        "path": "/employee/employment",
+        "status": 422,
+        "error": "Validering feilet."
+      }
+    ]
+  }
+}

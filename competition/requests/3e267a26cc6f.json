@@ -1,0 +1,14 @@
+{
+  "task_id": "3e267a26cc6f",
+  "timestamp": "2026-03-21T21:32:22.166922+00:00",
+  "prompt": "Me har motteke faktura INV-2026-8662 frå leverandøren Elvdal AS (org.nr 889157917) på 39750 kr inklusiv MVA. Beløpet gjeld kontortenester (konto 6500). Registrer leverandørfakturaen med korrekt inngåande MVA (25 %).",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 4,
+    "api_errors": 0,
+    "time_ms": 15447,
+    "error_details": null
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "task_id": "0d616b52ddb8",
+  "timestamp": "2026-03-21T16:19:08.281133+00:00",
+  "prompt": "Vi sendte en faktura på 1381 EUR til Fjordkraft AS (org.nr 857800206) da kursen var 10.19 NOK/EUR. Kunden har nå betalt, men kursen er 11.15 NOK/EUR. Registrer betalingen og bokfør valutadifferansen (agio) på korrekt konto.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 6,
+    "api_calls": 11,
+    "api_errors": 1,
+    "time_ms": 281261,
+    "error_details": [
+      {
+        "tool": "tripletex_delete",
+        "path": "/ledger/voucher/609027792",
+        "status": 422,
+        "error": "Validering feilet."
+      }
+    ]
+  }
+}

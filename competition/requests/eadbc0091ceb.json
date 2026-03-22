@@ -1,0 +1,14 @@
+{
+  "task_id": "eadbc0091ceb",
+  "timestamp": "2026-03-21T21:31:10.566159+00:00",
+  "prompt": "Le client Colline SARL (nº org. 879581265) a réclamé concernant la facture pour \"Conseil en données\" (23750 NOK HT). Émettez un avoir complet qui annule l'intégralité de la facture.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 4,
+    "api_errors": 0,
+    "time_ms": 17219,
+    "error_details": null
+  }
+}

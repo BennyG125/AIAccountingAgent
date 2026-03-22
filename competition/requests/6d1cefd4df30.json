@@ -1,0 +1,20 @@
+{
+  "task_id": "6d1cefd4df30",
+  "timestamp": "2026-03-21T23:27:40.358925+00:00",
+  "prompt": "Voce recebeu uma fatura de fornecedor (ver PDF anexo). Registe a fatura no Tripletex. Crie o fornecedor se nao existir. Use a conta de despesas correta e o IVA de entrada.",
+  "files": [
+    {
+      "filename": "files/leverandorfaktura_pt_07.pdf",
+      "mime_type": "application/pdf",
+      "content_base64": "JVBERi0xLjMKJenr8b8KMSAwIG9iago8PAovQ291bnQgMQovS2lkcyBbMyAwIFJdCi9NZWRpYUJveCBbMCAwIDU5NS4yOCA4NDEuODldCi9UeXBlIC9QYWdlcwo+PgplbmRvYmoKMiAwIG9iago8PAovT3BlbkFjdGlvbiBbMyAwIFIgL0ZpdEggbnVsbF0KL1BhZ2VMYXlvdXQgL09uZUNvbHVtbgovUGFnZXMgMSAwIFIKL1R5cGUgL0NhdGFsb2cKPj4KZW5kb2JqCjMgMCBvYmoKPDwKL0NvbnRlbnRzIDQgMCBSCi9QYXJlbnQgMSAwIFIKL1Jlc291cmNlcyA3IDAgUgovVHlwZSAvUGFnZQo+PgplbmRvYmoKNCAwIG9iago8PAovRmlsdGVyIC9GbGF0ZURlY29kZQovTGVuZ3RoIDQ0Mgo+PgpzdHJlYW0KeJyVk19v0zAUxd/3Ke4LEkj0zr7+n7dWUAkGDI2w90h1URYnQU46JD49btLSpBtTebR1f+fYxz4EH68YKgO/rlY5XK85cI2MQb6F9/l+S3DkFoyT+6F8A6/vyhaWv3cBPm2KN5A/HOau1wScPYcagdoN6G38gU3MwAppBDFHE/4wrPRx+GsRq0df+gb4W2DcEtx2oZ05cqC5I0mHgkA7h1YMKuvlTf79bnmGcf7MQbUyyMc7rouq38Wi2dW1j9n5LecwVxaNnNIfvtwviJFeaK3dRc4ipcumzpuiby/0PbHkkEncO19kmnZTqINpG7dFCN1/uJ7gvau62FUZg3Y8bl6GDN6VfQ/bMtZ//xJZFAoUSZQc6oQlJ35cB/gGJy1BKNWgtfJdFctHHzp/1JmDNSit0YkzISUEKjlXCu3PlzM4uDOH5vDg+aJqm24XfNP3D77xXe/jREMRR8GmBBFLj1bFlwskLUMjQKbM5Mh9vl8CqVcZKMXpnE+R05w3qcsGpFKo+Zh52xehz4BS0Z7w/yiwTKpkB/ymbdIPSX+OsSfVFS5lOJZuVTRVNY5yTtYII4nbI/EHeZkKcgplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmoKPDwKL0Jhc2VGb250IC9IZWx2ZXRpY2EtQm9sZAovRW5jb2RpbmcgL1dpbkFuc2lFbmNvZGluZwovU3VidHlwZSAvVHlwZTEKL1R5cGUgL0ZvbnQKPj4KZW5kb2JqCjYgMCBvYmoKPDwKL0Jhc2VGb250IC9IZWx2ZXRpY2EKL0VuY29kaW5nIC9XaW5BbnNpRW5jb2RpbmcKL1N1YnR5cGUgL1R5cGUxCi9UeXBlIC9Gb250Cj4+CmVuZG9iago3IDAgb2JqCjw8Ci9Gb250IDw8L0YxIDUgMCBSCi9GMiA2IDAgUj4+Ci9Qcm9jU2V0IFsvUERGIC9UZXh0IC9JbWFnZUIgL0ltYWdlQyAvSW1hZ2VJXQo+PgplbmRvYmoKOCAwIG9iago8PAovQ3JlYXRpb25EYXRlIChEOjIwMjYwMzA0MTkxODA1WikKPj4KZW5kb2JqCnhyZWYKMCA5CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAxNSAwMDAwMCBuIAowMDAwMDAwMTAyIDAwMDAwIG4gCjAwMDAwMDAyMDUgMDAwMDAgbiAKMDAwMDAwMDI4NSAwMDAwMCBuIAowMDAwMDAwNzk5IDAwMDAwIG4gCjAwMDAwMDA5MDEgMDAwMDAgbiAKMDAwMDAwMDk5OCAwMDAwMCBuIAowMDAwMDAxMDk1IDAwMDAwIG4gCnRyYWlsZXIKPDwKL1NpemUgOQovUm9vdCAyIDAgUgovSW5mbyA4IDAgUgovSUQgWzw0OUE5MzZGMUNEQjE2RTdDM0RCRUY5RUQ4RkRBMUVFRD48NDlBOTM2RjFDREIxNkU3QzNEQkVGOUVEOEZEQTFFRUQ+XQo+PgpzdGFydHhyZWYKMTE1MAolJUVPRgo="
+    }
+  ],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 5,
+    "api_errors": 0,
+    "time_ms": 12534,
+    "error_details": null
+  }
+}

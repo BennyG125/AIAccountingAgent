@@ -1,0 +1,45 @@
+{
+  "task_id": "1f2f1883818d",
+  "timestamp": "2026-03-22T07:59:05.407475+00:00",
+  "prompt": "Führen Sie die Gehaltsabrechnung für Sophia Müller (sophia.muller@example.org) für diesen Monat durch. Das Grundgehalt beträgt 48350 NOK. Fügen Sie einen einmaligen Bonus von 15450 NOK zum Grundgehalt hinzu.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 18,
+    "api_calls": 19,
+    "api_errors": 5,
+    "time_ms": 113257,
+    "error_details": [
+      {
+        "tool": "tripletex_post",
+        "path": "/employee/employment",
+        "status": 422,
+        "error": "Validering feilet."
+      },
+      {
+        "tool": "tripletex_post",
+        "path": "/salary/transaction",
+        "status": 422,
+        "error": "Validering feilet."
+      },
+      {
+        "tool": "tripletex_get",
+        "path": "/company/1",
+        "status": 404,
+        "error": "Object not found"
+      },
+      {
+        "tool": "tripletex_get",
+        "path": "/company",
+        "status": 400,
+        "error": "HTTP 405 Method Not Allowed"
+      },
+      {
+        "tool": "tripletex_post",
+        "path": "/division",
+        "status": 422,
+        "error": "Validering feilet."
+      }
+    ]
+  }
+}

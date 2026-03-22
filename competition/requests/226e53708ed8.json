@@ -1,0 +1,14 @@
+{
+  "task_id": "226e53708ed8",
+  "timestamp": "2026-03-22T07:23:04.327219+00:00",
+  "prompt": "Kunden Lysgård AS (org.nr 962467210) har reklamert på fakturaen for \"Nettverkstjeneste\" (41600 kr ekskl. MVA). Opprett en fullstendig kreditnota som reverserer hele fakturaen.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 3,
+    "api_errors": 0,
+    "time_ms": 10252,
+    "error_details": null
+  }
+}

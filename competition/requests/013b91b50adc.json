@@ -1,0 +1,27 @@
+{
+  "task_id": "013b91b50adc",
+  "timestamp": "2026-03-21T22:57:17.028980+00:00",
+  "prompt": "One of your customers has an overdue invoice. Find the overdue invoice and post a reminder fee of 35 NOK. Debit accounts receivable (1500), credit reminder fees (3400). Also create an invoice for the reminder fee to the customer and send it. Additionally, register a partial payment of 5000 NOK on the overdue invoice.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 6,
+    "api_calls": 11,
+    "api_errors": 2,
+    "time_ms": 59058,
+    "error_details": [
+      {
+        "tool": "tripletex_get",
+        "path": "/invoice",
+        "status": 400,
+        "error": "Illegal field in fields filter: amountRemainingCurrency. amountRemainingCurrency does not match a field in the model: InvoiceDTO"
+      },
+      {
+        "tool": "tripletex_get",
+        "path": "/invoice/paymentType",
+        "status": 400,
+        "error": "Illegal field in fields filter: name. name does not match a field in the model: PaymentTypeDTO"
+      }
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "task_id": "2e40148aea94",
+  "timestamp": "2026-03-22T07:48:16.123659+00:00",
+  "prompt": "Realize o encerramento anual simplificado de 2025: 1) Calcule e registe a depreciação anual de três ativos: Kontormaskiner (329750 NOK, 4 anos lineares, conta 1200), Inventar (217500 NOK, 6 anos, conta 1240), Programvare (108950 NOK, 9 anos, conta 1250). Use conta 6010 para despesa de depreciação e 1209 para depreciação acumulada. 2) Reverta despesas antecipadas (total 45900 NOK na conta 1700). 3) Calcule e registe a provisão fiscal (22 % do resultado tributável) na conta 8700/2920. Registe cada depreciação como um lançamento separado.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 6,
+    "api_calls": 14,
+    "api_errors": 0,
+    "time_ms": 137545,
+    "error_details": null
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "task_id": "28a45c65812e",
+  "timestamp": "2026-03-22T07:04:43.324781+00:00",
+  "prompt": "Registrer leverandøren Brattli AS med organisasjonsnummer 950029978. E-post: faktura@brattli.no.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 2,
+    "api_calls": 1,
+    "api_errors": 0,
+    "time_ms": 7951,
+    "error_details": null
+  }
+}

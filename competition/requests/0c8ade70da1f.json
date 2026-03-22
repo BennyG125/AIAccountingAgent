@@ -1,0 +1,14 @@
+{
+  "task_id": "0c8ade70da1f",
+  "timestamp": "2026-03-22T07:08:08.523056+00:00",
+  "prompt": "Kunden Bølgekraft AS (org.nr 868461780) har reklamert på fakturaen for \"Nettverksteneste\" (6950 kr ekskl. MVA). Opprett ei fullstendig kreditnota som reverserer heile fakturaen.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 3,
+    "api_errors": 0,
+    "time_ms": 9652,
+    "error_details": null
+  }
+}

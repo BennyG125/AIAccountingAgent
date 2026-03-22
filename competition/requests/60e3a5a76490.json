@@ -1,0 +1,14 @@
+{
+  "task_id": "60e3a5a76490",
+  "timestamp": "2026-03-22T07:57:21.980672+00:00",
+  "prompt": "Betalinga frå Strandvik AS (org.nr 863217873) for fakturaen \"Programvarelisens\" (17250 kr ekskl. MVA) vart returnert av banken. Reverser betalinga slik at fakturaen igjen viser uteståande beløp.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 8,
+    "api_errors": 0,
+    "time_ms": 10742,
+    "error_details": null
+  }
+}

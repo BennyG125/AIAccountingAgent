@@ -1,0 +1,14 @@
+{
+  "task_id": "25edb6cd693b",
+  "timestamp": "2026-03-21T22:48:26.541717+00:00",
+  "prompt": "Log 14 hours for Thomas Smith (thomas.smith@example.org) on the activity \"Design\" in the project \"App Development\" for Brightstone Ltd (org no. 982658691). Hourly rate: 1950 NOK/h. Generate a project invoice to the customer based on the logged hours.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 6,
+    "api_calls": 9,
+    "api_errors": 0,
+    "time_ms": 68108,
+    "error_details": null
+  }
+}

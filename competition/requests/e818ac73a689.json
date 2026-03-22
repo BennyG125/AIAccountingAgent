@@ -1,0 +1,20 @@
+{
+  "task_id": "e818ac73a689",
+  "timestamp": "2026-03-22T07:35:04.398243+00:00",
+  "prompt": "Vous avez recu une facture fournisseur (voir PDF ci-joint). Enregistrez la facture dans Tripletex. Creez le fournisseur s'il n'existe pas. Utilisez le bon compte de charges et la TVA deductible.",
+  "files": [
+    {
+      "filename": "files/leverandorfaktura_fr_01.pdf",
+      "mime_type": "application/pdf",
+      "content_base64": "JVBERi0xLjMKJenr8b8KMSAwIG9iago8PAovQ291bnQgMQovS2lkcyBbMyAwIFJdCi9NZWRpYUJveCBbMCAwIDU5NS4yOCA4NDEuODldCi9UeXBlIC9QYWdlcwo+PgplbmRvYmoKMiAwIG9iago8PAovT3BlbkFjdGlvbiBbMyAwIFIgL0ZpdEggbnVsbF0KL1BhZ2VMYXlvdXQgL09uZUNvbHVtbgovUGFnZXMgMSAwIFIKL1R5cGUgL0NhdGFsb2cKPj4KZW5kb2JqCjMgMCBvYmoKPDwKL0NvbnRlbnRzIDQgMCBSCi9QYXJlbnQgMSAwIFIKL1Jlc291cmNlcyA3IDAgUgovVHlwZSAvUGFnZQo+PgplbmRvYmoKNCAwIG9iago8PAovRmlsdGVyIC9GbGF0ZURlY29kZQovTGVuZ3RoIDQ0Ngo+PgpzdHJlYW0KeJyVk81u2zAQhO95ir0UaIB6w+W/dLORGkjdHyBRcydquVAkUQVFt8/ctyht2bDkpIFzFDHfDDna5fDpiqEy8OdqUcDNkoA0MgbFBj4WuyNBSBZMJneiYg3vv/346zw8zO8/X0PxdFDdLDkQewk0AnU2gOEn+pCD1ZxIk7Ej/iBW+ii+8+ttH0P1u6xKn1w+gNREsApVHyvne+fXk3gCPo3nMkPBQWcZWrG3XM5Xxff7+RlG9MKttTJIw3OXro7b4Py2bcuQnz95CpOyaOSYvvv6OOOM65nlkl+ULFLRbJy8drG7MPfEsiQQuEu+KDSdWj6EdmHjmqZ/Q+oJFm9KVcagHa5bVE0Ot1WMsKlC6440tygUKC5RErQJS0l0/G7gAU5egqNUe69F2de7uWn68ugzBVtQWmMmzoyUEKjk1Knpfr3ewSGdZWgOP7yY1Z3vt03pY3wqfdnHMow8FCcUbEwIa5JjHV7fJmkZGgEydSYH7svjHLh6l0OmjTrnU+V8ypu01gakUqhp6LyLrol5chbP+f9ss0yu3O7xVefThKSZY+zZHossdTgs3cL5uh6kylhjSKcpFUfiH/L8D3MKZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqCjw8Ci9CYXNlRm9udCAvSGVsdmV0aWNhLUJvbGQKL0VuY29kaW5nIC9XaW5BbnNpRW5jb2RpbmcKL1N1YnR5cGUgL1R5cGUxCi9UeXBlIC9Gb250Cj4+CmVuZG9iago2IDAgb2JqCjw8Ci9CYXNlRm9udCAvSGVsdmV0aWNhCi9FbmNvZGluZyAvV2luQW5zaUVuY29kaW5nCi9TdWJ0eXBlIC9UeXBlMQovVHlwZSAvRm9udAo+PgplbmRvYmoKNyAwIG9iago8PAovRm9udCA8PC9GMSA1IDAgUgovRjIgNiAwIFI+PgovUHJvY1NldCBbL1BERiAvVGV4dCAvSW1hZ2VCIC9JbWFnZUMgL0ltYWdlSV0KPj4KZW5kb2JqCjggMCBvYmoKPDwKL0NyZWF0aW9uRGF0ZSAoRDoyMDI2MDMwNDE5MTgwNVopCj4+CmVuZG9iagp4cmVmCjAgOQowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMTUgMDAwMDAgbiAKMDAwMDAwMDEwMiAwMDAwMCBuIAowMDAwMDAwMjA1IDAwMDAwIG4gCjAwMDAwMDAyODUgMDAwMDAgbiAKMDAwMDAwMDgwMyAwMDAwMCBuIAowMDAwMDAwOTA1IDAwMDAwIG4gCjAwMDAwMDEwMDIgMDAwMDAgbiAKMDAwMDAwMTA5OSAwMDAwMCBuIAp0cmFpbGVyCjw8Ci9TaXplIDkKL1Jvb3QgMiAwIFIKL0luZm8gOCAwIFIKL0lEIFs8MUU4RDA2OERGMEVDRjIyNkM0NjY3MDA2N0Q5NTM5RDA+PDFFOEQwNjhERjBFQ0YyMjZDNDY2NzAwNjdEOTUzOUQwPl0KPj4Kc3RhcnR4cmVmCjExNTQKJSVFT0YK"
+    }
+  ],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 5,
+    "api_errors": 0,
+    "time_ms": 91517,
+    "error_details": null
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "task_id": "456071d8044a",
+  "timestamp": "2026-03-21T21:20:06.339204+00:00",
+  "prompt": "Die Zahlung von Windkraft GmbH (Org.-Nr. 823566441) für die Rechnung \"Wartung\" (29500 NOK ohne MwSt.) wurde von der Bank zurückgebucht. Stornieren Sie die Zahlung, damit die Rechnung wieder den offenen Betrag anzeigt.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 4,
+    "api_errors": 0,
+    "time_ms": 24426,
+    "error_details": null
+  }
+}

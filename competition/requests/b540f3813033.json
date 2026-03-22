@@ -1,0 +1,14 @@
+{
+  "task_id": "b540f3813033",
+  "timestamp": "2026-03-21T21:42:49.241426+00:00",
+  "prompt": "Erstellen Sie einen Auftrag für den Kunden Nordlicht GmbH (Org.-Nr. 985301476) mit den Produkten Netzwerkdienst (8953) zu 17750 NOK und Wartung (4503) zu 12300 NOK. Wandeln Sie den Auftrag in eine Rechnung um und registrieren Sie die vollständige Zahlung.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 9,
+    "api_errors": 0,
+    "time_ms": 35864,
+    "error_details": null
+  }
+}

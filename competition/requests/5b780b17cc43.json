@@ -1,0 +1,20 @@
+{
+  "task_id": "5b780b17cc43",
+  "timestamp": "2026-03-21T16:08:29.386629+00:00",
+  "prompt": "Vous avez recu une lettre d'offre (voir PDF ci-joint) pour un nouvel employe. Effectuez l'integration complete : creez l'employe, attribuez le bon departement, configurez les details d'emploi avec le pourcentage et le salaire annuel, et configurez les heures de travail standard.",
+  "files": [
+    {
+      "filename": "files/tilbudsbrev_fr_08.pdf",
+      "mime_type": "application/pdf",
+      "content_base64": "JVBERi0xLjMKJenr8b8KMSAwIG9iago8PAovQ291bnQgMQovS2lkcyBbMyAwIFJdCi9NZWRpYUJveCBbMCAwIDU5NS4yOCA4NDEuODldCi9UeXBlIC9QYWdlcwo+PgplbmRvYmoKMiAwIG9iago8PAovT3BlbkFjdGlvbiBbMyAwIFIgL0ZpdEggbnVsbF0KL1BhZ2VMYXlvdXQgL09uZUNvbHVtbgovUGFnZXMgMSAwIFIKL1R5cGUgL0NhdGFsb2cKPj4KZW5kb2JqCjMgMCBvYmoKPDwKL0NvbnRlbnRzIDQgMCBSCi9QYXJlbnQgMSAwIFIKL1Jlc291cmNlcyA3IDAgUgovVHlwZSAvUGFnZQo+PgplbmRvYmoKNCAwIG9iago8PAovRmlsdGVyIC9GbGF0ZURlY29kZQovTGVuZ3RoIDYwOQo+PgpzdHJlYW0KeJyNVG1v0zAQ/r5fcV+QQALPjvPWfWPaCmMrCFb4ilx8Td26drGzTvvJ/AsuSbusW0GJFNlxnrvnufPdJfDphLOsgPuT8ymcjgWIknEO0zlcTpujhKdMpFCMRLNMNbyeXt2cf7+ALxO4pe3N1ecPb2C63MFPxwkIceBBkmUJhSzYKG8dXC8VBoSbPwomKtTGvX3iYIfmOSvKFv3DwEIFqCxqdKC2oKA2dvYAGiuItLXGVfQn+jXcojM+3NVbs7IYwBBcY/Mfru+cxohha34hO9BLEcsjevM8Y7xTcIG1sksMz82OhZnLlGW8NRt7HdFGrWp/9v8MiSJhI/HUlhdMcCZGpRxESqdl0l2OsXWgTNmIA0l7Wy4ZfSQ8yYeQZuVoXxHvXcS6bjjj3If1MOIn9mMV68erHMSd5yztiul2ZxY3wUd09UDy3oHgnPFXg1hTyYpRF3GI1js3kKy3K0tOD6wG1VKW0CJ2fDM0mlKkB1L2pgXLqGHW1A4berWqnjvgvYPf8EieFiUrW9GcpQkB7ptWtCsVzuDwvhfeaqwhYHVHTYex7dFO79rYpbd+S+3pK5ihDmZeo4uNlOidsgvl9MyvGFCPQbVE8hSA0HSZW6RoYaNgX43w9UBfTnXb9qdkWZm2+tbKYeNgjRqotChWomncumi0qcBvNtFUne5gYs3gksIIj2xETF/PUXQqYeeawRiDQYqmF9VLSlNWFm3S5w1qgzSYAsy9bZfmqM0FezHuJE1X3jXhhLQTxlnSuzAk4sh0lJlgUrbwn/9+XprRknZ1+PHbu/1oRLcH/gWWh6ECCmVuZHN0cmVhbQplbmRvYmoKNSAwIG9iago8PAovQmFzZUZvbnQgL0hlbHZldGljYS1Cb2xkCi9FbmNvZGluZyAvV2luQW5zaUVuY29kaW5nCi9TdWJ0eXBlIC9UeXBlMQovVHlwZSAvRm9udAo+PgplbmRvYmoKNiAwIG9iago8PAovQmFzZUZvbnQgL0hlbHZldGljYQovRW5jb2RpbmcgL1dpbkFuc2lFbmNvZGluZwovU3VidHlwZSAvVHlwZTEKL1R5cGUgL0ZvbnQKPj4KZW5kb2JqCjcgMCBvYmoKPDwKL0ZvbnQgPDwvRjEgNSAwIFIKL0YyIDYgMCBSPj4KL1Byb2NTZXQgWy9QREYgL1RleHQgL0ltYWdlQiAvSW1hZ2VDIC9JbWFnZUldCj4+CmVuZG9iago4IDAgb2JqCjw8Ci9DcmVhdGlvbkRhdGUgKEQ6MjAyNjAzMDQxOTE4MDZaKQo+PgplbmRvYmoKeHJlZgowIDkKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDE1IDAwMDAwIG4gCjAwMDAwMDAxMDIgMDAwMDAgbiAKMDAwMDAwMDIwNSAwMDAwMCBuIAowMDAwMDAwMjg1IDAwMDAwIG4gCjAwMDAwMDA5NjYgMDAwMDAgbiAKMDAwMDAwMTA2OCAwMDAwMCBuIAowMDAwMDAxMTY1IDAwMDAwIG4gCjAwMDAwMDEyNjIgMDAwMDAgbiAKdHJhaWxlcgo8PAovU2l6ZSA5Ci9Sb290IDIgMCBSCi9JbmZvIDggMCBSCi9JRCBbPEYwRkRDOUE0NTlBNzQwQUI1MEExQUMwMzVDQjYzNTg4PjxGMEZEQzlBNDU5QTc0MEFCNTBBMUFDMDM1Q0I2MzU4OD5dCj4+CnN0YXJ0eHJlZgoxMzE3CiUlRU9GCg=="
+    }
+  ],
+  "result_summary": {
+    "status": null,
+    "iterations": null,
+    "api_calls": null,
+    "api_errors": null,
+    "time_ms": null,
+    "error_details": []
+  }
+}

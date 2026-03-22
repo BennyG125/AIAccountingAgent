@@ -1,0 +1,14 @@
+{
+  "task_id": "eaef1b7db314",
+  "timestamp": "2026-03-21T22:27:15.508055+00:00",
+  "prompt": "Kunden Havbris AS (org.nr 995581094) har reklamert på fakturaen for \"Programvarelisens\" (34650 kr ekskl. MVA). Opprett en fullstendig kreditnota som reverserer hele fakturaen.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 3,
+    "api_errors": 0,
+    "time_ms": 24324,
+    "error_details": null
+  }
+}

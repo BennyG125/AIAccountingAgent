@@ -1,0 +1,21 @@
+{
+  "task_id": "bed0065829f4",
+  "timestamp": "2026-03-21T22:42:16.860828+00:00",
+  "prompt": "Set a fixed price of 202150 NOK on the project \"Cloud Migration\" for Clearwater Ltd (org no. 872682023). The project manager is Oliver Brown (oliver.brown@example.org). Invoice the customer for 25% of the fixed price as a milestone payment.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 8,
+    "api_calls": 8,
+    "api_errors": 1,
+    "time_ms": 38430,
+    "error_details": [
+      {
+        "tool": "tripletex_post",
+        "path": "/employee",
+        "status": 422,
+        "error": "Validering feilet."
+      }
+    ]
+  }
+}

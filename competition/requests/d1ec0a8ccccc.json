@@ -1,0 +1,20 @@
+{
+  "task_id": "d1ec0a8ccccc",
+  "timestamp": "2026-03-21T22:14:26.335069+00:00",
+  "prompt": "Vi trenger Flybillett fra denne kvitteringen bokfort pa avdeling Kundeservice. Bruk riktig utgiftskonto basert pa kjopet, og sorg for korrekt MVA-behandling.",
+  "files": [
+    {
+      "filename": "files/kvittering_nb_08.pdf",
+      "mime_type": "application/pdf",
+      "content_base64": "JVBERi0xLjMKJenr8b8KMSAwIG9iago8PAovQ291bnQgMQovS2lkcyBbMyAwIFJdCi9NZWRpYUJveCBbMCAwIDU5NS4yOCA4NDEuODldCi9UeXBlIC9QYWdlcwo+PgplbmRvYmoKMiAwIG9iago8PAovT3BlbkFjdGlvbiBbMyAwIFIgL0ZpdEggbnVsbF0KL1BhZ2VMYXlvdXQgL09uZUNvbHVtbgovUGFnZXMgMSAwIFIKL1R5cGUgL0NhdGFsb2cKPj4KZW5kb2JqCjMgMCBvYmoKPDwKL0NvbnRlbnRzIDQgMCBSCi9QYXJlbnQgMSAwIFIKL1Jlc291cmNlcyA3IDAgUgovVHlwZSAvUGFnZQo+PgplbmRvYmoKNCAwIG9iago8PAovRmlsdGVyIC9GbGF0ZURlY29kZQovTGVuZ3RoIDM5MQo+PgpzdHJlYW0KeJx9k01vGjEQhu/5FXOplEjt4LE9/uAWJKho1bRqVty3wpCFZVcyK6L++xoWErNBPXo17zMzj70Svt0JZAuvd5MCRjMC0igEFCuYFsdP0hA6A9YzkoViCfdPbXwN66psHqDYnKtGMwn+OqccGgJrFXp/ys02bVweQhUa0J9BC2HguSsPZbMOMUNJ9ugsWDaX4M+4xiaOwbMxLMi6q8YfJ+7PlgSSOgG+L+ZFMf09f/oKX0BKFAalkGaIEe8Y6VAxGKNQEexA6cQyl3MNz5AyipAcGCtQ9m0WZQwX5nViB2l09GpAYM1pkBzxK1b7gdZ8rPeuLFCdtdZ//1R1HbouCzIZdJyX2ST8CNrmrs8wlV6A7k21TdfGGLaHal91ZU5M3jTltZIGwLM0sug5W7k/p5XfRNONjdhrdHQCF21X1t34ah2Bzuc11gy7/08Xp1eYdByDAC8hlgf4sXhMT+3T+KO0rJi8kMg3pbGWaPofYhKO88IuLMcwCctYrbr9to1v9/EPWUjKxgplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmoKPDwKL0Jhc2VGb250IC9IZWx2ZXRpY2EtQm9sZAovRW5jb2RpbmcgL1dpbkFuc2lFbmNvZGluZwovU3VidHlwZSAvVHlwZTEKL1R5cGUgL0ZvbnQKPj4KZW5kb2JqCjYgMCBvYmoKPDwKL0Jhc2VGb250IC9IZWx2ZXRpY2EKL0VuY29kaW5nIC9XaW5BbnNpRW5jb2RpbmcKL1N1YnR5cGUgL1R5cGUxCi9UeXBlIC9Gb250Cj4+CmVuZG9iago3IDAgb2JqCjw8Ci9Gb250IDw8L0YxIDUgMCBSCi9GMiA2IDAgUj4+Ci9Qcm9jU2V0IFsvUERGIC9UZXh0IC9JbWFnZUIgL0ltYWdlQyAvSW1hZ2VJXQo+PgplbmRvYmoKOCAwIG9iago8PAovQ3JlYXRpb25EYXRlIChEOjIwMjYwMzE4MDk0MDUwWikKPj4KZW5kb2JqCnhyZWYKMCA5CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAxNSAwMDAwMCBuIAowMDAwMDAwMTAyIDAwMDAwIG4gCjAwMDAwMDAyMDUgMDAwMDAgbiAKMDAwMDAwMDI4NSAwMDAwMCBuIAowMDAwMDAwNzQ4IDAwMDAwIG4gCjAwMDAwMDA4NTAgMDAwMDAgbiAKMDAwMDAwMDk0NyAwMDAwMCBuIAowMDAwMDAxMDQ0IDAwMDAwIG4gCnRyYWlsZXIKPDwKL1NpemUgOQovUm9vdCAyIDAgUgovSW5mbyA4IDAgUgovSUQgWzwyOTgyRjQ5NkY4RjBFOTg1OUUxOUM4MEQ0OTg2MzU5NT48Mjk4MkY0OTZGOEYwRTk4NTlFMTlDODBENDk4NjM1OTU+XQo+PgpzdGFydHhyZWYKMTA5OQolJUVPRgo="
+    }
+  ],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 5,
+    "api_errors": 0,
+    "time_ms": 28085,
+    "error_details": null
+  }
+}

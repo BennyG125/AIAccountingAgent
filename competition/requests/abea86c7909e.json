@@ -1,0 +1,63 @@
+{
+  "task_id": "abea86c7909e",
+  "timestamp": "2026-03-21T16:04:56.932627+00:00",
+  "prompt": "Nous avons découvert des erreurs dans le grand livre de janvier et février 2026. Vérifiez toutes les pièces et trouvez les 4 erreurs : une écriture sur le mauvais compte (compte 6860 utilisé au lieu de 6590, montant 7600 NOK), une pièce en double (compte 6500, montant 3600 NOK), une ligne de TVA manquante (compte 6500, montant HT 8050 NOK, TVA manquante sur compte 2710), et un montant incorrect (compte 6340, 23000 NOK comptabilisé au lieu de 8000 NOK). Corrigez toutes les erreurs avec des écritures correctives.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 8,
+    "api_calls": 27,
+    "api_errors": 8,
+    "time_ms": 234701,
+    "error_details": [
+      {
+        "tool": "tripletex_get",
+        "path": "/ledger/posting",
+        "status": 422,
+        "error": "Validation failed"
+      },
+      {
+        "tool": "tripletex_get",
+        "path": "/ledger/posting",
+        "status": 422,
+        "error": "Validation failed"
+      },
+      {
+        "tool": "tripletex_get",
+        "path": "/ledger/posting",
+        "status": 422,
+        "error": "Validation failed"
+      },
+      {
+        "tool": "tripletex_get",
+        "path": "/ledger/posting",
+        "status": 422,
+        "error": "Validation failed"
+      },
+      {
+        "tool": "tripletex_post",
+        "path": "/ledger/voucher",
+        "status": 422,
+        "error": "Validering feilet."
+      },
+      {
+        "tool": "tripletex_post",
+        "path": "/ledger/voucher",
+        "status": 422,
+        "error": "Validering feilet."
+      },
+      {
+        "tool": "tripletex_post",
+        "path": "/ledger/voucher",
+        "status": 422,
+        "error": "Validering feilet."
+      },
+      {
+        "tool": "tripletex_put",
+        "path": "/ledger/voucher/609020297/:reverse",
+        "status": 422,
+        "error": "Validation failed"
+      }
+    ]
+  }
+}

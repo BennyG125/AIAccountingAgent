@@ -1,0 +1,14 @@
+{
+  "task_id": "d5acc5d72441",
+  "timestamp": "2026-03-21T22:12:11.808669+00:00",
+  "prompt": "Crea el proyecto \"Implementación Dorada\" vinculado al cliente Dorada SL (org. nº 831075392). El director del proyecto es Isabel Rodríguez (isabel.rodriguez@example.org).",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 4,
+    "api_calls": 5,
+    "api_errors": 0,
+    "time_ms": 37439,
+    "error_details": null
+  }
+}

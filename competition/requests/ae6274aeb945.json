@@ -1,0 +1,14 @@
+{
+  "task_id": "ae6274aeb945",
+  "timestamp": "2026-03-21T21:33:34.629138+00:00",
+  "prompt": "Crea y envía una factura al cliente Río Verde SL (org. nº 894012358) por 29100 NOK sin IVA. La factura es por Sesión de formación.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 4,
+    "api_errors": 0,
+    "time_ms": 22930,
+    "error_details": null
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "task_id": "2e78fac1dfa7",
+  "timestamp": "2026-03-21T22:20:09.629781+00:00",
+  "prompt": "Der Kunde Windkraft GmbH (Org.-Nr. 954808483) hat eine offene Rechnung über 47600 NOK ohne MwSt. für \"Systementwicklung\". Registrieren Sie die vollständige Zahlung dieser Rechnung.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 4,
+    "api_errors": 0,
+    "time_ms": 29820,
+    "error_details": null
+  }
+}

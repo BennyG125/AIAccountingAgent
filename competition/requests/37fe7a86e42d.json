@@ -1,0 +1,14 @@
+{
+  "task_id": "37fe7a86e42d",
+  "timestamp": "2026-03-21T16:18:56.134719+00:00",
+  "prompt": "Ejecute la nómina de Marta Torres (marta.torres@example.org) para este mes. El salario base es de 50400 NOK. Añada una bonificación única de 7050 NOK además del salario base.",
+  "files": [],
+  "result_summary": {
+    "status": null,
+    "iterations": null,
+    "api_calls": null,
+    "api_errors": null,
+    "time_ms": null,
+    "error_details": []
+  }
+}
