@@ -175,7 +175,10 @@ def detect_and_translate(prompt: str) -> tuple[str, str]:
 
 
 def extract_params(prompt: str, task_type: str, language: str = "Unknown") -> tuple[dict | None, str | None]:
-    """Extract task parameters from the prompt using Claude Opus 4.6.
+    """Extract task parameters from the prompt using Claude Opus 4.6 tool use.
+
+    Uses forced tool call to guarantee structured JSON output (works on Vertex AI
+    where output_config.format is not available).
 
     Also asks Claude to verify the regex classification is correct.
 
@@ -189,46 +192,56 @@ def extract_params(prompt: str, task_type: str, language: str = "Unknown") -> tu
         return None, None
 
     is_simple = task_type in SIMPLE_SCHEMAS
+    all_types_str = ", ".join(_ALL_TASK_TYPES)
+
+    # Build the extraction tool schema — add confirmed_task_type to the schema
+    tool_properties = {"confirmed_task_type": {
+        "type": "string",
+        "description": f"The correct task type. Usually '{task_type}'. Valid: {all_types_str}",
+    }}
+    tool_required = ["confirmed_task_type"]
+    # Merge in the extraction schema properties
+    for prop_name, prop_val in schema.get("properties", {}).items():
+        tool_properties[prop_name] = prop_val
+    for req in schema.get("required", []):
+        if req not in tool_required:
+            tool_required.append(req)
+
+    extraction_tool = {
+        "name": "extract_params",
+        "description": f"Extract structured parameters for task type '{task_type}' from the prompt.",
+        "input_schema": {
+            "type": "object",
+            "properties": tool_properties,
+            "required": tool_required,
+        },
+    }
 
     if is_simple:
         extraction_prompt = (
-            f"Extract fields from this accounting prompt as JSON. "
-            f"Return ONLY valid JSON matching this schema:\n"
-            f"{json.dumps(schema, indent=2)}\n\n"
-            f'Include "confirmed_task_type": "{task_type}" as first field.\n'
-            f"Preserve exact names, numbers, emails, dates from the text.\n"
+            f"Extract fields from this accounting prompt. "
+            f"Preserve exact names, numbers, emails, dates from the text. "
             f"Use null for fields not mentioned.\n\n"
             f"Prompt:\n{prompt}"
         )
     else:
-        all_types_str = ", ".join(_ALL_TASK_TYPES)
-
         extraction_prompt = (
             f"You are extracting structured data from an accounting task prompt.\n"
             f"The regex classifier assigned task type: {task_type}\n"
             f"Detected language: {language}\n\n"
             f"Here is the prompt (in {language}):\n"
             f'"""\n{prompt}\n"""\n\n'
-            f"Step 1 — REFLECT AND VERIFY:\n"
-            f"Before extracting anything, read the prompt carefully word by word.\n"
-            f"Question every assumption:\n"
-            f"- Is '{task_type}' the correct task type for this prompt?\n"
-            f"- Valid task types: {all_types_str}\n"
-            f"- Set confirmed_task_type to the correct one (same as '{task_type}' if correct).\n\n"
-            f"Step 2 — EXTRACT PARAMETERS for the confirmed task type:\n"
-            f"Extract ALL relevant fields into this JSON structure:\n"
-            f"{json.dumps(schema, indent=2)}\n\n"
-            f"EXTRACTION RULES — follow these relentlessly:\n"
+            f"REFLECT AND VERIFY before extracting:\n"
+            f"- Is '{task_type}' the correct task type? Set confirmed_task_type accordingly.\n\n"
+            f"EXTRACTION RULES:\n"
             f"- ONLY extract values that appear VERBATIM in the prompt text\n"
-            f"- For names: preserve exact spelling, accents, and special characters from the prompt\n"
-            f"- For amounts: extract the exact number from the prompt — never round, convert, or infer\n"
-            f"- For dates: use YYYY-MM-DD format, converting from the prompt's format\n"
-            f"- For emails: copy character-for-character from the prompt\n"
+            f"- For names: preserve exact spelling, accents, and special characters\n"
+            f"- For amounts: extract the exact number — never round, convert, or infer\n"
+            f"- For dates: use YYYY-MM-DD format\n"
+            f"- For emails: copy character-for-character\n"
             f"- For account numbers: ONLY extract accounts explicitly mentioned — never infer\n"
-            f"- If a field is not explicitly mentioned in the prompt, use null — NEVER guess\n"
-            f"- If the prompt mentions additional items (allowances, supplements, tillegg), extract ALL of them\n"
-            f'- ALWAYS include "confirmed_task_type": "<task_type>" as the FIRST field\n'
-            f"- Return ONLY a valid JSON object. No markdown, no explanation."
+            f"- If a field is not explicitly mentioned, use null — NEVER guess\n"
+            f"- If the prompt mentions additional items (allowances, supplements, tillegg), extract ALL"
         )
 
     max_tokens = 1024 if is_simple else 4096
@@ -240,27 +253,37 @@ def extract_params(prompt: str, task_type: str, language: str = "Unknown") -> tu
         response = client.messages.create(
             model=CLAUDE_MODEL,
             max_tokens=max_tokens,
-            thinking={"type": "adaptive"},
+            tools=[extraction_tool],
+            tool_choice={"type": "tool", "name": "extract_params"},
             messages=[{"role": "user", "content": extraction_prompt}],
         )
 
-        # With thinking enabled, find the text block (skip thinking blocks)
-        text = ""
-        block_types = [b.type for b in response.content]
-        for block in response.content:
-            if block.type == "text":
-                text = (block.text or "").strip()
-                break
-        if not text:
-            logger.warning(
-                f"No text block in response for '{task_type}', "
-                f"block_types={block_types}, raw={str(response.content)[:300]}"
-            )
-        # Strip markdown code fences if present
-        text = re.sub(r"^```(?:json)?\s*", "", text)
-        text = re.sub(r"\s*```$", "", text)
+        # With forced tool_choice, the response contains a tool_use block.
+        # LangSmith wrap_anthropic may move tool calls to response.tool_calls
+        # with content=None, so check both formats.
+        params = None
+        if response.content:
+            for block in response.content:
+                if getattr(block, 'type', None) == "tool_use" and getattr(block, 'name', None) == "extract_params":
+                    params = block.input
+                    break
+        if params is None and hasattr(response, 'tool_calls') and response.tool_calls:
+            for tc in response.tool_calls:
+                fn = getattr(tc, 'function', None) or (tc.get('function') if isinstance(tc, dict) else None)
+                if fn:
+                    name = getattr(fn, 'name', None) or (fn.get('name') if isinstance(fn, dict) else None)
+                    args = getattr(fn, 'arguments', None) or (fn.get('arguments') if isinstance(fn, dict) else None)
+                    if name == "extract_params" and args:
+                        params = json.loads(args) if isinstance(args, str) else args
+                        break
 
-        params = json.loads(text)
+        if params is None:
+            logger.warning(
+                f"No tool_use block in response for '{task_type}', "
+                f"content={response.content is not None}, "
+                f"tool_calls={hasattr(response, 'tool_calls') and bool(response.tool_calls)}"
+            )
+            return None, None
 
         # For simple schemas, trust the regex classification directly
         if is_simple:
