@@ -68,6 +68,57 @@ Map error patterns to root causes:
 ### D. Deterministic plan bugs
 Check if deterministic-handled tasks have 0 errors. If errors > 0, the plan itself has bugs.
 
+## Phase 2b: Create Optimal Sequences for New Task Types
+
+For task types identified in Phase 2 that have NO optimal sequence doc in `real-requests/optimal-sequence/`, create one BEFORE building an execution plan. This is the research step.
+
+### Find real requests for the task type
+```python
+import json, glob
+for f in sorted(glob.glob('competition/requests/*.json')):
+    with open(f) as fh:
+        d = json.load(fh)
+    prompt = d.get('prompt', '')
+    if '<keyword>' in prompt.lower():
+        print(prompt)
+```
+
+### Understand the task pattern
+Read multiple requests in different languages to identify:
+- What entities need to be created (customer, employee, product, etc.)
+- What the end goal is (invoice, voucher, project, etc.)
+- What parameters need to be extracted from the prompt
+- What the minimum API call count could be
+
+### Check API reference
+- Read `api_knowledge/cheat_sheet.py` for endpoint schemas
+- Check existing similar recipes in `recipes/` for proven patterns
+- Check Tripletex API docs at https://tripletex.no/v2-docs/ if needed
+- Look for bulk endpoints (`POST /{resource}/list`) to minimize call count
+
+### Write the optimal sequence doc
+Save to `real-requests/optimal-sequence/<task_type>.md`:
+```markdown
+# <task_type> — Optimal Sequence
+
+## Summary
+Tier X. Brief description. N API calls.
+
+## Parameters to Extract
+| Parameter | Source | Notes |
+|-----------|--------|-------|
+
+## API Sequence
+### Step N: Description (N calls)
+POST /endpoint { body }
+Capture var. On error: fallback.
+
+## Critical Notes
+- Target: N calls, 0 errors
+```
+
+Study existing optimal sequences for the format — they're the source of truth that both recipes and execution plans are built from.
+
 ## Phase 3: Fix
 
 Fix issues in priority order (highest impact first):
