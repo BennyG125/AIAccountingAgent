@@ -26,6 +26,13 @@ class CreateInvoicePlan(ExecutionPlan):
     description = "Create invoice: find/create customer, create products, create order, create invoice, optionally send"
 
     def execute(self, client, params, start_time):
+        # Validate required params
+        required = ["customer_name"]
+        missing = [f for f in required if not params.get(f)]
+        if missing:
+            logger.warning(f"Missing required params for {self.task_type}: {missing}")
+            return None
+
         self._check_timeout(start_time)
 
         today = date.today().isoformat()

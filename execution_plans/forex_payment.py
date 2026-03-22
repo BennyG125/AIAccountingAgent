@@ -83,6 +83,13 @@ class ForexPaymentPlan(ExecutionPlan):
     # ------------------------------------------------------------------
 
     def execute(self, client, params, start_time):
+        # Validate required params
+        required = ["customer_name", "eur_amount", "invoice_rate", "payment_rate"]
+        missing = [f for f in required if not params.get(f)]
+        if missing:
+            logger.warning(f"Missing required params for {self.task_type}: {missing}")
+            return None
+
         self._check_timeout(start_time)
 
         today = date.today().isoformat()
@@ -285,8 +292,13 @@ class ForexPaymentPlan(ExecutionPlan):
         try:
             accounts = self._get_accounts(client, "1500", forex_account_number)
             api_calls += 1
-            ar_account_id = accounts["1500"]
-            forex_account_id = accounts[forex_account_number]
+            ar_account_id = accounts.get("1500")
+            forex_account_id = accounts.get(forex_account_number)
+            if not ar_account_id or not forex_account_id:
+                raise RuntimeError(
+                    "Account lookup incomplete: 1500=%s, %s=%s"
+                    % (ar_account_id, forex_account_number, forex_account_id)
+                )
         except RuntimeError:
             # Forex account may not exist — look up 1500 individually, create forex
             api_calls += 1

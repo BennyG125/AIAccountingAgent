@@ -48,8 +48,11 @@ Issue ALL three simultaneously:
     {
       "row": 2,
       "account": {"id": "<debt_account_id>"},
+      "supplier": {"id": "<supplier_id>"},
       "amount": "<negative_gross>",
       "amountCurrency": "<negative_gross>",
+      "amountGross": "<negative_gross>",
+      "amountGrossCurrency": "<negative_gross>",
       "currency": {"id": 1},
       "description": "Leverandorgjeld - Supplier Name"
     }
@@ -61,7 +64,7 @@ Then STOP. Do NOT verify.
 
 ## IMPORTANT
 - **Row 1 (expense + VAT):** ALL FOUR amount fields required: `amount` (net), `amountCurrency` (net), `amountGross` (gross), `amountGrossCurrency` (gross). Missing any → 422.
-- **Row 2 (supplier liability 2400):** Only `amount` and `amountCurrency` (both = -gross). Do NOT add vatType, amountGross, or amountGrossCurrency on row 2.
+- **Row 2 (supplier liability 2400):** ALL FOUR amount fields required: `amount` (-gross), `amountCurrency` (-gross), `amountGross` (-gross), `amountGrossCurrency` (-gross). Do NOT add vatType on row 2. Include `"supplier": {"id": "<supplier_id>"}` on this row.
 - **System auto-creates row 0** for the VAT account posting. Do NOT manually create a VAT posting row. The manual postings do NOT need to balance — the system VAT row closes the balance.
 - **amountCurrency MUST equal amount** — omitting amountCurrency silently results in 0.0.
 - **amountGrossCurrency MUST equal amountGross** — mismatch causes 422.

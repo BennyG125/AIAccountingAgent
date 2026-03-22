@@ -86,6 +86,13 @@ class MonthlyClosingPlan(ExecutionPlan):
     )
 
     def execute(self, client, params, start_time):
+        # Validate required params
+        required = ["closing_date"]
+        missing = [f for f in required if not params.get(f)]
+        if missing:
+            logger.warning(f"Missing required params for {self.task_type}: {missing}")
+            return None
+
         self._check_timeout(start_time)
 
         closing_date = params["closing_date"]

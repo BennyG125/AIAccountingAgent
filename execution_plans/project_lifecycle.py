@@ -130,6 +130,13 @@ class ProjectLifecyclePlan(ExecutionPlan):
     )
 
     def execute(self, client, params, start_time):
+        # Validate required params
+        required = ["project_name", "customer_name", "budget_amount", "project_manager_first_name", "project_manager_last_name", "project_manager_email", "project_manager_hours", "activity_name"]
+        missing = [f for f in required if not params.get(f)]
+        if missing:
+            logger.warning(f"Missing required params for {self.task_type}: {missing}")
+            return None
+
         self._check_timeout(start_time)
 
         today = datetime.date.today().isoformat()
@@ -298,16 +305,8 @@ class ProjectLifecyclePlan(ExecutionPlan):
                 other_employee_ids.append(None)
                 continue
 
-            # Grant entitlements to all employees so they can log hours
-            r = client.put(
-                "/employee/entitlement/:grantEntitlementsByTemplate",
-                params={"employeeId": emp_id, "template": "ALL_PRIVILEGES"},
-            )
-            api_calls += 1
-            # Non-fatal if this fails — continue
-            if not r["success"]:
-                api_errors += 1
-
+            # Skip entitlement grant for consultants — recipe only grants to PM
+            # (consultant entitlements fail consistently and waste a call + error)
             other_employee_ids.append(emp_id)
 
         self._check_timeout(start_time)

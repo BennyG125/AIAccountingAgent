@@ -22,6 +22,7 @@ EXTRACTION_SCHEMA = {
     "employee_last_name": "string — employee last name (required)",
     "base_salary": "number — base/monthly salary amount in NOK (required)",
     "bonus_amount": "number|null — one-time bonus amount in NOK, or null if not mentioned",
+    "allowances": "list|null — list of additional allowances/tillegg. Each item: {\"name\": \"string\", \"amount\": number}. Examples: transport allowance, shift differential. null if none.",
 }
 
 
@@ -34,6 +35,13 @@ class RunSalaryPlan(ExecutionPlan):
     )
 
     def execute(self, client, params, start_time):
+        # Validate required params
+        required = ["employee_email", "employee_first_name", "employee_last_name", "base_salary"]
+        missing = [f for f in required if not params.get(f)]
+        if missing:
+            logger.warning(f"Missing required params for {self.task_type}: {missing}")
+            return None
+
         self._check_timeout(start_time)
         api_calls = 0
         api_errors = 0
@@ -68,16 +76,20 @@ class RunSalaryPlan(ExecutionPlan):
                     dept_id = dept_values[0]["id"]
 
             if dept_id is None:
-                # Create a default department
-                dept_create = client.post("/department", body={"name": "General", "departmentNumber": "100"})
+                # Create a default department — use departmentNumber "1" (proven working)
+                dept_create = client.post("/department", body={"name": "Avdeling", "departmentNumber": "1"})
                 api_calls += 1
                 if not dept_create["success"]:
-                    api_errors += 1
-                    logger.warning(
-                        "Failed to create default department: status=%s, error=%s",
-                        dept_create.get('status_code'), dept_create.get('error'),
-                    )
-                    return self._make_result(api_calls=api_calls, api_errors=api_errors)
+                    # Retry with different number in case "1" already exists
+                    dept_create = client.post("/department", body={"name": "Avdeling", "departmentNumber": "2"})
+                    api_calls += 1
+                    if not dept_create["success"]:
+                        api_errors += 1
+                        logger.warning(
+                            "Failed to create default department: status=%s, error=%s",
+                            dept_create.get('status_code'), dept_create.get('error'),
+                        )
+                        return self._make_result(api_calls=api_calls, api_errors=api_errors)
                 dept_id = dept_create["body"]["value"]["id"]
 
             emp_body = {
@@ -258,6 +270,20 @@ class RunSalaryPlan(ExecutionPlan):
             # Bonus requested but no bonus type found — skip rather than fail
             pass
 
+        # Handle additional allowances (transport, etc.)
+        allowances = params.get("allowances") or []
+        if isinstance(allowances, list):
+            for allowance in allowances:
+                if isinstance(allowance, dict):
+                    amount = allowance.get("amount")
+                    if amount and bonus_type_id:
+                        # Use bonus salary type for one-time allowances
+                        specifications.append({
+                            "salaryType": {"id": bonus_type_id},
+                            "rate": amount,
+                            "count": 1,
+                        })
+
         transaction_body = {
             "date": date_str,
             "month": current_month,
@@ -275,5 +301,57 @@ class RunSalaryPlan(ExecutionPlan):
         api_calls += 1
         if not tx_result["success"]:
             api_errors += 1
+            # --- Fallback: manual voucher on salary accounts (5000 series) ---
+            # Competition prompts explicitly say: "If the salary API doesn't work,
+            # use manual vouchers on salary accounts (5000 series)."
+            logger.info("Salary transaction failed — falling back to manual voucher")
+            self._check_timeout(start_time)
+
+            total_salary = params["base_salary"]
+            if bonus_amount:
+                total_salary += bonus_amount
+
+            # Look up salary expense account (5000) and bank/payable account (1920)
+            acct_5000 = client.get("/ledger/account", params={"number": "5000"})
+            api_calls += 1
+            acct_1920 = client.get("/ledger/account", params={"number": "1920"})
+            api_calls += 1
+
+            expense_id = None
+            bank_id = None
+            if acct_5000["success"] and acct_5000["body"].get("values"):
+                expense_id = acct_5000["body"]["values"][0]["id"]
+            if acct_1920["success"] and acct_1920["body"].get("values"):
+                bank_id = acct_1920["body"]["values"][0]["id"]
+
+            if expense_id and bank_id:
+                voucher_body = {
+                    "date": date_str,
+                    "description": f"Lønn {params['employee_first_name']} {params['employee_last_name']}",
+                    "postings": [
+                        {
+                            "account": {"id": expense_id},
+                            "amount": total_salary,
+                            "amountCurrency": total_salary,
+                            "amountGross": total_salary,
+                            "amountGrossCurrency": total_salary,
+                            "row": 1,
+                        },
+                        {
+                            "account": {"id": bank_id},
+                            "amount": -total_salary,
+                            "amountCurrency": -total_salary,
+                            "amountGross": -total_salary,
+                            "amountGrossCurrency": -total_salary,
+                            "row": 2,
+                        },
+                    ],
+                }
+                voucher_result = client.post("/ledger/voucher", body=voucher_body)
+                api_calls += 1
+                if voucher_result["success"]:
+                    logger.info("Manual salary voucher posted successfully")
+                else:
+                    api_errors += 1
 
         return self._make_result(api_calls=api_calls, api_errors=api_errors)

@@ -21,6 +21,13 @@ class CreateOrderPlan(ExecutionPlan):
     description = "Create order: customer, products, order, invoice, payment"
 
     def execute(self, client, params, start_time):
+        # Validate required params
+        required = ["customer_name"]
+        missing = [f for f in required if not params.get(f)]
+        if missing:
+            logger.warning(f"Missing required params for {self.task_type}: {missing}")
+            return None
+
         self._check_timeout(start_time)
 
         today = date.today().isoformat()
@@ -158,7 +165,7 @@ class CreateOrderPlan(ExecutionPlan):
         self._check_timeout(start_time)
 
         # --- Step 5: Register payment (if requested) ---
-        if params.get("register_payment", True):
+        if params.get("register_payment", False):
             # Get payment type
             pt_result = client.get("/invoice/paymentType", params={"fields": "*"})
             api_calls += 1

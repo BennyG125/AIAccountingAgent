@@ -8,7 +8,7 @@ Sequence:
 CRITICAL: The ?date=YYYY-MM-DD query param is REQUIRED on the PUT call.
 Omitting it causes a 422 "date: Kan ikke vaere null" error.
 
-CRITICAL: Filter out invoices that are already credit notes (invoiceIsCreditNote=true).
+CRITICAL: Filter out invoices that are already credit notes (isCreditNote=true).
 Trying to create a credit note on a credit note causes 422 "Validering feilet."
 """
 import datetime
@@ -94,14 +94,14 @@ class CreditNotePlan(ExecutionPlan):
         # Step 2: Find invoices for this customer
         # The /invoice endpoint REQUIRES invoiceDateFrom and invoiceDateTo.
         # Use a wide date range to find all invoices.
-        # CRITICAL: Request invoiceIsCreditNote to filter out credit notes.
+        # CRITICAL: Request isCreditNote to filter out credit notes.
         result = client.get(
             "/invoice",
             params={
                 "customerId": customer_id,
                 "invoiceDateFrom": "2020-01-01",
                 "invoiceDateTo": tomorrow,
-                "fields": "id,invoiceDate,invoiceNumber,amountExcludingVatCurrency,invoiceIsCreditNote,orders",
+                "fields": "id,invoiceDate,invoiceNumber,amountExcludingVatCurrency,isCreditNote,orders",
             },
         )
         api_calls += 1
@@ -117,7 +117,7 @@ class CreditNotePlan(ExecutionPlan):
         all_invoices = result["body"].get("values", [])
 
         # Filter out credit notes -- you cannot create a credit note on a credit note
-        invoices = [inv for inv in all_invoices if not inv.get("invoiceIsCreditNote", False)]
+        invoices = [inv for inv in all_invoices if not inv.get("isCreditNote", False)]
 
         if not invoices:
             api_errors += 1

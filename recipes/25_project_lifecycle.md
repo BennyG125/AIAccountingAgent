@@ -155,44 +155,36 @@ GET /ledger/vatType?fields=id,number,percentage          → vat_type_id (incomi
 - ALWAYS set both amount AND amountCurrency (same value)
 - ALWAYS set both amountGross AND amountGrossCurrency on row 1
 
-## Step 12: Create order for the project
-**API call:** `POST /order`
-**Payload:**
-```json
-{
-  "customer": {"id": <customer_id>},
-  "project": {"id": <project_id>},
-  "orderDate": "{today}",
-  "deliveryDate": "{today}",
-  "orderLines": [
-    {
-      "description": "Prosjektleveranse <project_name>",
-      "count": 1,
-      "unitPriceExcludingVatCurrency": <budget_amount>
-    }
-  ]
-}
-```
-**Capture:** `order_id`
-**NOTE:** Use the budget/fixed price amount as the order line price. No product needed — use description-only orderLine.
-
-## Step 13: Create invoice
-**API call:** `POST /invoice`
+## Step 12: Create order and invoice for the project
+**API call:** `POST /invoice` (creates order inline — 1 call instead of 2)
 **Payload:**
 ```json
 {
   "invoiceDate": "{today}",
   "invoiceDueDate": "<today + 30 days>",
-  "orders": [{"id": <order_id>}]
+  "orders": [{
+    "customer": {"id": <customer_id>},
+    "orderDate": "{today}",
+    "deliveryDate": "{today}",
+    "orderLines": [
+      {
+        "description": "Prosjektleveranse <project_name>",
+        "count": 1,
+        "unitPriceExcludingVatCurrency": <budget_amount>
+      }
+    ]
+  }]
 }
 ```
 **Capture:** `invoice_id`
+**CRITICAL:** Do NOT link the order to the project (no `"project": {"id": ...}` on the order). Tripletex treats project-linked orders as "underordre" that must be closed before the project can close, and there is no order-close endpoint. This will cause Step 14 (close project) to fail.
+**NOTE:** Use the budget/fixed price amount as the order line price. No product needed — use description-only orderLine.
 
-## Step 14: Get project version for closing
+## Step 13: Get project version for closing
 **API call:** `GET /project/<project_id>?fields=id,version`
 **Capture:** `version`
 
-## Step 15: Close the project
+## Step 14: Close the project
 **API call:** `PUT /project/<project_id>`
 **Payload:**
 ```json
@@ -209,4 +201,4 @@ GET /ledger/vatType?fields=id,number,percentage          → vat_type_id (incomi
 - If an employee email is not provided in the prompt, generate it as `firstname.lastname@example.org` (lowercased).
 - Do NOT verify with GET calls after successful creates — wastes calls.
 - If any step fails mid-sequence, do NOT re-create entities that succeeded — use their IDs from prior responses.
-- Target: 15-18 calls, 0 errors.
+- Target: 14-17 calls, 0 errors.

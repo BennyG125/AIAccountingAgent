@@ -188,6 +188,7 @@ LANG_PATTERNS: dict[str, list[tuple[str, list[str]]]] = {
         ("year_end_corrections", [r"fehler.*hauptbuch"]),
         ("monthly_closing", [r"monatsabschluss"]),
         ("cost_analysis_projects", [r"kostenanalyse", r"gesamtkosten.*gestiegen"]),
+        ("project_lifecycle", [r"projektzyklus", r"projekt.*lebenszyklus", r"vollst[äa]ndig.*projekt"]),
         ("overdue_invoice_reminder", [r"[üu]berf[äa]llig.*rechnung", r"mahngeb[üu]hr", r"mahnung"]),
         ("bank_reconciliation", [r"kontoauszug"]),
         ("register_supplier_invoice", [r"lieferant.*rechnung", r"rechnung.*lieferant"]),

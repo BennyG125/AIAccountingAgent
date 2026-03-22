@@ -234,17 +234,6 @@ class YearEndClosePlan(ExecutionPlan):
             api_calls[0] += 1
             if cr["success"]:
                 prepaid_expense_id = cr["body"]["value"]["id"]
-        if tax_expense_id is None and tax_provision_amount > 0:
-            cr = client.post("/ledger/account", body={"number": int(tax_expense_account_number), "name": f"Konto {tax_expense_account_number}"})
-            api_calls[0] += 1
-            if cr["success"]:
-                tax_expense_id = cr["body"]["value"]["id"]
-        if tax_provision_id is None and tax_provision_amount > 0:
-            cr = client.post("/ledger/account", body={"number": int(tax_provision_account_number), "name": f"Konto {tax_provision_account_number}"})
-            api_calls[0] += 1
-            if cr["success"]:
-                tax_provision_id = cr["body"]["value"]["id"]
-
         # ------------------------------------------------------------------
         # Phase 2: Post one depreciation voucher per asset
         # ------------------------------------------------------------------

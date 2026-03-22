@@ -38,6 +38,13 @@ class RegisterHoursPlan(ExecutionPlan):
     )
 
     def execute(self, client, params, start_time):
+        # Validate required params
+        required = ["hours", "employee_email", "employee_first_name", "employee_last_name", "activity_name", "project_name", "customer_name", "hourly_rate"]
+        missing = [f for f in required if not params.get(f)]
+        if missing:
+            logger.warning(f"Missing required params for {self.task_type}: {missing}")
+            return None
+
         self._check_timeout(start_time)
         api_calls = 0
         api_errors = 0

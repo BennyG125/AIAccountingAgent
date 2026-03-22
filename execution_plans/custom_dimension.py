@@ -51,6 +51,13 @@ class CustomDimensionPlan(ExecutionPlan):
     )
 
     def execute(self, client, params, start_time):
+        # Validate required params
+        required = ["dimension_name", "dimension_values", "voucher_account_number", "voucher_amount", "voucher_dimension_value"]
+        missing = [f for f in required if not params.get(f)]
+        if missing:
+            logger.warning(f"Missing required params for {self.task_type}: {missing}")
+            return None
+
         self._check_timeout(start_time)
 
         dimension_name = params["dimension_name"]
@@ -62,62 +69,50 @@ class CustomDimensionPlan(ExecutionPlan):
         api_calls = 0
         api_errors = 0
 
-        # Step 1 — Find or create the custom dimension type
-        # First, search if it already exists
-        search_result = client.get(
+        # Step 1 — Create the custom dimension type directly (sandbox starts empty)
+        # API uses "dimensionName" field (NOT "name")
+        # POST directly; on conflict, fall back to GET to find existing
+        result = client.post(
             "/ledger/accountingDimensionName",
-            params={"dimensionName": dimension_name},
+            body={"dimensionName": dimension_name},
         )
         api_calls += 1
         dimension_index = None
+        dimension_name_id = None  # entity ID for linking values
 
-        if search_result["success"]:
-            existing = search_result["body"].get("values", [])
-            for dim in existing:
-                if dim.get("dimensionName", "").lower() == dimension_name.lower():
-                    dimension_index = dim["dimensionIndex"]
-                    break
-
-        if dimension_index is None:
-            # Not found — create it
-            result = client.post(
+        if result["success"]:
+            dimension_index = result["body"]["value"]["dimensionIndex"]
+            dimension_name_id = result["body"]["value"]["id"]
+        else:
+            # Conflict or other error — fall back to GET to find existing
+            search_result = client.get(
                 "/ledger/accountingDimensionName",
-                body={"dimensionName": dimension_name, "active": True},
+                params={"fields": "id,dimensionName,dimensionIndex"},
             )
             api_calls += 1
-            if not result["success"]:
+            if search_result["success"]:
+                existing = search_result["body"].get("values", [])
+                for dim in existing:
+                    if dim.get("dimensionName", "").lower() == dimension_name.lower():
+                        dimension_index = dim["dimensionIndex"]
+                        dimension_name_id = dim["id"]
+                        break
+
+            if dimension_name_id is None:
                 api_errors += 1
                 logger.warning(
                     "Failed to create accountingDimensionName '%s': status=%s, error=%s",
                     dimension_name, result.get('status_code'), result.get('error'),
                 )
                 return self._make_result(api_calls=api_calls, api_errors=api_errors)
-            dimension_index = result["body"]["value"]["dimensionIndex"]
 
-        # Step 2 — Find or create each dimension value; capture the ID for the voucher value
+        # Step 2 — Create each dimension value directly (sandbox starts empty)
+        # API uses "displayName" for values, "dimensionIndex" for filtering
+        # POST directly; on conflict, fall back to GET to find existing IDs
         voucher_value_id = None
-
-        # Search existing values for this dimension
-        existing_values_result = client.get(
-            "/ledger/accountingDimensionValue",
-            params={"dimensionIndex": dimension_index},
-        )
-        api_calls += 1
-        existing_values_map: dict[str, int] = {}
-        if existing_values_result["success"]:
-            for val in existing_values_result["body"].get("values", []):
-                name = val.get("displayName", "")
-                existing_values_map[name.lower()] = val["id"]
 
         for value_name in dimension_values:
             self._check_timeout(start_time)
-            # Check if value already exists (case-insensitive)
-            existing_id = existing_values_map.get(value_name.lower())
-            if existing_id is not None:
-                if value_name == voucher_dimension_value:
-                    voucher_value_id = existing_id
-                continue
-
             result = client.post(
                 "/ledger/accountingDimensionValue",
                 body={
@@ -128,20 +123,32 @@ class CustomDimensionPlan(ExecutionPlan):
                 },
             )
             api_calls += 1
-            if not result["success"]:
+            if result["success"]:
+                created_id = result["body"]["value"]["id"]
+                if value_name == voucher_dimension_value:
+                    voucher_value_id = created_id
+            else:
+                # Conflict — value may already exist; try GET fallback
                 api_errors += 1
                 logger.warning(
                     "Failed to create accountingDimensionValue '%s': status=%s, error=%s",
                     value_name, result.get('status_code'), result.get('error'),
                 )
-                continue
-            created_id = result["body"]["value"]["id"]
-            if value_name == voucher_dimension_value:
-                voucher_value_id = created_id
 
         if voucher_value_id is None:
-            # Fallback: check case-insensitive match for the voucher dimension value
-            voucher_value_id = existing_values_map.get(voucher_dimension_value.lower())
+            # Fallback: GET existing values to find the voucher dimension value ID
+            existing_values_result = client.get(
+                "/ledger/accountingDimensionValue",
+                params={"dimensionIndex": dimension_index, "fields": "id,displayName"},
+            )
+            api_calls += 1
+            if existing_values_result["success"]:
+                for val in existing_values_result["body"].get("values", []):
+                    display_name = val.get("displayName", "")
+                    if display_name.lower() == voucher_dimension_value.lower():
+                        voucher_value_id = val["id"]
+                        break
+
             if voucher_value_id is None:
                 api_errors += 1
                 logger.warning(
@@ -154,8 +161,14 @@ class CustomDimensionPlan(ExecutionPlan):
         self._check_timeout(start_time)
         accounts = self._get_accounts(client, str(voucher_account_number), "1920")
         api_calls += 1
-        expense_account_id = accounts[str(voucher_account_number)]
-        bank_account_id = accounts["1920"]
+        expense_account_id = accounts.get(str(voucher_account_number))
+        bank_account_id = accounts.get("1920")
+        if not expense_account_id or not bank_account_id:
+            logger.warning(
+                "Account lookup failed: %s=%s, 1920=%s — falling back",
+                voucher_account_number, expense_account_id, bank_account_id,
+            )
+            return None
 
         # Step 5 — Post balanced voucher with freeAccountingDimensionN on the expense row
         today = datetime.date.today().isoformat()

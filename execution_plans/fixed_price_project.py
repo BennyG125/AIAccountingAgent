@@ -42,6 +42,13 @@ class FixedPriceProjectPlan(ExecutionPlan):
     )
 
     def execute(self, client, params, start_time):
+        # Validate required params
+        required = ["project_name", "fixed_price", "customer_name", "pm_first_name", "pm_last_name", "pm_email"]
+        missing = [f for f in required if not params.get(f)]
+        if missing:
+            logger.warning(f"Missing required params for {self.task_type}: {missing}")
+            return None
+
         self._check_timeout(start_time)
         api_calls = 0
         api_errors = 0

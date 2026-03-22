@@ -2,8 +2,7 @@
 
 Sequence:
   1. GET /invoice?invoiceDateFrom=<1yr ago>  → find overdue invoice (past due, unpaid)
-  2. GET /ledger/account?number=1500         → accounts receivable account ID
-  3. GET /ledger/account?number=3400         → reminder fee income account ID
+  2. GET /ledger/account?number=1500,3400     → batch lookup: debit + credit account IDs
   4. POST /ledger/voucher                    → post reminder fee (debit 1500, credit 3400)
   5. POST /order + POST /invoice             → create new standalone reminder invoice
   6. PUT /invoice/{id}/:send                 → send EMAIL, fallback MANUAL on 422
@@ -31,7 +30,7 @@ EXTRACTION_SCHEMA = {
     "reminder_fee": "number — reminder fee amount in NOK (e.g. 70.0). REQUIRED — extract from prompt",
     "debit_account": "number — ledger account to debit, default 1500 if not mentioned",
     "credit_account": "number — ledger account to credit, default 3400 if not mentioned",
-    "register_payment": "boolean — true only if prompt explicitly asks to register payment, default false",
+    "register_payment": "boolean — true ONLY if prompt explicitly says 'register payment' or 'registrer betaling'. Default false. Do NOT set true for prompts about reminder fees.",
     "payment_date": "string|null — YYYY-MM-DD payment date (only if register_payment is true)",
     "paid_amount": "number|null — amount paid in NOK (only if register_payment is true)",
 }
@@ -140,36 +139,23 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
         # ------------------------------------------------------------------
         # Step 2: Look up ledger account IDs
         # ------------------------------------------------------------------
-        debit_account_id: int | None = None
-        credit_account_id: int | None = None
-
-        acct_1500_result = client.get(
-            "/ledger/account", params={"number": str(debit_account_number)}
+        # Batch account lookup (1 call instead of 2)
+        accounts = self._get_accounts(
+            client, str(debit_account_number), str(credit_account_number)
         )
         api_calls += 1
-        if not acct_1500_result["success"] or not acct_1500_result["body"].get("values"):
-            api_errors += 1
-            logger.warning(
-                "Failed to look up account %s: status=%s, error=%s",
-                debit_account_number, acct_1500_result.get("status_code"),
-                acct_1500_result.get("error"),
-            )
-            return self._make_result(api_calls=api_calls, api_errors=api_errors)
-        debit_account_id = acct_1500_result["body"]["values"][0]["id"]
 
-        acct_3400_result = client.get(
-            "/ledger/account", params={"number": str(credit_account_number)}
-        )
-        api_calls += 1
-        if not acct_3400_result["success"] or not acct_3400_result["body"].get("values"):
+        debit_account_id = accounts.get(str(debit_account_number))
+        credit_account_id = accounts.get(str(credit_account_number))
+
+        if debit_account_id is None or credit_account_id is None:
             api_errors += 1
             logger.warning(
-                "Failed to look up account %s: status=%s, error=%s",
-                credit_account_number, acct_3400_result.get("status_code"),
-                acct_3400_result.get("error"),
+                "Account lookup failed: debit=%s (id=%s), credit=%s (id=%s)",
+                debit_account_number, debit_account_id,
+                credit_account_number, credit_account_id,
             )
             return self._make_result(api_calls=api_calls, api_errors=api_errors)
-        credit_account_id = acct_3400_result["body"]["values"][0]["id"]
 
         self._check_timeout(start_time)
 
@@ -227,35 +213,7 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
                 )
                 return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
-        # Find or create a reminder product
-        product_id: int | None = None
-        product_search = client.get(
-            "/product", params={"name": "Purregebyr", "count": 1}
-        )
-        api_calls += 1
-        if product_search["success"] and product_search["body"].get("values"):
-            product_id = product_search["body"]["values"][0]["id"]
-        else:
-            product_result = client.post(
-                "/product",
-                body={
-                    "name": "Purregebyr",
-                    "priceExcludingVatCurrency": reminder_fee,
-                },
-            )
-            api_calls += 1
-            if not product_result["success"]:
-                api_errors += 1
-                logger.warning(
-                    "Failed to create reminder fee product: status=%s, error=%s",
-                    product_result.get("status_code"), product_result.get("error"),
-                )
-                return self._make_result(api_calls=api_calls, api_errors=api_errors)
-            product_id = product_result["body"]["value"]["id"]
-
-        self._check_timeout(start_time)
-
-        # Create reminder invoice with inline order
+        # Create reminder invoice with description-only order line (no product needed)
         invoice_due_date = (today + datetime.timedelta(days=14)).isoformat()
         reminder_invoice_result = client.post(
             "/invoice",
@@ -269,7 +227,7 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
                         "deliveryDate": today_str,
                         "orderLines": [
                             {
-                                "product": {"id": product_id},
+                                "description": "Purregebyr",
                                 "count": 1,
                                 "unitPriceExcludingVatCurrency": reminder_fee,
                             }
@@ -291,17 +249,16 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
 
         self._check_timeout(start_time)
 
-        # Send the reminder invoice via EMAIL (separate PUT call)
+        # Send the reminder invoice — try EMAIL first, fallback to MANUAL on 422
         send_result = client.put(
             f"/invoice/{reminder_invoice_id}/:send",
-            body={"sendType": "EMAIL"},
+            params={"sendType": "EMAIL"},
         )
         api_calls += 1
         if not send_result["success"]:
-            # Fallback: try MANUAL send type if EMAIL fails
             send_result2 = client.put(
                 f"/invoice/{reminder_invoice_id}/:send",
-                body={"sendType": "MANUAL"},
+                params={"sendType": "MANUAL"},
             )
             api_calls += 1
             if not send_result2["success"]:
@@ -319,14 +276,7 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
                 "amountExcludingVatCurrency", 0
             )
 
-            # Look up payment type
-            pt_result = client.get("/invoice/paymentType", params={"fields": "*"})
-            api_calls += 1
-            payment_type_id = 1  # fallback
-            if pt_result["success"]:
-                types = pt_result["body"].get("values", [])
-                if types:
-                    payment_type_id = types[0]["id"]
+            payment_type_id = 1  # Standard payment type (always ID 1 in sandbox)
 
             payment_result = client.put(
                 f"/invoice/{overdue_invoice_id}/:payment",

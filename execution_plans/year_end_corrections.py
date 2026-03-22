@@ -15,9 +15,12 @@ Every posting row needs: amount, amountCurrency (= amount for NOK), row >= 1.
 Voucher must balance: sum of all amounts must equal exactly 0.
 """
 import datetime
+import logging
 
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 EXTRACTION_SCHEMA = {
     "type": "object",
@@ -131,6 +134,13 @@ class YearEndCorrectionsPlan(ExecutionPlan):
     )
 
     def execute(self, client, params, start_time):
+        # Validate required params
+        required = ["wrong_account", "duplicate_entry", "missing_vat", "incorrect_amount"]
+        missing = [f for f in required if not params.get(f)]
+        if missing:
+            logger.warning(f"Missing required params for {self.task_type}: {missing}")
+            return None
+
         self._check_timeout(start_time)
 
         today = datetime.date.today().isoformat()
@@ -183,12 +193,26 @@ class YearEndCorrectionsPlan(ExecutionPlan):
                         account_ids[str(num)] = cr["body"]["value"]["id"]
         api_calls += 1
 
-        wrong_account_id = account_ids[str(wa["wrong_account_number"])]
-        correct_account_id = account_ids[str(wa["correct_account_number"])]
-        dup_account_id = account_ids[str(dup["account_number"])]
-        net_account_id = account_ids[str(mv["net_account_number"])]
-        vat_account_id = account_ids["2710"]
-        incorrect_account_id = account_ids[str(ia["account_number"])]
+        wrong_account_id = account_ids.get(str(wa["wrong_account_number"]))
+        correct_account_id = account_ids.get(str(wa["correct_account_number"]))
+        dup_account_id = account_ids.get(str(dup["account_number"]))
+        net_account_id = account_ids.get(str(mv["net_account_number"]))
+        vat_account_id = account_ids.get("2710")
+        incorrect_account_id = account_ids.get(str(ia["account_number"]))
+
+        missing = [
+            num for num, aid in [
+                (str(wa["wrong_account_number"]), wrong_account_id),
+                (str(wa["correct_account_number"]), correct_account_id),
+                (str(dup["account_number"]), dup_account_id),
+                (str(mv["net_account_number"]), net_account_id),
+                ("2710", vat_account_id),
+                (str(ia["account_number"]), incorrect_account_id),
+            ] if not aid
+        ]
+        if missing:
+            logger.warning("Account IDs not found for: %s — falling back", missing)
+            return None
 
         # ------------------------------------------------------------------
         # Step 2: Look up VAT type (25%) — used for missing VAT correction

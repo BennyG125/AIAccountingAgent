@@ -26,6 +26,13 @@ class ReversePaymentPlan(ExecutionPlan):
     description = "Reverse a customer payment that was returned by the bank"
 
     def execute(self, client, params, start_time):
+        # Validate required params
+        required = ["customer_name", "product_name", "amount_excl_vat"]
+        missing = [f for f in required if not params.get(f)]
+        if missing:
+            logger.warning(f"Missing required params for {self.task_type}: {missing}")
+            return None
+
         self._check_timeout(start_time)
         api_calls = 0
         api_errors = 0

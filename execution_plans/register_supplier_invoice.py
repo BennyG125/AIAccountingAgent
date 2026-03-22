@@ -70,6 +70,13 @@ class RegisterSupplierInvoicePlan(ExecutionPlan):
     )
 
     def execute(self, client, params, start_time):
+        # Validate required params
+        required = ["supplier_name"]
+        missing = [f for f in required if not params.get(f)]
+        if missing:
+            logger.warning(f"Missing required params for {self.task_type}: {missing}")
+            return None
+
         self._check_timeout(start_time)
 
         supplier_name = params["supplier_name"]
@@ -127,8 +134,14 @@ class RegisterSupplierInvoicePlan(ExecutionPlan):
         self._check_timeout(start_time)
         accounts = self._get_accounts(client, "2400", expense_account_number)
         api_calls += 1
-        supplier_payable_account_id = accounts["2400"]
-        expense_account_id = accounts[expense_account_number]
+        supplier_payable_account_id = accounts.get("2400")
+        expense_account_id = accounts.get(expense_account_number)
+        if not supplier_payable_account_id or not expense_account_id:
+            logger.warning(
+                "Account lookup failed: 2400=%s, %s=%s — falling back",
+                supplier_payable_account_id, expense_account_number, expense_account_id,
+            )
+            return None
 
         # --- Step 4: Look up incoming VAT type ---
         # Prefer percentage matching vat_rate; fall back to first entry (id=1 is usually 25%)

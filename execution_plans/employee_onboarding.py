@@ -7,8 +7,12 @@ Full flow:
   4. POST /employee/employment — create employment record
   5. POST /employee/employment/details — set salary, percentage, etc.
 """
+import logging
+
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 EXTRACTION_SCHEMA = {
     "type": "object",
@@ -84,6 +88,13 @@ class EmployeeOnboardingPlan(ExecutionPlan):
     )
 
     def execute(self, client, params, start_time):
+        # Validate required params
+        required = ["firstName", "lastName", "email", "dateOfBirth", "department_name", "startDate", "annualSalary"]
+        missing = [f for f in required if not params.get(f)]
+        if missing:
+            logger.warning(f"Missing required params for {self.task_type}: {missing}")
+            return None
+
         self._check_timeout(start_time)
         api_calls = 0
         api_errors = 0
