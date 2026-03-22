@@ -70,6 +70,8 @@ Use date = last day of the period being corrected (e.g. 2026-02-28).
       "account": {"id": <wrong_account_id>},
       "amount": <negative_amount>,
       "amountCurrency": <negative_amount>,
+      "amountGross": <negative_amount>,
+      "amountGrossCurrency": <negative_amount>,
       "currency": {"id": 1},
       "row": 1,
       "description": "Reversering feilpostering"
@@ -78,6 +80,8 @@ Use date = last day of the period being corrected (e.g. 2026-02-28).
       "account": {"id": <correct_account_id>},
       "amount": <positive_amount>,
       "amountCurrency": <positive_amount>,
+      "amountGross": <positive_amount>,
+      "amountGrossCurrency": <positive_amount>,
       "currency": {"id": 1},
       "row": 2,
       "description": "Korrekt konto"
@@ -97,6 +101,8 @@ Use date = last day of the period being corrected (e.g. 2026-02-28).
       "account": {"id": <dup_account_id>},
       "amount": <negative_dup_amount>,
       "amountCurrency": <negative_dup_amount>,
+      "amountGross": <negative_dup_amount>,
+      "amountGrossCurrency": <negative_dup_amount>,
       "currency": {"id": 1},
       "row": 1,
       "description": "Reversering dobbeltpostering"
@@ -105,6 +111,8 @@ Use date = last day of the period being corrected (e.g. 2026-02-28).
       "account": {"id": <dup_counterpart_id>},
       "amount": <positive_dup_amount>,
       "amountCurrency": <positive_dup_amount>,
+      "amountGross": <positive_dup_amount>,
+      "amountGrossCurrency": <positive_dup_amount>,
       "currency": {"id": 1},
       "row": 2,
       "description": "Motkonto dobbeltpostering"
@@ -138,6 +146,8 @@ VAT amount = net_amount * 0.25. This is a simple 2-row voucher adding the missin
       "account": {"id": <vat_account_id>},
       "amount": <negative_vat_amount>,
       "amountCurrency": <negative_vat_amount>,
+      "amountGross": <negative_vat_amount>,
+      "amountGrossCurrency": <negative_vat_amount>,
       "currency": {"id": 1},
       "row": 2,
       "description": "Manglende MVA-linje"
@@ -160,6 +170,8 @@ Difference = posted_amount - correct_amount (the over-posted portion to reverse)
       "account": {"id": <incorrect_account_id>},
       "amount": <negative_difference>,
       "amountCurrency": <negative_difference>,
+      "amountGross": <negative_difference>,
+      "amountGrossCurrency": <negative_difference>,
       "currency": {"id": 1},
       "row": 1,
       "description": "Reversering feil beløp"
@@ -168,6 +180,8 @@ Difference = posted_amount - correct_amount (the over-posted portion to reverse)
       "account": {"id": <counterpart_account_id>},
       "amount": <positive_difference>,
       "amountCurrency": <positive_difference>,
+      "amountGross": <positive_difference>,
+      "amountGrossCurrency": <positive_difference>,
       "currency": {"id": 1},
       "row": 2,
       "description": "Motkonto korreksjon"

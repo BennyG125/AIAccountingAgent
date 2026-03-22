@@ -76,9 +76,9 @@ POST /ledger/voucher {
   "description": "Betaling til <supplier_name>",
   "postings": [
     {"account": {"id": "<account_2400>"}, "supplier": {"id": "<supplier_id>"},
-     "amount": -<abs_amount>, "amountCurrency": -<abs_amount>, "currency": {"id": 1}, "row": 1},
+     "amount": -<abs_amount>, "amountCurrency": -<abs_amount>, "amountGross": -<abs_amount>, "amountGrossCurrency": -<abs_amount>, "currency": {"id": 1}, "row": 1},
     {"account": {"id": "<account_1920>"},
-     "amount": <abs_amount>, "amountCurrency": <abs_amount>, "currency": {"id": 1}, "row": 2}
+     "amount": <abs_amount>, "amountCurrency": <abs_amount>, "amountGross": <abs_amount>, "amountGrossCurrency": <abs_amount>, "currency": {"id": 1}, "row": 2}
   ]
 }
 ```
@@ -90,9 +90,9 @@ POST /ledger/voucher {
   "description": "Bankgebyr",
   "postings": [
     {"account": {"id": "<account_7770>"},
-     "amount": <abs_fee>, "amountCurrency": <abs_fee>, "currency": {"id": 1}, "row": 1},
+     "amount": <abs_fee>, "amountCurrency": <abs_fee>, "amountGross": <abs_fee>, "amountGrossCurrency": <abs_fee>, "currency": {"id": 1}, "row": 1},
     {"account": {"id": "<account_1920>"},
-     "amount": -<abs_fee>, "amountCurrency": -<abs_fee>, "currency": {"id": 1}, "row": 2}
+     "amount": -<abs_fee>, "amountCurrency": -<abs_fee>, "amountGross": -<abs_fee>, "amountGrossCurrency": -<abs_fee>, "currency": {"id": 1}, "row": 2}
   ]
 }
 ```
@@ -104,9 +104,9 @@ POST /ledger/voucher {
   "description": "Bankgebyr",
   "postings": [
     {"account": {"id": "<account_1920>"},
-     "amount": <abs_fee>, "amountCurrency": <abs_fee>, "currency": {"id": 1}, "row": 1},
+     "amount": <abs_fee>, "amountCurrency": <abs_fee>, "amountGross": <abs_fee>, "amountGrossCurrency": <abs_fee>, "currency": {"id": 1}, "row": 1},
     {"account": {"id": "<account_7770>"},
-     "amount": -<abs_fee>, "amountCurrency": -<abs_fee>, "currency": {"id": 1}, "row": 2}
+     "amount": -<abs_fee>, "amountCurrency": -<abs_fee>, "amountGross": -<abs_fee>, "amountGrossCurrency": -<abs_fee>, "currency": {"id": 1}, "row": 2}
   ]
 }
 ```

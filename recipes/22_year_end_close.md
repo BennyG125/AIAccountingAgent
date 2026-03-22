@@ -53,6 +53,8 @@ The task typically says "post each depreciation as a separate voucher." Create O
       "account": {"id": <depr_expense_id>},
       "amount": <annual_depreciation>,
       "amountCurrency": <annual_depreciation>,
+      "amountGross": <annual_depreciation>,
+      "amountGrossCurrency": <annual_depreciation>,
       "currency": {"id": 1},
       "row": 1,
       "description": "Avskrivning <asset_name>"
@@ -61,6 +63,8 @@ The task typically says "post each depreciation as a separate voucher." Create O
       "account": {"id": <acc_depr_id>},
       "amount": <negative_annual_depreciation>,
       "amountCurrency": <negative_annual_depreciation>,
+      "amountGross": <negative_annual_depreciation>,
+      "amountGrossCurrency": <negative_annual_depreciation>,
       "currency": {"id": 1},
       "row": 2,
       "description": "Akkumulert avskrivning <asset_name>"
@@ -85,6 +89,8 @@ Reverses the prepaid balance from account 1700 (or stated account) to an expense
       "account": {"id": <expense_account_id>},
       "amount": <prepaid_amount>,
       "amountCurrency": <prepaid_amount>,
+      "amountGross": <prepaid_amount>,
+      "amountGrossCurrency": <prepaid_amount>,
       "currency": {"id": 1},
       "row": 1,
       "description": "Forskuddsbetalte kostnader oppløst"
@@ -93,6 +99,8 @@ Reverses the prepaid balance from account 1700 (or stated account) to an expense
       "account": {"id": <prepaid_id>},
       "amount": <negative_prepaid_amount>,
       "amountCurrency": <negative_prepaid_amount>,
+      "amountGross": <negative_prepaid_amount>,
+      "amountGrossCurrency": <negative_prepaid_amount>,
       "currency": {"id": 1},
       "row": 2,
       "description": "Konto 1700 reversering"
@@ -129,6 +137,8 @@ From the response, compute taxable profit:
       "account": {"id": <tax_expense_id>},
       "amount": <tax_provision>,
       "amountCurrency": <tax_provision>,
+      "amountGross": <tax_provision>,
+      "amountGrossCurrency": <tax_provision>,
       "currency": {"id": 1},
       "row": 1,
       "description": "Skattekostnad <tax_rate>%"
@@ -137,6 +147,8 @@ From the response, compute taxable profit:
       "account": {"id": <tax_provision_id>},
       "amount": <negative_tax_provision>,
       "amountCurrency": <negative_tax_provision>,
+      "amountGross": <negative_tax_provision>,
+      "amountGrossCurrency": <negative_tax_provision>,
       "currency": {"id": 1},
       "row": 2,
       "description": "Betalbar skatt <fiscal_year>"

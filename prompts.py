@@ -149,7 +149,7 @@ If you skip the recipe you WILL get 4xx errors and waste API calls, which lowers
   ALWAYS include all four amount fields on each row: amount, amountCurrency, amountGross,
   amountGrossCurrency (all set to the same value for NOK). Missing amountGross causes 422.
 - **GET /company**: NEVER use `GET /company/1` or `GET /company/<id>` — returns 404.
-  Use `GET /company` (no path parameter) to get company info.
+  Use `GET /company/divisions` to find division IDs.
 - **Custom dimensions — ONLY TWO ENDPOINTS EXIST**:
   1. `POST /ledger/accountingDimensionName` — create the dimension
   2. `POST /ledger/accountingDimensionValue` — create values for it
