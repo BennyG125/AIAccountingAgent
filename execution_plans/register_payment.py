@@ -142,24 +142,30 @@ class RegisterPaymentPlan(ExecutionPlan):
         # FULL PATH: create everything from scratch
         # ==============================================================
 
-        # --- Step 1: Find or create customer ---
+        # --- Step 1: Find or create customer (POST-first) ---
         api_errors = 0
         create_body = {"name": customer_name}
         if org_number:
             create_body["organizationNumber"] = org_number
 
-        customer_id = self._find_or_create(
-            client,
-            search_path="/customer",
-            search_params=(
+        cust_result = client.post("/customer", body=create_body)
+        api_calls += 1
+        if cust_result["success"]:
+            customer_id = cust_result["body"]["value"]["id"]
+        else:
+            # Conflict — customer already exists, search for it
+            if cust_result.get("status_code") not in (409, 422):
+                api_errors += 1
+            search_params = (
                 {"organizationNumber": org_number, "count": 1}
                 if org_number
                 else {"name": customer_name, "count": 1}
-            ),
-            create_path="/customer",
-            create_body=create_body,
-        )
-        api_calls += 2  # search + create (or just search if found)
+            )
+            search_result = client.get("/customer", params=search_params)
+            api_calls += 1
+            values = search_result.get("body", {}).get("values", []) if search_result["success"] else []
+            customer_id = values[0]["id"] if values else None
+
         if customer_id is None:
             api_errors += 1
             logger.warning("Failed to find or create customer '%s'", customer_name)
@@ -167,26 +173,33 @@ class RegisterPaymentPlan(ExecutionPlan):
 
         self._check_timeout(start_time)
 
-        # --- Step 2: Find or create product (NEVER include vatType) ---
-        product_search = client.get("/product", params={"name": product_name, "count": 1})
+        # --- Step 2: Find or create product (POST-first, NEVER include vatType) ---
+        product_body = {
+            "name": product_name,
+            "priceExcludingVatCurrency": params["price"],
+        }
+        product_result = client.post("/product", body=product_body)
         api_calls += 1
-        if product_search["success"] and product_search["body"].get("values"):
-            product_id = product_search["body"]["values"][0]["id"]
+        if product_result["success"]:
+            product_id = product_result["body"]["value"]["id"]
         else:
-            product_body = {
-                "name": product_name,
-                "priceExcludingVatCurrency": params["price"],
-            }
-            product_result = client.post("/product", body=product_body)
-            api_calls += 1
-            if not product_result["success"]:
+            # Conflict — product already exists, search for it
+            if product_result.get("status_code") not in (409, 422):
                 api_errors += 1
                 logger.warning(
                     "Failed to create product: status=%s, error=%s",
                     product_result.get('status_code'), product_result.get('error'),
                 )
                 return self._make_result(api_calls=api_calls, api_errors=api_errors)
-            product_id = product_result["body"]["value"]["id"]
+            search_result = client.get("/product", params={"name": product_name, "count": 1})
+            api_calls += 1
+            values = search_result.get("body", {}).get("values", []) if search_result["success"] else []
+            if values:
+                product_id = values[0]["id"]
+            else:
+                api_errors += 1
+                logger.warning("Failed to find existing product '%s'", product_name)
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 

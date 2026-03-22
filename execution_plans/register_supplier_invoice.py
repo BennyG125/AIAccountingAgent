@@ -97,38 +97,37 @@ class RegisterSupplierInvoicePlan(ExecutionPlan):
         api_calls = 0
         api_errors = 0
 
-        # --- Step 1: Find or create supplier ---
+        # --- Step 1: Find or create supplier (POST-first) ---
         self._check_timeout(start_time)
-        search_params = {"count": 1}
+        create_body = {"name": supplier_name}
         if org_number:
-            search_params["organizationNumber"] = org_number
-        else:
-            search_params["name"] = supplier_name
+            create_body["organizationNumber"] = org_number
 
-        supplier_result = client.get("/supplier", params=search_params)
+        supplier_result = client.post("/supplier", body=create_body)
         api_calls += 1
-
         supplier_id = None
         if supplier_result["success"]:
-            values = supplier_result["body"].get("values", [])
-            if values:
-                supplier_id = values[0]["id"]
-
-        if supplier_id is None:
-            create_body = {"name": supplier_name}
-            if org_number:
-                create_body["organizationNumber"] = org_number
-
-            create_result = client.post("/supplier", body=create_body)
-            api_calls += 1
-            if not create_result["success"]:
+            supplier_id = supplier_result["body"]["value"]["id"]
+        else:
+            # Conflict — supplier already exists, search for it
+            if supplier_result.get("status_code") not in (409, 422):
                 api_errors += 1
                 logger.warning(
                     "Failed to create supplier '%s': status=%s, error=%s",
-                    supplier_name, create_result.get('status_code'), create_result.get('error'),
+                    supplier_name, supplier_result.get('status_code'), supplier_result.get('error'),
                 )
-                return self._make_result(api_calls=api_calls, api_errors=api_errors)
-            supplier_id = create_result["body"]["value"]["id"]
+            search_params = {"count": 1}
+            if org_number:
+                search_params["organizationNumber"] = org_number
+            else:
+                search_params["name"] = supplier_name
+            search_result = client.get("/supplier", params=search_params)
+            api_calls += 1
+            values = search_result.get("body", {}).get("values", []) if search_result["success"] else []
+            supplier_id = values[0]["id"] if values else None
+
+        if supplier_id is None:
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         # --- Step 2: Batch look up accounts (2400 + expense) ---
         self._check_timeout(start_time)

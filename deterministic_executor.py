@@ -15,6 +15,12 @@ from observability import traceable
 
 logger = logging.getLogger(__name__)
 
+# Task types with flat, simple schemas (<=5 fields) — use faster extraction
+SIMPLE_SCHEMAS = {
+    "create_product", "create_customer", "create_supplier",
+    "create_departments", "credit_note",
+}
+
 # Only these task types are allowed to run deterministically.
 # All others fall through to Claude for better accuracy.
 DETERMINISTIC_WHITELIST = {
@@ -182,35 +188,52 @@ def extract_params(prompt: str, task_type: str, language: str = "Unknown") -> tu
         logger.warning(f"No extraction schema for task_type='{task_type}'")
         return None, None
 
-    all_types_str = ", ".join(_ALL_TASK_TYPES)
+    is_simple = task_type in SIMPLE_SCHEMAS
 
-    extraction_prompt = (
-        f"You are extracting structured data from an accounting task prompt.\n"
-        f"The regex classifier assigned task type: {task_type}\n"
-        f"Detected language: {language}\n\n"
-        f"Here is the prompt (in {language}):\n"
-        f'"""\n{prompt}\n"""\n\n'
-        f"Step 1 — REFLECT AND VERIFY:\n"
-        f"Before extracting anything, read the prompt carefully word by word.\n"
-        f"Question every assumption:\n"
-        f"- Is '{task_type}' the correct task type for this prompt?\n"
-        f"- Valid task types: {all_types_str}\n"
-        f"- Set confirmed_task_type to the correct one (same as '{task_type}' if correct).\n\n"
-        f"Step 2 — EXTRACT PARAMETERS for the confirmed task type:\n"
-        f"Extract ALL relevant fields into this JSON structure:\n"
-        f"{json.dumps(schema, indent=2)}\n\n"
-        f"EXTRACTION RULES — follow these relentlessly:\n"
-        f"- ONLY extract values that appear VERBATIM in the prompt text\n"
-        f"- For names: preserve exact spelling, accents, and special characters from the prompt\n"
-        f"- For amounts: extract the exact number from the prompt — never round, convert, or infer\n"
-        f"- For dates: use YYYY-MM-DD format, converting from the prompt's format\n"
-        f"- For emails: copy character-for-character from the prompt\n"
-        f"- For account numbers: ONLY extract accounts explicitly mentioned — never infer\n"
-        f"- If a field is not explicitly mentioned in the prompt, use null — NEVER guess\n"
-        f"- If the prompt mentions additional items (allowances, supplements, tillegg), extract ALL of them\n"
-        f'- ALWAYS include "confirmed_task_type": "<task_type>" as the FIRST field\n'
-        f"- Return ONLY a valid JSON object. No markdown, no explanation."
-    )
+    if is_simple:
+        extraction_prompt = (
+            f"Extract fields from this accounting prompt as JSON. "
+            f"Return ONLY valid JSON matching this schema:\n"
+            f"{json.dumps(schema, indent=2)}\n\n"
+            f'Include "confirmed_task_type": "{task_type}" as first field.\n'
+            f"Preserve exact names, numbers, emails, dates from the text.\n"
+            f"Use null for fields not mentioned.\n\n"
+            f"Prompt:\n{prompt}"
+        )
+    else:
+        all_types_str = ", ".join(_ALL_TASK_TYPES)
+
+        extraction_prompt = (
+            f"You are extracting structured data from an accounting task prompt.\n"
+            f"The regex classifier assigned task type: {task_type}\n"
+            f"Detected language: {language}\n\n"
+            f"Here is the prompt (in {language}):\n"
+            f'"""\n{prompt}\n"""\n\n'
+            f"Step 1 — REFLECT AND VERIFY:\n"
+            f"Before extracting anything, read the prompt carefully word by word.\n"
+            f"Question every assumption:\n"
+            f"- Is '{task_type}' the correct task type for this prompt?\n"
+            f"- Valid task types: {all_types_str}\n"
+            f"- Set confirmed_task_type to the correct one (same as '{task_type}' if correct).\n\n"
+            f"Step 2 — EXTRACT PARAMETERS for the confirmed task type:\n"
+            f"Extract ALL relevant fields into this JSON structure:\n"
+            f"{json.dumps(schema, indent=2)}\n\n"
+            f"EXTRACTION RULES — follow these relentlessly:\n"
+            f"- ONLY extract values that appear VERBATIM in the prompt text\n"
+            f"- For names: preserve exact spelling, accents, and special characters from the prompt\n"
+            f"- For amounts: extract the exact number from the prompt — never round, convert, or infer\n"
+            f"- For dates: use YYYY-MM-DD format, converting from the prompt's format\n"
+            f"- For emails: copy character-for-character from the prompt\n"
+            f"- For account numbers: ONLY extract accounts explicitly mentioned — never infer\n"
+            f"- If a field is not explicitly mentioned in the prompt, use null — NEVER guess\n"
+            f"- If the prompt mentions additional items (allowances, supplements, tillegg), extract ALL of them\n"
+            f'- ALWAYS include "confirmed_task_type": "<task_type>" as the FIRST field\n'
+            f"- Return ONLY a valid JSON object. No markdown, no explanation."
+        )
+
+    # Simple schemas: disable thinking and use shorter max_tokens for speed
+    thinking_config = {"type": "disabled"} if is_simple else {"type": "adaptive"}
+    max_tokens = 1024 if is_simple else 4096
 
     try:
         from claude_client import get_claude_client, CLAUDE_MODEL
@@ -218,8 +241,8 @@ def extract_params(prompt: str, task_type: str, language: str = "Unknown") -> tu
         client = get_claude_client()
         response = client.messages.create(
             model=CLAUDE_MODEL,
-            max_tokens=4096,
-            thinking={"type": "adaptive"},
+            max_tokens=max_tokens,
+            thinking=thinking_config,
             messages=[{"role": "user", "content": extraction_prompt}],
         )
 
@@ -235,11 +258,16 @@ def extract_params(prompt: str, task_type: str, language: str = "Unknown") -> tu
 
         params = json.loads(text)
 
-        # Extract confirmed_task_type (pop it so it doesn't pollute plan params)
-        confirmed = params.pop("confirmed_task_type", task_type)
-        # Only accept valid task types
-        if confirmed not in DETERMINISTIC_WHITELIST:
-            confirmed = task_type
+        # For simple schemas, trust the regex classification directly
+        if is_simple:
+            confirmed = task_type  # trust regex for simple types
+            params.pop("confirmed_task_type", None)
+        else:
+            # Extract confirmed_task_type (pop it so it doesn't pollute plan params)
+            confirmed = params.pop("confirmed_task_type", task_type)
+            # Only accept valid task types
+            if confirmed not in DETERMINISTIC_WHITELIST:
+                confirmed = task_type
 
         # Validate: if all values are null/empty/zero, extraction failed
         def _has_meaningful_value(v):
@@ -346,8 +374,9 @@ class DeterministicExecutor:
         # 2. Detect language + translate to English (single Gemini call, ~300ms)
         language, english_prompt = detect_and_translate(full_prompt)
 
-        # 3. Classify on English translation (single pattern set, no language confusion)
-        task_type = classify_task(english_prompt, language="English")
+        # 3. Classify on English translation (or original if translation failed)
+        classify_lang = "English" if english_prompt != full_prompt else language
+        task_type = classify_task(english_prompt, language=classify_lang)
         if task_type is None:
             logger.info(f"Deterministic: no classifier match (lang={language}), falling back")
             return None

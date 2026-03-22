@@ -123,6 +123,85 @@ class ExecutionPlan:
         )
         return None
 
+    def _create_or_find(
+        self,
+        client: TripletexClient,
+        create_path: str,
+        create_body: dict,
+        search_path: str,
+        search_params: dict,
+        api_calls: list,
+        api_errors: list,
+        id_field: str = "id",
+    ) -> dict | None:
+        """POST-first creation: create entity, fall back to GET search on conflict.
+
+        Optimized for fresh sandboxes where entities rarely pre-exist.
+        Saves 1 API call on the happy path vs _find_or_create.
+
+        Args:
+            client: Authenticated TripletexClient
+            create_path: API path for POST creation
+            create_body: Body dict for the POST request
+            search_path: API path for GET search (fallback)
+            search_params: Query params for the GET search
+            api_calls: Mutable list [count] — incremented for each call
+            api_errors: Mutable list [count] — incremented for unexpected failures
+            id_field: Field name to extract the entity ID from (default "id")
+
+        Returns:
+            Dict with at least {"id": <entity_id>} on success, or None on failure.
+        """
+        # --- Step 1: Try POST (create) first ---
+        api_calls[0] += 1
+        result = client.post(create_path, body=create_body)
+
+        if result["success"]:
+            entity = result["body"].get("value", {})
+            entity_id = entity.get(id_field)
+            logger.info(
+                "_create_or_find: created %s → %s=%s",
+                create_path, id_field, entity_id,
+            )
+            return entity
+
+        # --- Step 2: If conflict (already exists), fall back to GET ---
+        status_code = result.get("status_code", 0)
+        if status_code in (409, 422):
+            logger.info(
+                "_create_or_find: POST %s returned %s (already exists), "
+                "falling back to GET %s",
+                create_path, status_code, search_path,
+            )
+            api_calls[0] += 1
+            search_result = client.get(search_path, params=search_params)
+
+            if search_result["success"]:
+                values = search_result["body"].get("values", [])
+                if values:
+                    entity = values[0]
+                    logger.info(
+                        "_create_or_find: found existing %s=%s via GET %s",
+                        id_field, entity.get(id_field), search_path,
+                    )
+                    return entity
+
+            # GET also failed or returned empty — count as error
+            api_errors[0] += 1
+            logger.warning(
+                "_create_or_find: GET fallback %s failed or returned empty: %s",
+                search_path, search_result.get("error"),
+            )
+            return None
+
+        # --- Step 3: Unexpected POST failure (not 409/422) ---
+        api_errors[0] += 1
+        logger.warning(
+            "_create_or_find: POST %s failed unexpectedly: status=%s, error=%s",
+            create_path, status_code, result.get("error"),
+        )
+        return None
+
     def _make_result(
         self,
         api_calls: int,

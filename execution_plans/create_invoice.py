@@ -44,21 +44,28 @@ class CreateInvoicePlan(ExecutionPlan):
         api_calls = 0
         api_errors = 0
 
-        # --- Step 1: Find or create customer ---
+        # --- Step 1: Find or create customer (POST-first) ---
         customer_name = params["customer_name"]
         org_number = params.get("org_number")
 
-        customer_id = self._find_or_create(
-            client,
-            search_path="/customer",
-            search_params={"organizationNumber": org_number} if org_number else {"name": customer_name},
-            create_path="/customer",
-            create_body={
-                "name": customer_name,
-                **({"organizationNumber": org_number} if org_number else {}),
-            },
-        )
-        api_calls += 2  # search + create (or just 1 search + 1 create at most)
+        create_body = {"name": customer_name}
+        if org_number:
+            create_body["organizationNumber"] = org_number
+
+        cust_result = client.post("/customer", body=create_body)
+        api_calls += 1
+        if cust_result["success"]:
+            customer_id = cust_result["body"]["value"]["id"]
+        else:
+            # Conflict — customer already exists, search for it
+            if cust_result.get("status_code") not in (409, 422):
+                api_errors += 1
+            search_params = {"organizationNumber": org_number} if org_number else {"name": customer_name}
+            search_result = client.get("/customer", params=search_params)
+            api_calls += 1
+            values = search_result.get("body", {}).get("values", []) if search_result["success"] else []
+            customer_id = values[0]["id"] if values else None
+
         if customer_id is None:
             api_errors += 1
             logger.warning("Failed to find or create customer '%s'", customer_name)

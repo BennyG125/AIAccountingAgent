@@ -62,102 +62,100 @@ class RegisterHoursPlan(ExecutionPlan):
         hours = params["hours"]
         generate_invoice = params.get("generate_invoice", False)
 
-        # --- Step 1: Find or create customer ---
+        # --- Step 1: Find or create customer (POST-first) ---
         customer_id = None
-        search_params = {"fields": "id,name"}
+        create_body = {"name": customer_name}
         if org_number:
-            search_params["organizationNumber"] = org_number
-        else:
-            search_params["name"] = customer_name
+            create_body["organizationNumber"] = org_number
 
-        r = client.get("/customer", params=search_params)
+        r = client.post("/customer", body=create_body)
         api_calls += 1
-        if r["success"] and r["body"].get("values"):
-            customer_id = r["body"]["values"][0]["id"]
+        if r["success"]:
+            customer_id = r["body"]["value"]["id"]
         else:
-            create_body = {"name": customer_name}
-            if org_number:
-                create_body["organizationNumber"] = org_number
-            r = client.post("/customer", body=create_body)
-            api_calls += 1
-            if not r["success"]:
+            # Conflict — customer already exists, search for it
+            if r.get("status_code") not in (409, 422):
                 api_errors += 1
-                logger.warning(
-                    "Failed to create customer: status=%s, error=%s",
-                    r.get("status_code"), r.get("error"),
-                )
-                # Try searching by name as fallback if we searched by org number
-                if org_number:
-                    r2 = client.get("/customer", params={"name": customer_name, "fields": "id,name"})
-                    api_calls += 1
-                    if r2["success"] and r2["body"].get("values"):
-                        customer_id = r2["body"]["values"][0]["id"]
-                if customer_id is None:
-                    return self._make_result(api_calls=api_calls, api_errors=api_errors)
+            search_params = {"fields": "id,name"}
+            if org_number:
+                search_params["organizationNumber"] = org_number
             else:
-                customer_id = r["body"]["value"]["id"]
+                search_params["name"] = customer_name
+            r2 = client.get("/customer", params=search_params)
+            api_calls += 1
+            if r2["success"] and r2["body"].get("values"):
+                customer_id = r2["body"]["values"][0]["id"]
+            elif org_number:
+                # Fallback: search by name if org_number search failed
+                r3 = client.get("/customer", params={"name": customer_name, "fields": "id,name"})
+                api_calls += 1
+                if r3["success"] and r3["body"].get("values"):
+                    customer_id = r3["body"]["values"][0]["id"]
+            if customer_id is None:
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
-        # --- Step 2: Find or create department ---
-        dept_id = None
-        r = client.get("/department", params={"fields": "id,name"})
+        # --- Step 2: Find or create department (POST-first) ---
+        r = client.post("/department", body={"name": "Avdeling", "departmentNumber": "1"})
         api_calls += 1
-        if r["success"] and r["body"].get("values"):
-            dept_id = r["body"]["values"][0]["id"]
+        if r["success"]:
+            dept_id = r["body"]["value"]["id"]
         else:
-            r = client.post("/department", body={"name": "Avdeling", "departmentNumber": "1"})
-            api_calls += 1
-            if not r["success"]:
+            # Conflict — department already exists, search for it
+            if r.get("status_code") not in (409, 422):
                 api_errors += 1
+            search_result = client.get("/department", params={"fields": "id,name"})
+            api_calls += 1
+            dept_id = None
+            if search_result["success"] and search_result["body"].get("values"):
+                dept_id = search_result["body"]["values"][0]["id"]
+            if dept_id is None:
                 logger.warning(
-                    "Failed to create department: status=%s, error=%s",
+                    "Failed to create or find department: status=%s, error=%s",
                     r.get("status_code"), r.get("error"),
                 )
                 return self._make_result(api_calls=api_calls, api_errors=api_errors)
-            dept_id = r["body"]["value"]["id"]
 
         self._check_timeout(start_time)
 
-        # --- Step 3: Find or create employee ---
+        # --- Step 3: Find or create employee (POST-first) ---
         employee_id = None
-        r = client.get("/employee", params={"email": employee_email, "fields": "id,firstName,lastName"})
-        api_calls += 1
         employee_created = False
-        if r["success"] and r["body"].get("values"):
-            employee_id = r["body"]["values"][0]["id"]
+        r = client.post(
+            "/employee",
+            body={
+                "firstName": employee_first,
+                "lastName": employee_last,
+                "email": employee_email,
+                "dateOfBirth": "1990-01-01",
+                "userType": "STANDARD",
+                "department": {"id": dept_id},
+            },
+        )
+        api_calls += 1
+        if r["success"]:
+            employee_id = r["body"]["value"]["id"]
+            employee_created = True
         else:
-            r = client.post(
-                "/employee",
-                body={
-                    "firstName": employee_first,
-                    "lastName": employee_last,
-                    "email": employee_email,
-                    "dateOfBirth": "1990-01-01",
-                    "userType": "STANDARD",
-                    "department": {"id": dept_id},
-                },
-            )
-            api_calls += 1
-            if not r["success"]:
+            # Conflict — employee already exists, search for it
+            if r.get("status_code") not in (409, 422):
                 api_errors += 1
-                logger.warning(
-                    "Failed to create employee: status=%s, error=%s",
-                    r.get("status_code"), r.get("error"),
-                )
-                # Try searching by name as fallback
-                r2 = client.get(
+            r2 = client.get("/employee", params={"email": employee_email, "fields": "id,firstName,lastName"})
+            api_calls += 1
+            if r2["success"] and r2["body"].get("values"):
+                employee_id = r2["body"]["values"][0]["id"]
+            else:
+                # Fallback: search by name
+                r3 = client.get(
                     "/employee",
                     params={"firstName": employee_first, "lastName": employee_last, "fields": "id"},
                 )
                 api_calls += 1
-                if r2["success"] and r2["body"].get("values"):
-                    employee_id = r2["body"]["values"][0]["id"]
-                if employee_id is None:
-                    return self._make_result(api_calls=api_calls, api_errors=api_errors)
-            else:
-                employee_id = r["body"]["value"]["id"]
-                employee_created = True
+                if r3["success"] and r3["body"].get("values"):
+                    employee_id = r3["body"]["values"][0]["id"]
+            if employee_id is None:
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
@@ -178,89 +176,94 @@ class RegisterHoursPlan(ExecutionPlan):
 
         self._check_timeout(start_time)
 
-        # --- Step 5: Find or create project ---
-        project_id = None
-        r = client.get(
+        # --- Step 5: Find or create project (POST-first) ---
+        r = client.post(
             "/project",
-            params={"name": project_name, "customerId": customer_id, "fields": "id,name"},
+            body={
+                "name": project_name,
+                "projectManager": {"id": employee_id},
+                "startDate": today,
+                "customer": {"id": customer_id},
+            },
         )
         api_calls += 1
-        if r["success"] and r["body"].get("values"):
-            project_id = r["body"]["values"][0]["id"]
+        if r["success"]:
+            project_id = r["body"]["value"]["id"]
         else:
-            r = client.post(
-                "/project",
-                body={
-                    "name": project_name,
-                    "projectManager": {"id": employee_id},
-                    "startDate": today,
-                    "customer": {"id": customer_id},
-                },
-            )
-            api_calls += 1
-            if not r["success"]:
+            # Conflict — project already exists, search for it
+            if r.get("status_code") not in (409, 422):
                 api_errors += 1
                 logger.warning(
                     "Failed to create project: status=%s, error=%s",
                     r.get("status_code"), r.get("error"),
                 )
                 return self._make_result(api_calls=api_calls, api_errors=api_errors)
-            project_id = r["body"]["value"]["id"]
+            r2 = client.get(
+                "/project",
+                params={"name": project_name, "customerId": customer_id, "fields": "id,name"},
+            )
+            api_calls += 1
+            if r2["success"] and r2["body"].get("values"):
+                project_id = r2["body"]["values"][0]["id"]
+            else:
+                api_errors += 1
+                logger.warning("Failed to find existing project '%s'", project_name)
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
-        # --- Step 6: Find or create activity ---
-        activity_id = None
-        r = client.get("/activity", params={"name": activity_name, "fields": "id,name"})
+        # --- Step 6: Find or create activity (POST-first) ---
+        r = client.post(
+            "/activity",
+            body={
+                "name": activity_name,
+                "activityType": "GENERAL_ACTIVITY",
+                "isChargeable": True,
+            },
+        )
         api_calls += 1
-        if r["success"] and r["body"].get("values"):
-            activity_id = r["body"]["values"][0]["id"]
+        if r["success"]:
+            activity_id = r["body"]["value"]["id"]
         else:
-            r = client.post(
-                "/activity",
-                body={
-                    "name": activity_name,
-                    "activityType": "GENERAL_ACTIVITY",
-                    "isChargeable": True,
-                },
-            )
-            api_calls += 1
-            if not r["success"]:
+            # Conflict — activity already exists, search for it
+            if r.get("status_code") not in (409, 422):
                 api_errors += 1
                 logger.warning(
                     "Failed to create activity: status=%s, error=%s",
                     r.get("status_code"), r.get("error"),
                 )
                 return self._make_result(api_calls=api_calls, api_errors=api_errors)
-            activity_id = r["body"]["value"]["id"]
+            r2 = client.get("/activity", params={"name": activity_name, "fields": "id,name"})
+            api_calls += 1
+            if r2["success"] and r2["body"].get("values"):
+                activity_id = r2["body"]["values"][0]["id"]
+            else:
+                api_errors += 1
+                logger.warning("Failed to find existing activity '%s'", activity_name)
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
-        # --- Step 7: Check/set hourly rate on project ---
-        # Always GET first to avoid 409 duplicate if project was reused
-        r = client.get(
+        # --- Step 7: Set hourly rate on project (POST-first, skip GET check) ---
+        # Just POST the rate directly — if the project already has a rate, it will
+        # return 409/422 which we can safely ignore (non-fatal).
+        r = client.post(
             "/project/hourlyRates",
-            params={"projectId": project_id, "fields": "id,hourlyRateModel,fixedRate"},
+            body={
+                "project": {"id": project_id},
+                "startDate": today,
+                "hourlyRateModel": "TYPE_FIXED_HOURLY_RATE",
+                "fixedRate": hourly_rate,
+            },
         )
         api_calls += 1
-        if not (r["success"] and r["body"].get("values")):
-            r = client.post(
-                "/project/hourlyRates",
-                body={
-                    "project": {"id": project_id},
-                    "startDate": today,
-                    "hourlyRateModel": "TYPE_FIXED_HOURLY_RATE",
-                    "fixedRate": hourly_rate,
-                },
+        if not r["success"] and r.get("status_code") not in (409, 422):
+            api_errors += 1
+            logger.warning(
+                "Failed to set hourly rate for project %s: status=%s, error=%s",
+                project_id, r.get("status_code"), r.get("error"),
             )
-            api_calls += 1
-            if not r["success"]:
-                api_errors += 1
-                logger.warning(
-                    "Failed to set hourly rate for project %s: status=%s, error=%s",
-                    project_id, r.get("status_code"), r.get("error"),
-                )
-                # Non-fatal — continue, timesheet entry may still work
+            # Non-fatal — continue, timesheet entry may still work
 
         self._check_timeout(start_time)
 

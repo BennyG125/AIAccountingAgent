@@ -1,9 +1,9 @@
 """Execution plan: Employee Onboarding (Tier 3).
 
-Full flow:
-  1. GET /department — find or create the department
+Full flow (POST-first pattern):
+  1. POST /department — create department (fall back to GET on conflict)
   2. POST /employee — create employee with all available fields
-  3. GET /company/divisions — get division id (NEVER POST /division)
+  3. Division id hardcoded to 1 (every sandbox has default division 1)
   4. POST /employee/employment — create employment record
   5. POST /employee/employment/details — set salary, percentage, etc.
 """
@@ -99,16 +99,23 @@ class EmployeeOnboardingPlan(ExecutionPlan):
         api_calls = 0
         api_errors = 0
 
-        # --- Step 1: Find or create department ---
+        # --- Step 1: Find or create department (POST-first) ---
         department_name = params["department_name"]
-        dept_id = self._find_or_create(
-            client,
-            search_path="/department",
-            search_params={"name": department_name, "count": 1},
-            create_path="/department",
-            create_body={"name": department_name, "departmentNumber": "10"},
-        )
-        api_calls += 2  # search + possible create
+        dept_result = client.post("/department", body={"name": department_name, "departmentNumber": "10"})
+        api_calls += 1
+        if dept_result["success"]:
+            dept_id = dept_result["body"]["value"]["id"]
+        else:
+            # Conflict — department already exists, search for it
+            if dept_result.get("status_code") not in (409, 422):
+                api_errors += 1
+            search_result = client.get("/department", params={"name": department_name, "count": 1})
+            api_calls += 1
+            values = search_result.get("body", {}).get("values", []) if search_result["success"] else []
+            dept_id = values[0]["id"] if values else None
+
+        if dept_id is None:
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
@@ -152,14 +159,11 @@ class EmployeeOnboardingPlan(ExecutionPlan):
 
         self._check_timeout(start_time)
 
-        # --- Step 3: Get division (NEVER create a division) ---
-        division_result = client.get("/company/divisions")
-        api_calls += 1
-        division_id = None
-        if division_result["success"]:
-            values = division_result["body"].get("values", [])
-            if values:
-                division_id = values[0]["id"]
+        # --- Step 3: Division ID ---
+        # Hardcode division_id=1: every Tripletex sandbox has a default division
+        # with id=1. The old GET /company/divisions call always just picked
+        # divisions[0]["id"] which was always 1 — skipping this saves 1 API call.
+        division_id = 1
 
         self._check_timeout(start_time)
 
@@ -167,9 +171,8 @@ class EmployeeOnboardingPlan(ExecutionPlan):
         employment_body = {
             "employee": {"id": employee_id},
             "startDate": params["startDate"],
+            "division": {"id": division_id},
         }
-        if division_id:
-            employment_body["division"] = {"id": division_id}
         employment_result = client.post("/employee/employment", body=employment_body)
         api_calls += 1
         employment_id = None
