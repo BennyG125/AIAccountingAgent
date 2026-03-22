@@ -102,20 +102,18 @@ Reverses the prepaid balance from account 1700 (or stated account) to an expense
 ```
 If the prompt does NOT specify which expense account to debit, use account 6000 (Avskrivning/generic operating expense). If the prompt specifies an expense account, look it up in Step 1 and use that ID.
 
-## Step 4: Get balance sheet for tax calculation (1 GET)
-**API call:** `GET /resultSheet?dateFrom=<fiscal_year>-01-01&dateTo=<fiscal_year>-12-31&fields=*`
+## Step 4: Get postings for tax calculation (1-2 GETs)
+**IMPORTANT: /resultSheet does NOT exist (returns 404). Use /ledger/posting instead.**
+
+**API call:**
+```
+GET /ledger/posting?dateFrom=<fiscal_year>-01-01&dateTo=<fiscal_year>-12-31&accountNumberFrom=3000&accountNumberTo=8699&fields=*&count=10000
+```
 From the response, compute taxable profit:
-- Revenue = sum of `closingBalance` for accounts 3000–3999 (these are typically negative = credit = revenue, so use abs value)
-- Expenses = sum of `closingBalance` for accounts 4000–8699 (positive = debit = costs)
+- Revenue = sum of `amount` for postings on accounts 3000–3999 (negative values = credit = revenue, use abs)
+- Expenses = sum of `amount` for postings on accounts 4000–8699 (positive values = debit = costs)
 - Taxable profit = Revenue (abs) - Expenses
 - Tax provision = taxable_profit * tax_rate (round to 2 decimals)
-
-If `GET /resultSheet` fails or returns no data, try:
-```
-GET /ledger/account?numberFrom=3000&numberTo=3999&fields=id,number,name
-GET /ledger/posting?dateFrom=<fiscal_year>-01-01&dateTo=<fiscal_year>-12-31&accountNumberFrom=3000&accountNumberTo=8699
-```
-Then sum postings by account range to compute profit.
 
 **If taxable profit <= 0:** SKIP Step 5 entirely. No tax provision needed.
 

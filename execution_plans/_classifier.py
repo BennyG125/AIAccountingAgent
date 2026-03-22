@@ -21,7 +21,7 @@ TASK_PATTERNS: list[tuple[str, list[str]]] = [
     ]),
     ("year_end_corrections", [
         r"erreurs.*grand.*livre", r"errors.*ledger", r"errores.*libro.*mayor",
-        r"erros.*razão", r"fehler.*hauptbuch", r"feil.*hovedbok",
+        r"erros.*razão", r"fehler.*hauptbuch", r"feil.*hovedbok", r"feil.*hovudbok",
         r"correction.*voucher", r"korrigering",
     ]),
     ("monthly_closing", [
@@ -140,7 +140,7 @@ TASK_PATTERNS: list[tuple[str, list[str]]] = [
         r"avdeling", r"department", r"departamento", r"abteilung", r"département",
     ]),
     ("create_employee", [
-        r"ansatt", r"employee", r"empleado", r"funcionário", r"mitarbeiter", r"employé",
+        r"ansatt", r"tilsett", r"employee", r"empleado", r"funcionário", r"mitarbeiter", r"employé",
     ]),
     ("create_customer", [
         r"kunde", r"customer", r"cliente", r"client",

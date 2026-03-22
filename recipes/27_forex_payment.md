@@ -78,7 +78,7 @@ GET /currency?code=EUR&fields=id            → eur_currency_id
 **Capture:** `invoice_id`
 
 ## Step 5: Get payment type
-**API call:** `GET /invoice/paymentType?fields=id,name`
+**API call:** `GET /invoice/paymentType?fields=*`
 **Capture:** `payment_type_id` (first result, typically id=1)
 **NOTE:** If you are confident paymentTypeId=1 works, skip this call to save time.
 

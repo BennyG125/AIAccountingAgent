@@ -81,6 +81,7 @@ class TravelExpensePlan(ExecutionPlan):
                     "firstName": employee_first,
                     "lastName": employee_last,
                     "email": employee_email,
+                    "dateOfBirth": "1990-01-01",
                     "userType": "STANDARD",
                     "department": {"id": dept_id},
                 },

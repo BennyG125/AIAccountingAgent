@@ -532,6 +532,7 @@ class ProjectLifecyclePlan(ExecutionPlan):
                 "firstName": first_name,
                 "lastName": last_name,
                 "email": email,
+                "dateOfBirth": "1990-01-01",
                 "userType": "STANDARD",
                 "department": {"id": dept_id},
             },

@@ -57,7 +57,7 @@ Typical prompts: "Betalingen fra X ble returnert av banken. Reverser betalingen.
 **Capture:** `invoice_id`
 
 ## Step 5: Get payment type
-**API call:** `GET /invoice/paymentType?fields=id,name`
+**API call:** `GET /invoice/paymentType?fields=*`
 **Capture:** `payment_type_id` (use the first result, typically id=1 for bank transfer)
 
 ## Step 6: Register payment on the invoice

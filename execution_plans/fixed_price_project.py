@@ -92,6 +92,7 @@ class FixedPriceProjectPlan(ExecutionPlan):
                     "firstName": pm_first_name,
                     "lastName": pm_last_name,
                     "email": pm_email,
+                    "dateOfBirth": "1990-01-01",
                     "userType": "STANDARD",
                     "department": {"id": dept_id},
                 },

@@ -47,6 +47,8 @@ DETERMINISTIC_WHITELIST = {
 
 # Import all plan modules to trigger @register decorators
 import execution_plans.create_customer  # noqa: F401
+import execution_plans.create_employee  # noqa: F401
+import execution_plans.create_supplier  # noqa: F401
 import execution_plans.create_product  # noqa: F401
 import execution_plans.create_departments  # noqa: F401
 import execution_plans.create_invoice  # noqa: F401

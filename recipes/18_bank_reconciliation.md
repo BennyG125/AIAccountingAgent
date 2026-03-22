@@ -35,7 +35,7 @@ Issue ALL of these in ONE tool_use response:
 GET /ledger/account?number=1920&fields=id,number    → bank_account_id
 GET /ledger/account?number=2400&fields=id,number    → supplier_account_id
 GET /ledger/account?number=7770&fields=id,number    → fee_account_id
-GET /invoice/paymentType&fields=id,name             → payment_type_id (use values[0].id)
+GET /invoice/paymentType?fields=*             → payment_type_id (use values[0].id)
 POST /customer {name: "<name1>"}                    → customer_id_1
 POST /customer {name: "<name2>"}                    → customer_id_2
 ... (one per UNIQUE customer)

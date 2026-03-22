@@ -63,7 +63,7 @@ GET /ledger/account?number=3400&fields=id,number,name   → credit_account_id
 - Rows start at 1 (row 0 is system-reserved).
 
 ## Step 4: Get payment type
-**API call:** `GET /invoice/paymentType?fields=id,name`
+**API call:** `GET /invoice/paymentType?fields=*`
 **Capture:** `payment_type_id` (first result, typically id=1 for bank transfer)
 
 ## Step 5: Create order for the reminder fee invoice

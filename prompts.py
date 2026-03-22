@@ -122,6 +122,20 @@ If you skip the recipe you WILL get 4xx errors and waste API calls, which lowers
   Use ALL_PRIVILEGES for project managers. Any other value → 404.
 - **Employee already exists**: If POST /employee fails with "e-postadressen er i bruk",
   use GET /employee?email=X to find the existing employee and use their ID.
+- **Employee dateOfBirth**: ALWAYS include dateOfBirth on POST /employee. Use the value from
+  the prompt, or "1990-01-01" as a default. NEVER include startDate on the employee body.
+- **GET /invoice/paymentType**: Use ?fields=* (NOT ?fields=id,name — `name` does NOT exist, causes 400).
+  The correct field is `description`, not `name`.
+- **GET /ledger/voucher**: REQUIRES dateFrom AND dateTo query params. dateTo must be strictly after dateFrom.
+- **GET /ledger/posting**: REQUIRES dateFrom AND dateTo query params.
+- **PUT /:reverse**: REQUIRES ?date=YYYY-MM-DD query param.
+- **PUT /:createCreditNote**: REQUIRES ?date=YYYY-MM-DD query param.
+- **PUT /:createReminder**: REQUIRES dispatchType= query param.
+- **GET /resultSheet does NOT exist** (returns 404). Use GET /ledger/posting with dateFrom+dateTo instead.
+- **Custom dimensions**: The ONLY endpoints are /ledger/accountingDimensionName and
+  /ledger/accountingDimensionValue. Do NOT try /dimension, /customDimension, /freeDimension,
+  /freeAccountingDimension, or any other variant — they do NOT exist.
+- **Invoice amountOutstanding**: The field is `amountOutstanding` (NOT `amountRemaining`).
 
 ## Recipes for Known Task Types
 
