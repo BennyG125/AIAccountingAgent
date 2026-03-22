@@ -164,7 +164,23 @@ class YearEndCorrectionsPlan(ExecutionPlan):
         )
 
         # Batch look up all accounts in 1 call instead of up to 6
-        account_ids = self._get_accounts(client, *account_numbers)
+        try:
+            account_ids = self._get_accounts(client, *account_numbers)
+        except RuntimeError:
+            # Some accounts may not exist — look up what we can
+            account_ids = {}
+            numbers_str = ",".join(account_numbers)
+            result = client.get("/ledger/account", params={"number": numbers_str})
+            if result["success"]:
+                for acc in result["body"].get("values", []):
+                    account_ids[str(acc["number"])] = acc["id"]
+            # Create any missing accounts
+            for num in account_numbers:
+                if str(num) not in account_ids:
+                    cr = client.post("/ledger/account", body={"number": int(num), "name": f"Konto {num}"})
+                    api_calls += 1
+                    if cr["success"]:
+                        account_ids[str(num)] = cr["body"]["value"]["id"]
         api_calls += 1
 
         wrong_account_id = account_ids[str(wa["wrong_account_number"])]
@@ -226,10 +242,6 @@ class YearEndCorrectionsPlan(ExecutionPlan):
         api_calls += 1
         if not r1["success"]:
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to post wrong-account correction voucher: "
-                f"status={r1.get('status_code')}, error={r1.get('error')}"
-            )
 
         # ------------------------------------------------------------------
         # Step 4: Correction 2 — Duplicate voucher
@@ -263,10 +275,6 @@ class YearEndCorrectionsPlan(ExecutionPlan):
         api_calls += 1
         if not r2["success"]:
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to post duplicate-entry correction voucher: "
-                f"status={r2.get('status_code')}, error={r2.get('error')}"
-            )
 
         # ------------------------------------------------------------------
         # Step 5: Correction 3 — Missing VAT line
@@ -335,10 +343,6 @@ class YearEndCorrectionsPlan(ExecutionPlan):
             api_calls += 1
             if not r3["success"]:
                 api_errors += 1
-                raise RuntimeError(
-                    f"Failed to post missing-VAT correction voucher: "
-                    f"status={r3.get('status_code')}, error={r3.get('error')}"
-                )
 
         # ------------------------------------------------------------------
         # Step 6: Correction 4 — Incorrect amount
@@ -377,9 +381,5 @@ class YearEndCorrectionsPlan(ExecutionPlan):
         api_calls += 1
         if not r4["success"]:
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to post incorrect-amount correction voucher: "
-                f"status={r4.get('status_code')}, error={r4.get('error')}"
-            )
 
         return self._make_result(api_calls=api_calls, api_errors=api_errors)

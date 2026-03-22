@@ -105,10 +105,8 @@ class CreateInvoicePlan(ExecutionPlan):
                                 product_ids.append(values[0]["id"])
                                 continue
                     api_errors += 1
-                    raise RuntimeError(
-                        f"Failed to create product '{product_name}': "
-                        f"status={result.get('status_code')}, error={result.get('error')}"
-                    )
+                    # Skip this product rather than aborting the whole plan
+                    continue
                 else:
                     product_ids.append(result["body"]["value"]["id"])
 
@@ -117,6 +115,8 @@ class CreateInvoicePlan(ExecutionPlan):
         # --- Step 4: Create order ---
         order_lines = []
         for i, product in enumerate(products):
+            if i >= len(product_ids):
+                break
             line = {
                 "product": {"id": product_ids[i]},
                 "count": product.get("count", 1),

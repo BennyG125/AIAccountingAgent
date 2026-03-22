@@ -10,9 +10,12 @@ All vouchers are dated on the last day of the closing month.
 amountCurrency MUST equal amount for NOK postings (omitting it silently posts 0.0).
 """
 import datetime
+import logging
 
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 EXTRACTION_SCHEMA = {
     "type": "object",
@@ -120,7 +123,23 @@ class MonthlyClosingPlan(ExecutionPlan):
 
         # Batch look up all accounts in 1 call instead of up to 6
         if account_numbers_needed:
-            account_ids = self._get_accounts(client, *account_numbers_needed)
+            try:
+                account_ids = self._get_accounts(client, *account_numbers_needed)
+            except RuntimeError:
+                # Some accounts may not exist — look up individually and create missing ones
+                account_ids = {}
+                numbers_str = ",".join(str(n) for n in account_numbers_needed)
+                result = client.get("/ledger/account", params={"number": numbers_str})
+                if result["success"]:
+                    for acc in result["body"].get("values", []):
+                        account_ids[str(acc["number"])] = acc["id"]
+                # Create any missing accounts
+                for num in account_numbers_needed:
+                    if str(num) not in account_ids:
+                        cr = client.post("/ledger/account", body={"number": int(num), "name": f"Konto {num}"})
+                        api_calls += 1
+                        if cr["success"]:
+                            account_ids[str(num)] = cr["body"]["value"]["id"]
             api_calls += 1
         else:
             account_ids = {}
@@ -164,9 +183,8 @@ class MonthlyClosingPlan(ExecutionPlan):
             api_calls += 1
             if not accrual_result["success"]:
                 api_errors += 1
-                raise RuntimeError(
-                    f"Failed to post accrual voucher: "
-                    f"status={accrual_result.get('status_code')}, "
+                logger.warning(
+                    f"Accrual voucher failed: status={accrual_result.get('status_code')}, "
                     f"error={accrual_result.get('error')}"
                 )
 
@@ -213,9 +231,8 @@ class MonthlyClosingPlan(ExecutionPlan):
             api_calls += 1
             if not dep_result["success"]:
                 api_errors += 1
-                raise RuntimeError(
-                    f"Failed to post depreciation voucher: "
-                    f"status={dep_result.get('status_code')}, "
+                logger.warning(
+                    f"Depreciation voucher failed: status={dep_result.get('status_code')}, "
                     f"error={dep_result.get('error')}"
                 )
 
@@ -258,9 +275,8 @@ class MonthlyClosingPlan(ExecutionPlan):
             api_calls += 1
             if not salary_result["success"]:
                 api_errors += 1
-                raise RuntimeError(
-                    f"Failed to post salary provision voucher: "
-                    f"status={salary_result.get('status_code')}, "
+                logger.warning(
+                    f"Salary provision voucher failed: status={salary_result.get('status_code')}, "
                     f"error={salary_result.get('error')}"
                 )
 

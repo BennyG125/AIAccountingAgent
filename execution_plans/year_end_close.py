@@ -196,11 +196,24 @@ class YearEndClosePlan(ExecutionPlan):
         tax_expense_id = all_accounts.get(tax_expense_account_number)
         tax_provision_id = all_accounts.get(tax_provision_account_number)
 
-        # Check critical accounts exist
+        # Create missing critical accounts if needed
         if shared_depr_expense_id is None:
-            raise RuntimeError(f"Account {default_depr_expense} not found")
+            cr = client.post("/ledger/account", body={"number": int(default_depr_expense), "name": f"Konto {default_depr_expense}"})
+            api_calls[0] += 1
+            if cr["success"]:
+                shared_depr_expense_id = cr["body"]["value"]["id"]
+                all_accounts[default_depr_expense] = shared_depr_expense_id
         if prepaid_account_id is None and prepaid_amount > 0:
-            raise RuntimeError("Account 1700 not found")
+            cr = client.post("/ledger/account", body={"number": 1700, "name": "Forskuddsbetalte kostnader"})
+            api_calls[0] += 1
+            if cr["success"]:
+                prepaid_account_id = cr["body"]["value"]["id"]
+                prepaid_expense_id = all_accounts.get(prepaid_expense_account_number)
+        if prepaid_expense_id is None and prepaid_amount > 0:
+            cr = client.post("/ledger/account", body={"number": int(prepaid_expense_account_number), "name": f"Konto {prepaid_expense_account_number}"})
+            api_calls[0] += 1
+            if cr["success"]:
+                prepaid_expense_id = cr["body"]["value"]["id"]
 
         # ------------------------------------------------------------------
         # Phase 2: Post one depreciation voucher per asset
@@ -244,14 +257,15 @@ class YearEndClosePlan(ExecutionPlan):
                 ],
             }
 
+            # Skip if we couldn't resolve accounts for this asset
+            if depr_expense_id is None or acc_depr_id is None:
+                api_errors[0] += 1
+                continue
+
             result = client.post("/ledger/voucher", body=voucher_body)
             api_calls[0] += 1
             if not result["success"]:
                 api_errors[0] += 1
-                raise RuntimeError(
-                    f"Failed to post depreciation voucher for '{name}': "
-                    f"status={result.get('status_code')}, error={result.get('error')}"
-                )
 
         # ------------------------------------------------------------------
         # Phase 3: Prepaid expense reversal (only if amount > 0)
@@ -282,14 +296,13 @@ class YearEndClosePlan(ExecutionPlan):
                 ],
             }
 
-            result = client.post("/ledger/voucher", body=reversal_body)
-            api_calls[0] += 1
-            if not result["success"]:
+            if prepaid_expense_id is None or prepaid_account_id is None:
                 api_errors[0] += 1
-                raise RuntimeError(
-                    f"Failed to post prepaid expense reversal: "
-                    f"status={result.get('status_code')}, error={result.get('error')}"
-                )
+            else:
+                result = client.post("/ledger/voucher", body=reversal_body)
+                api_calls[0] += 1
+                if not result["success"]:
+                    api_errors[0] += 1
 
         # ------------------------------------------------------------------
         # Phase 4: Compute taxable profit from balance sheet
@@ -365,14 +378,29 @@ class YearEndClosePlan(ExecutionPlan):
                 ],
             }
 
-            result = client.post("/ledger/voucher", body=tax_body)
-            api_calls[0] += 1
-            if not result["success"]:
+            if tax_expense_id is None or tax_provision_id is None:
+                # Create missing tax accounts
+                if tax_expense_id is None:
+                    cr = client.post("/ledger/account", body={"number": int(tax_expense_account_number), "name": "Skattekostnad"})
+                    api_calls[0] += 1
+                    if cr["success"]:
+                        tax_expense_id = cr["body"]["value"]["id"]
+                if tax_provision_id is None:
+                    cr = client.post("/ledger/account", body={"number": int(tax_provision_account_number), "name": "Betalbar skatt"})
+                    api_calls[0] += 1
+                    if cr["success"]:
+                        tax_provision_id = cr["body"]["value"]["id"]
+
+            if tax_expense_id is not None and tax_provision_id is not None:
+                # Re-build body with resolved IDs
+                tax_body["postings"][0]["account"] = {"id": tax_expense_id}
+                tax_body["postings"][1]["account"] = {"id": tax_provision_id}
+                result = client.post("/ledger/voucher", body=tax_body)
+                api_calls[0] += 1
+                if not result["success"]:
+                    api_errors[0] += 1
+            else:
                 api_errors[0] += 1
-                raise RuntimeError(
-                    f"Failed to post tax provision voucher: "
-                    f"status={result.get('status_code')}, error={result.get('error')}"
-                )
 
         return self._make_result(
             api_calls=api_calls[0], api_errors=api_errors[0]
