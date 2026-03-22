@@ -283,6 +283,8 @@ If invoice creation fails with bank account error, this is a company setup issue
 
 ### GET /invoice
 Search: ?invoiceDateFrom=X&invoiceDateTo=X&customerId=X&fields=...
+WARNING: `amountRemainingCurrency` and `amountRemaining` are NOT valid fields on InvoiceDTO.
+The correct field is `amountOutstanding`. Use ?fields=id,amountOutstanding or ?fields=* to get all fields.
 
 ### GET /invoice/{id}
 Get single invoice.
@@ -293,17 +295,30 @@ Register payment. Use QUERY PARAMETERS (not JSON body):
 Do NOT put these fields in the request body — they MUST be query parameters.
 
 ### PUT /invoice/{id}/:send
-Send invoice. Body: sendType ("EMAIL"|"EHF"|"EFAKTURA"|"AVTALEGIRO"|"VIPPS"),
-              overrideEmailAddress (string, optional)
+Send invoice. Uses QUERY PARAMETERS (not JSON body):
+?sendType=EMAIL&overrideEmailAddress=someone@example.com
+sendType is REQUIRED: "EMAIL"|"EHF"|"EFAKTURA"|"AVTALEGIRO"|"VIPPS"
+overrideEmailAddress is optional (string)
+IMPORTANT: The customer MUST have an email or invoiceEmail set, otherwise send will fail with 422.
+If send fails, ensure the customer has email configured: PUT /customer/{id} with email field.
 
 ### PUT /invoice/{id}/:createCreditNote
-Create credit note for an invoice.
+Create credit note for an invoice. Uses QUERY PARAMETERS (not body):
+?date=YYYY-MM-DD&comment=text&creditNoteEmail=email
+date is optional (defaults to today).
+IMPORTANT: The invoice MUST be in "sent" or "paid" state to create a credit note.
+If the invoice was just created, you must send it first with /:send before creating a credit note.
 
 ### PUT /invoice/{id}/:createReminder
-Create and send invoice reminder.
+Create and send invoice reminder. Uses QUERY PARAMETERS (not body):
+?type=SOFT_REMINDER&date=YYYY-MM-DD&comment=text&reminderCharge=50
+type: "SOFT_REMINDER"|"REMINDER"|"NOTICE_OF_DEBT_COLLECTION"|"DEBT_COLLECTION"
+IMPORTANT: Invoice must be overdue (past invoiceDueDate) and already sent.
 
 ### GET /invoice/paymentType
-Get available payment types.
+Get available payment types. Use ?fields=* (safest).
+WARNING: PaymentTypeDTO does NOT have a `name` field. Do NOT use ?fields=id,name — it causes 400.
+The correct field for the display name is `description`. Use ?fields=* or ?fields=id,description.
 
 ---
 
@@ -463,7 +478,7 @@ Fields: travelExpense ({id}), date (YYYY-MM-DD),
 Search costs. Params: travelExpenseId, fields
 
 ### GET /travelExpense/costCategory
-Get available cost categories.
+Get available cost categories. Use ?fields=id,description (NOT id,name — `name` does NOT exist, causes 400).
 
 ### GET /travelExpense/paymentType
 Get available payment types for travel expenses.
@@ -486,7 +501,7 @@ Fields: travelExpense ({id}), rateCategory ({id}), rateType ({id}),
 Search. Params: travelExpenseId, fields
 
 ### GET /travelExpense/rateCategory
-Get rate categories for per diem / mileage.
+Get rate categories for per diem / mileage. Use ?fields=id,name (NOT id,description — `description` does NOT exist, causes 400).
 
 ### GET /travelExpense/rate
 Get rates.
@@ -537,8 +552,38 @@ Optional posting fields: amountCurrency, currency ({id}), description,
 IMPORTANT: Postings must balance (sum of amounts = 0). Only gross amounts needed.
 IMPORTANT: Look up real account IDs with GET /ledger/account?number=XXXX — do NOT guess IDs.
 
+## Voucher Posting Rules (CRITICAL)
+
+EVERY posting MUST include ALL of these fields:
+- account: {id: <int>} — ALWAYS look up with GET /ledger/account?number=XXXX, NEVER guess
+- amount: <number> — net amount (positive for debit, negative for credit)
+- amountCurrency: <number> — MUST equal amount for NOK transactions
+- amountGross: <number> — for non-VAT rows, set equal to amount. For VAT rows, set to gross (incl VAT).
+- amountGrossCurrency: <number> — MUST equal amountGross for NOK
+- currency: {id: 1} — for NOK
+- row: <int> — starts at 1 (row 0 reserved for system-generated VAT postings)
+
+WARNING: Omitting amountGross/amountGrossCurrency causes amounts to SILENTLY become 0.0!
+The API accepts the voucher without error but stores all amounts as zero. This is the #1
+cause of failed scoring on voucher tasks. ALWAYS include all four amount fields on EVERY row.
+
+IF the posting has vatType, ALSO include:
+- vatType: {id: <int>} — look up with GET /ledger/vatType
+(amountGross should then be the gross amount including VAT, not equal to amount)
+
+VALIDATION CHECKS before calling POST /ledger/voucher:
+1. Sum of ALL amount fields across ALL postings = 0 (must be balanced)
+2. EVERY posting has ALL FOUR amount fields: amount, amountCurrency, amountGross, amountGrossCurrency
+3. For NOK: amountCurrency = amount, amountGrossCurrency = amountGross
+4. Row numbers start at 1, are sequential, no gaps
+5. Account IDs are real (looked up via GET /ledger/account?number=XXXX)
+6. The system auto-creates a row 0 for VAT — do NOT create a VAT row yourself
+7. For supplier postings on account 2400, include supplier: {id: <supplier_id>}
+
 ### GET /ledger/voucher
 Search: ?dateFrom=X&dateTo=X&number=X&fields=...
+IMPORTANT: dateFrom and dateTo are REQUIRED. dateTo must be strictly AFTER dateFrom (same date → 422).
+Use a wide range like dateFrom=2026-01-01&dateTo=2026-12-31 when searching.
 
 ### GET /ledger/voucher/{id}
 Get voucher by ID.
@@ -568,11 +613,55 @@ Update account.
 
 ---
 
+## LEDGER / CUSTOM DIMENSIONS
+
+IMPORTANT: Do NOT use /dimension, /ledger/dimension, /ledger/customDimension, /customDimension,
+/ledger/freeDimension, or any similar endpoints — they DO NOT EXIST and will return 404.
+The ONLY correct endpoints are /ledger/accountingDimensionName and /ledger/accountingDimensionValue.
+
+### GET /ledger/accountingDimensionName
+Get all accounting dimension names. Params: activeOnly, fields
+
+### POST /ledger/accountingDimensionName
+Create a new custom accounting dimension.
+Required: dimensionName (string), dimensionIndex (int: 1, 2, or 3), active (boolean)
+Optional: description (string)
+IMPORTANT: dimensionIndex must be 1, 2, or 3. Use 1 for the first custom dimension.
+
+### PUT /ledger/accountingDimensionName/{id}
+Update an accounting dimension. Include id and version.
+
+### POST /ledger/accountingDimensionValue
+Create a value for a custom dimension.
+Required: displayName (string), dimensionIndex (int — must match the dimension's index),
+          number (string), active (boolean)
+Optional: showInVoucherRegistration (boolean)
+
+### GET /ledger/accountingDimensionValue/search
+Search dimension values. Params: dimensionIndex, activeOnly, fields
+
+### Linking dimensions to voucher postings
+Voucher postings have three optional dimension fields:
+- freeAccountingDimension1 ({id}) — links to a value from dimension with index 1
+- freeAccountingDimension2 ({id}) — links to a value from dimension with index 2
+- freeAccountingDimension3 ({id}) — links to a value from dimension with index 3
+
+---
+
 ## LEDGER / POSTING
 
 ### GET /ledger/posting
 Search postings.
-Params: dateFrom, dateTo, accountNumberFrom, accountNumberTo, fields
+REQUIRED params: dateFrom (YYYY-MM-DD), dateTo (YYYY-MM-DD) — omitting these causes 422 "Validation failed"
+Optional params: accountNumberFrom, accountNumberTo, fields
+
+---
+
+## NON-EXISTENT ENDPOINTS (DO NOT USE — return 404)
+- GET /resultSheet — does NOT exist. Use GET /ledger/posting with dateFrom+dateTo to calculate results.
+- GET /result — does NOT exist.
+- GET /profitAndLoss — does NOT exist.
+To get financial results, query postings on revenue/expense accounts (3000-9999) and sum them.
 
 ---
 
@@ -668,6 +757,22 @@ Update delivery address.
 PUT /invoice/{id}/:payment — uses QUERY PARAMS, NOT body:
 ?paymentDate=YYYY-MM-DD&paymentTypeId=N&paidAmount=X&paidAmountCurrency=1
 
+### Send Invoice
+PUT /invoice/{id}/:send — uses QUERY PARAMS, NOT body:
+?sendType=EMAIL
+IMPORTANT: Customer must have email set. If 422, update customer email first.
+
+### Create Credit Note
+1. Invoice must be SENT first (use /:send)
+2. PUT /invoice/{id}/:createCreditNote — uses QUERY PARAMS:
+   ?date=YYYY-MM-DD
+
+### Overdue Invoice + Reminder
+1. GET /invoice?invoiceDateTo=YYYY-MM-DD&fields=* → find overdue invoices (invoiceDueDate < today)
+2. PUT /invoice/{id}/:createReminder — QUERY PARAMS:
+   ?type=REMINDER&date=YYYY-MM-DD&reminderCharge=50
+3. To add a reminder fee as a new invoice: create a new order + invoice for the fee amount
+
 ### Create Travel Expense with Costs
 1. POST /travelExpense {employee: {id}, title} → capture expense_id
 2. POST /travelExpense/cost {travelExpense: {id: expense_id}, date, paymentType: {id},
@@ -686,6 +791,17 @@ POST /department {name, departmentNumber}
 3. POST /ledger/voucher {date, description, postings: [
      {account: {id: debit_account_id}, amount: 1000, row: 1},
      {account: {id: credit_account_id}, amount: -1000, row: 2}
+   ]}
+
+### Create Custom Dimension + Voucher with Dimension
+1. POST /ledger/accountingDimensionName {dimensionName: "Region", dimensionIndex: 1, active: true}
+2. POST /ledger/accountingDimensionValue {displayName: "Vestlandet", dimensionIndex: 1, number: "1", active: true} → capture value_id
+3. POST /ledger/accountingDimensionValue {displayName: "Nord-Norge", dimensionIndex: 1, number: "2", active: true}
+4. GET /ledger/account?number=6540 → capture expense_account_id
+5. GET /ledger/account?number=1920 → capture bank_account_id
+6. POST /ledger/voucher {date, description, postings: [
+     {account: {id: expense_account_id}, amountGross: 19550, amountGrossCurrency: 19550, row: 1, freeAccountingDimension1: {id: value_id}},
+     {account: {id: bank_account_id}, amountGross: -19550, amountGrossCurrency: -19550, row: 2}
    ]}
 
 ### Tips

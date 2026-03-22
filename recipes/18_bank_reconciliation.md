@@ -14,7 +14,7 @@ Issue ALL of these in ONE tool_use response:
 - GET /ledger/account?number=1920 → bank_account_id
 - GET /ledger/account?number=2400 → supplier_account_id
 - GET /ledger/account?number=7770 → fee_account_id
-- GET /invoice/paymentType → payment_type_id
+- GET /invoice/paymentType?fields=* → payment_type_id
 - POST /customer for EACH unique customer in CSV
 - POST /supplier for EACH unique supplier in CSV
 - POST /product {name: "Service", priceExcludingVatCurrency: 1}
@@ -66,8 +66,8 @@ Query params ONLY (NO body): `paymentDate=YYYY-MM-DD&paymentTypeId=<id>&paidAmou
   "date": "<payment_date>",
   "description": "Betaling til <supplier> / <ref>",
   "postings": [
-    {"account": {"id": "<account_2400>"}, "supplier": {"id": "<supplier_id>"}, "amount": -28812.50, "amountCurrency": -28812.50, "currency": {"id": 1}, "row": 1},
-    {"account": {"id": "<account_1920>"}, "amount": 28812.50, "amountCurrency": 28812.50, "currency": {"id": 1}, "row": 2}
+    {"account": {"id": "<account_2400>"}, "supplier": {"id": "<supplier_id>"}, "amount": -28812.50, "amountCurrency": -28812.50, "amountGross": -28812.50, "amountGrossCurrency": -28812.50, "currency": {"id": 1}, "row": 1},
+    {"account": {"id": "<account_1920>"}, "amount": 28812.50, "amountCurrency": 28812.50, "amountGross": 28812.50, "amountGrossCurrency": 28812.50, "currency": {"id": 1}, "row": 2}
   ]
 }
 ```
@@ -78,8 +78,8 @@ Query params ONLY (NO body): `paymentDate=YYYY-MM-DD&paymentTypeId=<id>&paidAmou
   "date": "<fee_date>",
   "description": "Bankgebyr",
   "postings": [
-    {"account": {"id": "<account_7770>"}, "amount": 350.00, "amountCurrency": 350.00, "currency": {"id": 1}, "row": 1},
-    {"account": {"id": "<account_1920>"}, "amount": -350.00, "amountCurrency": -350.00, "currency": {"id": 1}, "row": 2}
+    {"account": {"id": "<account_7770>"}, "amount": 350.00, "amountCurrency": 350.00, "amountGross": 350.00, "amountGrossCurrency": 350.00, "currency": {"id": 1}, "row": 1},
+    {"account": {"id": "<account_1920>"}, "amount": -350.00, "amountCurrency": -350.00, "amountGross": -350.00, "amountGrossCurrency": -350.00, "currency": {"id": 1}, "row": 2}
   ]
 }
 ```

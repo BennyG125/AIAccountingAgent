@@ -115,8 +115,25 @@ If you skip the recipe you WILL get 4xx errors and waste API calls, which lowers
   Template MUST be one of: "ALL_PRIVILEGES", "NONE_PRIVILEGES", "INVOICING_MANAGER",
   "PERSONELL_MANAGER", "ACCOUNTANT", "AUDITOR", "DEPARTMENT_LEADER".
   Use ALL_PRIVILEGES for project managers. Any other value → 404.
+- **GET /invoice/paymentType**: Use fields=* — PaymentTypeDTO does NOT have a `name` field.
+  Do NOT use ?fields=id,name — it causes 400. Use ?fields=* or ?fields=id,description.
+- **GET /invoice field filters**: `amountRemainingCurrency` and `amountRemaining` are NOT valid fields on InvoiceDTO.
+  The correct field is `amountOutstanding`. Use ?fields=id,amountOutstanding or ?fields=* to get all fields.
+- **GET /travelExpense/costCategory**: Use ?fields=id,description — `name` does NOT exist (400).
+- **GET /travelExpense/rateCategory**: Use ?fields=id,name — `description` does NOT exist (400).
+- **GET /ledger/voucher REQUIRES dateFrom + dateTo**: NEVER call GET /ledger/voucher without
+  both dateFrom and dateTo query params. Without them → 422. dateTo must be strictly AFTER dateFrom
+  (same date → 422). Use a wide range: ?dateFrom=2026-01-01&dateTo=2026-12-31
+- **GET /ledger/posting REQUIRES dateFrom + dateTo**: Same rule. Without them → 422.
+- **PUT /ledger/voucher/{id}/:reverse REQUIRES ?date=**: Without it → 422.
+- **PUT /invoice/{id}/:createCreditNote REQUIRES ?date=**: Without it → 422.
+- **PUT /invoice/{id}/:createReminder REQUIRES dispatchType=**: Without it → 422.
 - **Employee already exists**: If POST /employee fails with "e-postadressen er i bruk",
   use GET /employee?email=X to find the existing employee and use their ID.
+- **Employee MUST have dateOfBirth**: ALWAYS include dateOfBirth on POST /employee (use "1980-01-01"
+  if not specified). POST /employee/employment FAILS with 422 if the employee has no dateOfBirth.
+- **Employee NEVER has startDate**: startDate belongs on POST /employee/employment, NOT on the
+  employee body. Including it causes 422 "Feltet eksisterer ikke i objektet".
 
 ## Recipes for Known Task Types
 
