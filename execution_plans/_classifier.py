@@ -83,10 +83,11 @@ TASK_PATTERNS: list[tuple[str, list[str]]] = [
     ]),
     ("reverse_payment", [
         r"reverser.*betaling", r"reverse.*payment", r"revertir.*pago",
-        r"reverter.*pagamento", r"stornierung", r"annuler.*paiement",
+        r"reverter.*pagamento", r"stornierung", r"annul.*paiement",
         r"stornieren.*zahlung", r"zahlung.*stornieren",
         r"zur[üu]ckgebucht", r"tilbakeført.*betaling", r"betaling.*tilbakeført",
-        r"cancelar.*pago", r"anular.*pagamento",
+        r"cancel.*pago", r"cancel.*pagamento", r"anular.*pagamento",
+        r"retourné", r"devuelt[oa]", r"devolvid[oa]",
     ]),
     ("credit_note", [
         r"kreditnota", r"credit\s*note", r"nota\s*de\s*crédito", r"gutschrift",
@@ -111,7 +112,7 @@ TASK_PATTERNS: list[tuple[str, list[str]]] = [
     ]),
     ("register_hours", [
         r"timer", r"timar", r"\d+\s*hours", r"register.*hours", r"erfassen.*stunden",
-        r"\d+\s*horas", r"registe.*horas", r"\d+\s*stunden",
+        r"\d+\s*horas", r"regist[re].*horas", r"\d+\s*stunden",
         r"\d+\s*heures", r"timeføring", r"timesheet",
     ]),
     ("custom_dimension", [

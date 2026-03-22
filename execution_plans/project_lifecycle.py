@@ -17,7 +17,7 @@ CRITICAL: Employee entitlements MUST be granted before POST /project.
 CRITICAL: On employee 422 "e-postadressen er i bruk" fallback to GET /employee?email=X.
 CRITICAL: Voucher rows must start at 1, all 4 amount fields required.
           Row 1 = expense debit (net, with vatType + project link).
-          Row 2 = supplier payable credit (-gross, NO vatType, NO amountGross).
+          Row 2 = supplier payable credit (-gross, NO vatType, all 4 amount fields).
 NEVER use /incomingInvoice — always 403. Use /ledger/voucher.
 
 NEVER raises RuntimeError — always returns partial results via _make_result().
@@ -792,6 +792,8 @@ class ProjectLifecyclePlan(ExecutionPlan):
                     "supplier": {"id": supplier_id},
                     "amount": -gross_amount,
                     "amountCurrency": -gross_amount,
+                    "amountGross": -gross_amount,
+                    "amountGrossCurrency": -gross_amount,
                     "currency": {"id": 1},
                     "description": description_voucher,
                 },

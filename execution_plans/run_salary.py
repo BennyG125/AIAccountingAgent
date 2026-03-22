@@ -140,20 +140,28 @@ class RunSalaryPlan(ExecutionPlan):
 
             self._check_timeout(start_time)
 
-            # Create employment details
+            # Create employment details — only allowed fields per recipe
             details_body = {
                 "employment": {"id": employment_id},
                 "date": date_str,
+                "annualSalary": params.get("base_salary", 0),
                 "employmentType": "ORDINARY",
-                "salaryType": "MONTHLY",
-                "scheduleType": "SHIFT",
                 "percentageOfFullTimeEquivalent": 100.0,
             }
             details_result = client.post("/employee/employment/details", body=details_body)
             api_calls += 1
-            # Non-fatal if details fail — salary transaction can still proceed
             if not details_result["success"]:
-                pass
+                # Retry without annualSalary in case it causes issues
+                details_body2 = {
+                    "employment": {"id": employment_id},
+                    "date": date_str,
+                    "employmentType": "ORDINARY",
+                    "percentageOfFullTimeEquivalent": 100.0,
+                }
+                details_result = client.post("/employee/employment/details", body=details_body2)
+                api_calls += 1
+                if not details_result["success"]:
+                    api_errors += 1
 
         self._check_timeout(start_time)
 
