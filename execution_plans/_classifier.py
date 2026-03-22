@@ -25,7 +25,7 @@ TASK_PATTERNS: list[tuple[str, list[str]]] = [
         r"correction.*voucher", r"korrigering",
     ]),
     ("monthly_closing", [
-        r"cierre.*mensual", r"monthly.*clos", r"månedsslutt", r"monatsabschluss",
+        r"cierre.*mensual", r"month.*clos", r"månedsslutt", r"monatsabschluss",
         r"clôture.*mensuel", r"encerramento.*mensal", r"periodificación",
         r"periodisering", r"deprecia.*mensual",
         r"månedsavslutning", r"månavslutninga", r"månedsavslutninga",

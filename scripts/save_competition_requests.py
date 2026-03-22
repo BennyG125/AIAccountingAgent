@@ -80,12 +80,12 @@ def strip_and_save(payload: dict, gcs_filename: str) -> Path | None:
             for f in request.get("files", [])
         ],
         "result_summary": {
-            "status": result.get("status"),
-            "iterations": result.get("iterations"),
-            "api_calls": result.get("api_calls"),
-            "api_errors": result.get("api_errors"),
-            "time_ms": result.get("time_ms"),
-            "error_details": result.get("error_details", []),
+            "status": (result or {}).get("status"),
+            "iterations": (result or {}).get("iterations"),
+            "api_calls": (result or {}).get("api_calls"),
+            "api_errors": (result or {}).get("api_errors"),
+            "time_ms": (result or {}).get("time_ms"),
+            "error_details": (result or {}).get("error_details", []),
         },
     }
 
@@ -138,7 +138,7 @@ def main():
         if filepath:
             task_id = filepath.stem
             prompt_preview = payload.get("request", {}).get("prompt", "")[:60]
-            errors = payload.get("result", {}).get("api_errors", 0)
+            errors = (payload.get("result") or {}).get("api_errors", 0)
             print(f"  Saved {filepath.name} ({errors} errors) — {prompt_preview}")
             saved += 1
 

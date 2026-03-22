@@ -45,6 +45,8 @@ DETERMINISTIC_WHITELIST = {
     "year_end_corrections",
     "run_salary",
     "custom_dimension",
+    "create_project",
+    "reverse_payment",
 }
 
 # Import all plan modules to trigger @register decorators
@@ -71,6 +73,8 @@ import execution_plans.year_end_corrections  # noqa: F401
 import execution_plans.monthly_closing  # noqa: F401
 import execution_plans.year_end_close  # noqa: F401
 import execution_plans.project_lifecycle  # noqa: F401
+import execution_plans.create_project  # noqa: F401
+import execution_plans.reverse_payment  # noqa: F401
 
 # ---------------------------------------------------------------------------
 # Extraction schemas — auto-collected from each plan module's EXTRACTION_SCHEMA
