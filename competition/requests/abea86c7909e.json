@@ -59,5 +59,8 @@
         "error": "Validation failed"
       }
     ]
-  }
+  },
+  "task_type": "year_end_corrections",
+  "classified_by": "auto",
+  "tier": 3
 }

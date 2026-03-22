@@ -17,5 +17,8 @@
         "error": "Object not found"
       }
     ]
-  }
+  },
+  "task_type": "year_end_close",
+  "classified_by": "auto",
+  "tier": 3
 }

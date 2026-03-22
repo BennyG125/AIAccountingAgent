@@ -17,5 +17,8 @@
         "error": "Validering feilet."
       }
     ]
-  }
+  },
+  "task_type": "create_employee",
+  "classified_by": "auto",
+  "tier": 1
 }

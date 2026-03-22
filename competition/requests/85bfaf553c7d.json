@@ -16,5 +16,8 @@
     "api_errors": null,
     "time_ms": null,
     "error_details": []
-  }
+  },
+  "task_type": "employee_onboarding",
+  "classified_by": "auto",
+  "tier": 2
 }

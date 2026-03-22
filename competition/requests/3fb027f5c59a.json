@@ -23,5 +23,8 @@
         "error": "Validering feilet."
       }
     ]
-  }
+  },
+  "task_type": "forex_payment",
+  "classified_by": "auto",
+  "tier": 2
 }

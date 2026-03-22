@@ -10,5 +10,8 @@
     "api_errors": 0,
     "time_ms": 273368,
     "error_details": null
-  }
+  },
+  "task_type": "forex_payment",
+  "classified_by": "auto",
+  "tier": 2
 }

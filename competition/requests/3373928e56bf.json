@@ -29,5 +29,8 @@
         "error": "Validation failed"
       }
     ]
-  }
+  },
+  "task_type": "reverse_payment",
+  "classified_by": "auto",
+  "tier": 2
 }

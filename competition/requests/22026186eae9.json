@@ -137,5 +137,8 @@
         "error": "Request mapping failed"
       }
     ]
-  }
+  },
+  "task_type": "custom_dimension",
+  "classified_by": "auto",
+  "tier": 2
 }

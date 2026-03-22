@@ -41,5 +41,8 @@
         "error": "Request mapping failed"
       }
     ]
-  }
+  },
+  "task_type": "travel_expense",
+  "classified_by": "auto",
+  "tier": 2
 }

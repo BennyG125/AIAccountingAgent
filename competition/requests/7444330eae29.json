@@ -10,5 +10,8 @@
     "api_errors": 0,
     "time_ms": 158100,
     "error_details": null
-  }
+  },
+  "task_type": "monthly_closing",
+  "classified_by": "auto",
+  "tier": 3
 }

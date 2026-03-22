@@ -35,5 +35,8 @@
         "error": "HTTP 405 Method Not Allowed"
       }
     ]
-  }
+  },
+  "task_type": "run_salary",
+  "classified_by": "auto",
+  "tier": 2
 }

@@ -29,5 +29,8 @@
         "error": "Validering feilet."
       }
     ]
-  }
+  },
+  "task_type": "employee_onboarding",
+  "classified_by": "auto",
+  "tier": 2
 }

@@ -167,5 +167,8 @@
         "error": "Object not found"
       }
     ]
-  }
+  },
+  "task_type": "custom_dimension",
+  "classified_by": "auto",
+  "tier": 2
 }

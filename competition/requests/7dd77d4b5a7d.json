@@ -17,5 +17,8 @@
         "error": "Validation failed"
       }
     ]
-  }
+  },
+  "task_type": "credit_note",
+  "classified_by": "auto",
+  "tier": 2
 }

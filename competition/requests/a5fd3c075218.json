@@ -23,5 +23,8 @@
         "error": "Duplicate entry"
       }
     ]
-  }
+  },
+  "task_type": "register_hours",
+  "classified_by": "auto",
+  "tier": 2
 }

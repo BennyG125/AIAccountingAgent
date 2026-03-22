@@ -10,5 +10,8 @@
     "api_errors": 0,
     "time_ms": 6495,
     "error_details": []
-  }
+  },
+  "task_type": "reverse_payment",
+  "classified_by": "auto",
+  "tier": 2
 }

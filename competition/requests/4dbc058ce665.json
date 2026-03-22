@@ -10,5 +10,8 @@
     "api_errors": null,
     "time_ms": null,
     "error_details": []
-  }
+  },
+  "task_type": "custom_dimension",
+  "classified_by": "auto",
+  "tier": 2
 }

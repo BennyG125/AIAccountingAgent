@@ -23,5 +23,8 @@
         "error": "{'error': 'Invalid or expired proxy token. Each submission receives a unique token - do not reuse tokens from previous submissions.', 'source': 'nmiai-proxy'}"
       }
     ]
-  }
+  },
+  "task_type": "travel_expense",
+  "classified_by": "auto",
+  "tier": 2
 }

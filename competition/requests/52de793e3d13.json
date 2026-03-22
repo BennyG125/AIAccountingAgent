@@ -47,5 +47,8 @@
         "error": "Validering feilet."
       }
     ]
-  }
+  },
+  "task_type": "travel_expense",
+  "classified_by": "auto",
+  "tier": 2
 }

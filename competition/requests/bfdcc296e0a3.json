@@ -10,5 +10,8 @@
     "api_errors": 0,
     "time_ms": 28753,
     "error_details": null
-  }
+  },
+  "task_type": "project_lifecycle",
+  "classified_by": "auto",
+  "tier": 3
 }

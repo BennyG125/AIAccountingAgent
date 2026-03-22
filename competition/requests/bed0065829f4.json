@@ -17,5 +17,8 @@
         "error": "Validering feilet."
       }
     ]
-  }
+  },
+  "task_type": "fixed_price_project",
+  "classified_by": "auto",
+  "tier": 2
 }

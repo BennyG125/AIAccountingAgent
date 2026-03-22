@@ -10,5 +10,8 @@
     "api_errors": 1,
     "time_ms": 5075,
     "error_details": null
-  }
+  },
+  "task_type": "create_project",
+  "classified_by": "auto",
+  "tier": 1
 }

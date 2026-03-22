@@ -10,5 +10,8 @@
     "api_errors": 1,
     "time_ms": 8200,
     "error_details": null
-  }
+  },
+  "task_type": "overdue_invoice_reminder",
+  "classified_by": "auto",
+  "tier": 2
 }

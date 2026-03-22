@@ -16,5 +16,8 @@
     "api_errors": 0,
     "time_ms": 11631,
     "error_details": null
-  }
+  },
+  "task_type": "register_supplier_invoice",
+  "classified_by": "auto",
+  "tier": 2
 }

@@ -23,5 +23,8 @@
         "error": "Illegal field in fields filter: name. name does not match a field in the model: PaymentTypeDTO"
       }
     ]
-  }
+  },
+  "task_type": "overdue_invoice_reminder",
+  "classified_by": "auto",
+  "tier": 2
 }

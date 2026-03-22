@@ -29,5 +29,8 @@
         "error": "Validation failed"
       }
     ]
-  }
+  },
+  "task_type": "overdue_invoice_reminder",
+  "classified_by": "auto",
+  "tier": 2
 }

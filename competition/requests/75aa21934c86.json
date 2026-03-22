@@ -35,5 +35,8 @@
         "error": "{'error': 'Invalid or expired proxy token. Each submission receives a unique token - do not reuse tokens from previous submissions.', 'source': 'nmiai-proxy'}"
       }
     ]
-  }
+  },
+  "task_type": "credit_note",
+  "classified_by": "auto",
+  "tier": 2
 }

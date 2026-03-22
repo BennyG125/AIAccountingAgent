@@ -10,5 +10,8 @@
     "api_errors": 0,
     "time_ms": 9179,
     "error_details": null
-  }
+  },
+  "task_type": "create_customer",
+  "classified_by": "auto",
+  "tier": 1
 }

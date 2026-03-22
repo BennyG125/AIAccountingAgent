@@ -41,5 +41,8 @@
         "error": "Validering feilet."
       }
     ]
-  }
+  },
+  "task_type": "run_salary",
+  "classified_by": "auto",
+  "tier": 2
 }

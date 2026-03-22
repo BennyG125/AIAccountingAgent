@@ -17,5 +17,8 @@
         "error": "Validation failed"
       }
     ]
-  }
+  },
+  "task_type": "create_invoice",
+  "classified_by": "auto",
+  "tier": 1
 }
