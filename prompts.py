@@ -136,11 +136,13 @@ If you skip the recipe you WILL get 4xx errors and waste API calls, which lowers
   /ledger/accountingDimensionValue. Do NOT try /dimension, /customDimension, /freeDimension,
   /freeAccountingDimension, or any other variant — they do NOT exist.
 - **Invoice amountOutstanding**: The field is `amountOutstanding` (NOT `amountRemaining`).
-- **Divisions**: NEVER try to POST /division or create a new division. Divisions already exist.
-  Use GET /company/divisions?fields=id to find an existing one. If no division is explicitly
-  mentioned in the prompt, use the first available division. Do NOT omit division from employment.
-- **Employee employment**: When creating employment via POST /employee/employment, do NOT include
-  isMainEmployer. Only include employee, startDate, and division.
+- **Divisions**: NEVER try to POST /division or create a new division — it ALWAYS fails with 422.
+  Divisions already exist. Use `GET /company/divisions?fields=id` to find one.
+  If no division is explicitly mentioned, use the FIRST available division.
+  Do NOT omit division from employment — it is REQUIRED.
+- **Employee employment**: POST /employee/employment body must contain EXACTLY:
+  {{"employee": {{"id": N}}, "startDate": "YYYY-MM-DD", "division": {{"id": N}}}}
+  Do NOT include isMainEmployer, endDate, or any other fields. They cause 422.
 - **Sending invoices**: Use separate PUT /invoice/{{id}}/:send with body {{"sendType": "EMAIL"}}.
   If EMAIL fails with 422, retry with {{"sendType": "MANUAL"}}. NEVER use sendToCustomer query param.
 - **Employment details field name**: The field is `percentageOfFullTimeEquivalent` (NOT
@@ -150,6 +152,10 @@ If you skip the recipe you WILL get 4xx errors and waste API calls, which lowers
   amountGrossCurrency (all set to the same value for NOK). Missing amountGross causes 422.
 - **GET /company**: NEVER use `GET /company/1` or `GET /company/<id>` — returns 404.
   Use `GET /company/divisions` to find division IDs.
+- **Voucher reversal**: PUT /ledger/voucher/{{id}}/:reverse REQUIRES `?date=YYYY-MM-DD` query param.
+  The date must be in an OPEN accounting period. If reversal fails with 422, the period may be closed.
+- **Salary transactions**: POST /salary/transaction requires employee, date, and salary type.
+  Get salary types with GET /salary/type FIRST. Never guess salary type IDs.
 - **Custom dimensions — ONLY TWO ENDPOINTS EXIST**:
   1. `POST /ledger/accountingDimensionName` — create the dimension
   2. `POST /ledger/accountingDimensionValue` — create values for it

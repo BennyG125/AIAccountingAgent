@@ -895,13 +895,21 @@ Send PO. Query param: sendType ("EMAIL"|"FTP")
 
 ## DIVISION
 
-### POST /division
-Create a division (organizational unit for employment).
-Fields: name (string), startDate (YYYY-MM-DD), endDate,
-  organizationNumber (string), municipality ({id})
+### GET /company/divisions
+List existing divisions. USE THIS to find division IDs.
+Params: ?fields=id or ?fields=*
+Returns: {values: [{id, name, ...}]}
+NOTE: Divisions already exist in the sandbox. ALWAYS use this endpoint
+to find an existing division instead of trying to create one.
 
 ### GET /division
 Search: ?query=X&fields=...
+
+### POST /division
+Create a division — WARNING: Almost always fails with 422 in sandbox environments
+because it requires organizationNumber and municipality. Use GET /company/divisions instead.
+Fields: name (string), startDate (YYYY-MM-DD), endDate,
+  organizationNumber (string), municipality ({id})
 
 ### PUT /division/{id}
 Update division.
