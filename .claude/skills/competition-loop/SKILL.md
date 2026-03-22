@@ -5,13 +5,36 @@ description: Pull GCP competition logs, analyze error patterns, fix classifier/r
 
 # Competition Optimization Loop
 
-The repeatable cycle: Pull logs → Analyze → Fix → Test → Deploy.
+The repeatable cycle: Save → Coverage → Analyze → Fix → Replay → Deploy.
 
 The deterministic executor is dramatically better than Claude fallback (0 errors vs ~17%, 7x faster). The goal is always to move more task types to deterministic and fix the remaining Claude errors.
 
-## Phase 1: Pull & Analyze
+## Phase 1: Save & Tag Requests
 
-Run the bundled analysis script:
+Save first — new requests are auto-tagged with `task_type`, `classified_by`, and `tier` on save:
+
+```bash
+python scripts/save_competition_requests.py
+```
+
+This gives you fresh tagged data before any analysis.
+
+## Phase 2: Coverage Report
+
+Run the pipeline coverage report to see structural gaps at a glance:
+
+```bash
+python scripts/coverage_report.py          # Full matrix
+python scripts/coverage_report.py --gaps   # Only task types with missing components
+```
+
+This shows per-task-type coverage across 6 components: classifier, optimal sequence, execution plan, recipe, guard, whitelist — plus how many saved requests exist per type.
+
+Structural gaps (missing plan, missing optimal sequence) are root causes that show up as errors in logs. The coverage report tells you what to fix before you even look at logs.
+
+## Phase 3: Analyze Logs
+
+Run the bundled analysis script for runtime errors:
 
 ```bash
 python .claude/skills/competition-loop/scripts/analyze_logs.py --hours 24
@@ -34,9 +57,9 @@ To check dev logs instead:
 python .claude/skills/competition-loop/scripts/analyze_logs.py --bucket ai-nm26osl-1799-dev-logs --hours 24
 ```
 
-## Phase 2: Diagnose
+## Phase 4: Diagnose
 
-Read the analysis output and categorize issues by type:
+Cross-reference the coverage report (structural gaps) with log analysis (runtime errors) to build a prioritized fix list.
 
 ### A. Classifier gaps (tasks falling through to Claude unnecessarily)
 Test specific prompts that went to Claude:
@@ -47,10 +70,7 @@ classify_task("the prompt that fell through")  # returns None = gap
 Common causes: missing language variants (Nynorsk, dialect forms), new task types.
 
 ### B. Missing execution plans
-The classifier matches but `PLANS.get(task_type)` returns None. Check:
-```bash
-ls execution_plans/*.py  # compare against classifier task types
-```
+The classifier matches but `PLANS.get(task_type)` returns None. The coverage report shows these as ✗ in the Plan column.
 
 ### C. Recipe/prompt errors causing Claude failures
 Map error patterns to root causes:
@@ -68,26 +88,20 @@ Map error patterns to root causes:
 ### D. Deterministic plan bugs
 Check if deterministic-handled tasks have 0 errors. If errors > 0, the plan itself has bugs.
 
-## Phase 2b: Create Optimal Sequences for New Task Types
+### Prioritize by impact
+- **Tier 3 errors first** (3x multiplier — highest scoring impact)
+- **Then Tier 2** (2x multiplier)
+- **Then Tier 1** (1x but usually already working)
+- Within a tier: fix highest-request-count task types first (coverage report shows request counts)
 
-For task types identified in Phase 2 that have NO optimal sequence doc in `real-requests/optimal-sequence/`, create one BEFORE building an execution plan. This is the research step.
+## Phase 5: Create Optimal Sequences (if needed)
+
+For task types identified in Phase 4 that have NO optimal sequence doc in `real-requests/optimal-sequence/`, create one BEFORE building an execution plan.
 
 ### Find real requests for the task type
-Saved requests are pre-classified with `task_type`, `classified_by`, and `tier`:
 ```bash
-# Find all requests for a task type
+# Use pre-classified task_type to find all matching requests
 grep -l '"task_type": "register_payment"' competition/requests/*.json
-```
-
-Or to search by keyword in unclassified requests:
-```python
-import json, glob
-for f in sorted(glob.glob('competition/requests/*.json')):
-    with open(f) as fh:
-        d = json.load(fh)
-    prompt = d.get('prompt', '')
-    if '<keyword>' in prompt.lower():
-        print(prompt)
 ```
 
 ### Understand the task pattern
@@ -126,7 +140,7 @@ Capture var. On error: fallback.
 
 Study existing optimal sequences for the format — they're the source of truth that both recipes and execution plans are built from.
 
-## Phase 3: Fix
+## Phase 6: Fix
 
 Fix issues in priority order (highest impact first):
 
@@ -163,7 +177,22 @@ Edit the specific plan in `execution_plans/`:
 - Fix field names, add missing required fields
 - Add error handling for common 422 patterns
 
-## Phase 4: Test & Deploy
+## Phase 7: Replay & Verify
+
+After fixing, replay tagged requests to verify before deploying:
+
+```bash
+# Find requests for the fixed task type
+grep -l '"task_type": "register_payment"' competition/requests/*.json
+
+# Replay one against dev container
+source .env && export TRIPLETEX_BASE_URL TRIPLETEX_SESSION_TOKEN
+python scripts/replay_request.py competition/requests/<task_id>.json
+```
+
+Compare error count before vs after. If 0 errors, the fix is verified.
+
+## Phase 8: Test & Deploy
 
 ### Run tests
 ```bash
@@ -182,26 +211,12 @@ source .env
 gcloud run deploy accounting-agent-comp --source . --region europe-north1 --project ai-nm26osl-1799 --set-env-vars="GCP_PROJECT_ID=ai-nm26osl-1799,GCP_LOCATION=global,REQUEST_LOG_BUCKET=ai-nm26osl-1799-competition-logs,LANGSMITH_TRACING=true,LANGSMITH_PROJECT=ai-accounting-agent-comp,LANGSMITH_API_KEY=$LANGSMITH_API_KEY_COMP" --quiet
 ```
 
-## Phase 5 (Optional): Save New Request Fixtures
-
-Save competition requests as local test fixtures for replay (auto-tags with `task_type`, `classified_by`, `tier`):
+### Re-tag after deploy
+After deploying and receiving new competition results, re-tag to capture fresh data:
 ```bash
 python scripts/save_competition_requests.py
-```
-
-Or use the `save-and-replay` skill for individual requests.
-
-### Check pipeline coverage
-```bash
-python scripts/coverage_report.py          # Full coverage matrix
-python scripts/coverage_report.py --gaps   # Only task types with missing components
-```
-
-This shows which task types have classifier patterns, optimal sequences, execution plans, recipes, guards, and whitelist entries — plus how many saved requests exist per type.
-
-### Find replay candidates for a task type
-```bash
-grep -l '"task_type": "register_payment"' competition/requests/*.json
+python scripts/tag_requests.py --force   # Re-classify if classifier was updated
+python scripts/coverage_report.py        # Verify coverage improved
 ```
 
 ## Key Architecture Facts
@@ -213,4 +228,6 @@ grep -l '"task_type": "register_payment"' competition/requests/*.json
 - **Recipes**: `recipes/*.md` — loaded into Claude's system prompt, only matter for Claude fallback
 - **Prompts**: `prompts.py` — Critical Gotchas section is highest-impact for Claude fixes
 - **Guards**: `recipe_guards.py` — validates/transforms API calls before sending (both paths)
+- **Coverage**: `scripts/coverage_report.py` — shows structural gaps across all 6 components
+- **Tagging**: Saved requests have `task_type`, `classified_by`, `tier` — use `grep` to find replay candidates
 - Competition uses fresh sandboxes — low department numbers and simple defaults are fine
