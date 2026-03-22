@@ -1,0 +1,14 @@
+{
+  "task_id": "c055489b68a4",
+  "timestamp": "2026-03-22T08:20:11.570426+00:00",
+  "prompt": "Opprett produktet \"Datarådgjeving\" med produktnummer 4993. Prisen er 16250 kr eksklusiv MVA, og standard MVA-sats på 25 % skal nyttast.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 1,
+    "api_errors": 0,
+    "time_ms": 7413,
+    "error_details": null
+  }
+}

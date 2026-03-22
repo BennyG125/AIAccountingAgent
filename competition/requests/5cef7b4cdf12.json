@@ -1,0 +1,14 @@
+{
+  "task_id": "5cef7b4cdf12",
+  "timestamp": "2026-03-22T09:16:30.592953+00:00",
+  "prompt": "Registrer en reiseregning for Sigurd Hansen (sigurd.hansen@example.org) for \"Kundebesøk Kristiansand\". Reisen varte 4 dager med diett (dagsats 800 kr). Utlegg: flybillett 3800 kr og taxi 200 kr.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 5,
+    "api_errors": 0,
+    "time_ms": 5395,
+    "error_details": null
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "task_id": "38bc1142846c",
+  "timestamp": "2026-03-22T08:43:20.289481+00:00",
+  "prompt": "Necesitamos el gasto de Kundemøte lunsj de este recibo registrado en el departamento Drift. Usa la cuenta de gastos correcta y asegura el tratamiento correcto del IVA.",
+  "files": [
+    {
+      "filename": "files/kvittering_es_02.pdf",
+      "mime_type": "application/pdf",
+      "content_base64": "JVBERi0xLjMKJenr8b8KMSAwIG9iago8PAovQ291bnQgMQovS2lkcyBbMyAwIFJdCi9NZWRpYUJveCBbMCAwIDU5NS4yOCA4NDEuODldCi9UeXBlIC9QYWdlcwo+PgplbmRvYmoKMiAwIG9iago8PAovT3BlbkFjdGlvbiBbMyAwIFIgL0ZpdEggbnVsbF0KL1BhZ2VMYXlvdXQgL09uZUNvbHVtbgovUGFnZXMgMSAwIFIKL1R5cGUgL0NhdGFsb2cKPj4KZW5kb2JqCjMgMCBvYmoKPDwKL0NvbnRlbnRzIDQgMCBSCi9QYXJlbnQgMSAwIFIKL1Jlc291cmNlcyA3IDAgUgovVHlwZSAvUGFnZQo+PgplbmRvYmoKNCAwIG9iago8PAovRmlsdGVyIC9GbGF0ZURlY29kZQovTGVuZ3RoIDQwMwo+PgpzdHJlYW0KeJx1k0Fv2zAMhe/9FbwM6ICNFSVRsnJrgHbogm5BY+RuIGrrJrEL2cmA/vIdq9hJKyfpUcZ7H8lHWsLvC4Fs4d/FOIerWwLSKATkj3CT7z5JVigdWMdIFvIFXE7966tvYFq+vRXfIX/ZC69uJbihVTnMDFir0LnOOqtXW1/6Cqz4AVoIA7O22BbVkw8JSXL0WbBsDr6/4QmrMIJMS5M5NnJQ97Tn/m1JIKkOMJnf5fnNw92fX/ATpEGhUQppjjHiEyMzVAzGKFQEa1A6sszhvYIZRI8ipAyMFSj7MvMi+ANz6FgDmziOOiKw5thIipiGsjlKNW3rsyoLVH06k0218Ov/rYfVpmpeEjcT7ZaXaEkL7nDLNPE9UsVL0D2yrto6BL/clk3ZpmtmKVFTqlXqCLiPjiw6Tgbv33Hwj7jpzFzsNGbUgfO6LVbtKC0e92YHGtIqO53ny9Q43mLGnRPg2YdiC/fz63hx3wZlyOxUiVhxvP/zqbGWaPo/Y+x3DcPaL0Yw9otQPrbNsg7twfMOONvN9wplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmoKPDwKL0Jhc2VGb250IC9IZWx2ZXRpY2EtQm9sZAovRW5jb2RpbmcgL1dpbkFuc2lFbmNvZGluZwovU3VidHlwZSAvVHlwZTEKL1R5cGUgL0ZvbnQKPj4KZW5kb2JqCjYgMCBvYmoKPDwKL0Jhc2VGb250IC9IZWx2ZXRpY2EKL0VuY29kaW5nIC9XaW5BbnNpRW5jb2RpbmcKL1N1YnR5cGUgL1R5cGUxCi9UeXBlIC9Gb250Cj4+CmVuZG9iago3IDAgb2JqCjw8Ci9Gb250IDw8L0YxIDUgMCBSCi9GMiA2IDAgUj4+Ci9Qcm9jU2V0IFsvUERGIC9UZXh0IC9JbWFnZUIgL0ltYWdlQyAvSW1hZ2VJXQo+PgplbmRvYmoKOCAwIG9iago8PAovQ3JlYXRpb25EYXRlIChEOjIwMjYwMzE4MDk0MDUwWikKPj4KZW5kb2JqCnhyZWYKMCA5CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAxNSAwMDAwMCBuIAowMDAwMDAwMTAyIDAwMDAwIG4gCjAwMDAwMDAyMDUgMDAwMDAgbiAKMDAwMDAwMDI4NSAwMDAwMCBuIAowMDAwMDAwNzYwIDAwMDAwIG4gCjAwMDAwMDA4NjIgMDAwMDAgbiAKMDAwMDAwMDk1OSAwMDAwMCBuIAowMDAwMDAxMDU2IDAwMDAwIG4gCnRyYWlsZXIKPDwKL1NpemUgOQovUm9vdCAyIDAgUgovSW5mbyA4IDAgUgovSUQgWzxFQUEwQjE4NDA3MDQ0MUVGQ0NGOEY0RThGMzRCNTBEMj48RUFBMEIxODQwNzA0NDFFRkNDRjhGNEU4RjM0QjUwRDI+XQo+PgpzdGFydHhyZWYKMTExMQolJUVPRgo="
+    }
+  ],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 5,
+    "api_errors": 0,
+    "time_ms": 5847,
+    "error_details": null
+  }
+}

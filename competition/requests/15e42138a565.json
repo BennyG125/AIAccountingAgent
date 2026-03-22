@@ -1,0 +1,14 @@
+{
+  "task_id": "15e42138a565",
+  "timestamp": "2026-03-22T09:16:27.586624+00:00",
+  "prompt": "Processe o salário de Beatriz Pereira (beatriz.pereira@example.org) para este mês. O salário base é de 58650 NOK. Adicione um bónus único de 8850 NOK além do salário base.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 3,
+    "api_errors": 1,
+    "time_ms": 3421,
+    "error_details": null
+  }
+}

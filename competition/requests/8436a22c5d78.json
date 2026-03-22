@@ -1,0 +1,27 @@
+{
+  "task_id": "8436a22c5d78",
+  "timestamp": "2026-03-22T08:44:38.416827+00:00",
+  "prompt": "Vi treng Overnatting fra denne kvitteringa bokfort pa avdeling Utvikling. Bruk rett utgiftskonto basert pa kjopet, og sorg for korrekt MVA-behandling.",
+  "files": [
+    {
+      "filename": "files/kvittering_nn_04.pdf",
+      "mime_type": "application/pdf",
+      "content_base64": "JVBERi0xLjMKJenr8b8KMSAwIG9iago8PAovQ291bnQgMQovS2lkcyBbMyAwIFJdCi9NZWRpYUJveCBbMCAwIDU5NS4yOCA4NDEuODldCi9UeXBlIC9QYWdlcwo+PgplbmRvYmoKMiAwIG9iago8PAovT3BlbkFjdGlvbiBbMyAwIFIgL0ZpdEggbnVsbF0KL1BhZ2VMYXlvdXQgL09uZUNvbHVtbgovUGFnZXMgMSAwIFIKL1R5cGUgL0NhdGFsb2cKPj4KZW5kb2JqCjMgMCBvYmoKPDwKL0NvbnRlbnRzIDQgMCBSCi9QYXJlbnQgMSAwIFIKL1Jlc291cmNlcyA3IDAgUgovVHlwZSAvUGFnZQo+PgplbmRvYmoKNCAwIG9iago8PAovRmlsdGVyIC9GbGF0ZURlY29kZQovTGVuZ3RoIDM4Mgo+PgpzdHJlYW0KeJx1U9tOAjEQffcr5sVEEx07bafd8iYJKBovkQ3vm7AiCrtJKfiF/peFBekCPs7mXOaczkp4OBPIFr7Pujnc9AlIoxCQv0MvX3+SbJEcWMdIFvIxXOQfdQX3dShni0vIP7e4m74E12ZqjcqAtQqd2zCHofaTIhTAfAVGCAU/s3KxrMaJjmSHmQXLZsd68ROsfAcyS4alk67lerxwM1sSSGoj8Dga5HnvbfB8B9cgDApCKaQ5lBF7GZmhYjBGoSKYg9JRy+zmGQwhchQhZWCsQNnYjApf7jTbjDmwiXHUgQJrjoukEq9+ethputbelQWqbTur0ldFCNNqkjCZYkaX4kgxb6S+fILbyql4Arp53GIRirBMMSwlakpBZA6Utn2RRcdJ2maOaf86phNh2GnMqHGvQzELndRcaLQtDClLx0H+rYrj+WW8YQJ8lL5YwdPoNp7ZecuGzBqVgJWWFvlkXawlmuZf6JbrhWFejjvQLcd++h4WX7UPO84vVi/IOAplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmoKPDwKL0Jhc2VGb250IC9IZWx2ZXRpY2EtQm9sZAovRW5jb2RpbmcgL1dpbkFuc2lFbmNvZGluZwovU3VidHlwZSAvVHlwZTEKL1R5cGUgL0ZvbnQKPj4KZW5kb2JqCjYgMCBvYmoKPDwKL0Jhc2VGb250IC9IZWx2ZXRpY2EKL0VuY29kaW5nIC9XaW5BbnNpRW5jb2RpbmcKL1N1YnR5cGUgL1R5cGUxCi9UeXBlIC9Gb250Cj4+CmVuZG9iago3IDAgb2JqCjw8Ci9Gb250IDw8L0YxIDUgMCBSCi9GMiA2IDAgUj4+Ci9Qcm9jU2V0IFsvUERGIC9UZXh0IC9JbWFnZUIgL0ltYWdlQyAvSW1hZ2VJXQo+PgplbmRvYmoKOCAwIG9iago8PAovQ3JlYXRpb25EYXRlIChEOjIwMjYwMzE4MDk0MDUwWikKPj4KZW5kb2JqCnhyZWYKMCA5CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAxNSAwMDAwMCBuIAowMDAwMDAwMTAyIDAwMDAwIG4gCjAwMDAwMDAyMDUgMDAwMDAgbiAKMDAwMDAwMDI4NSAwMDAwMCBuIAowMDAwMDAwNzM5IDAwMDAwIG4gCjAwMDAwMDA4NDEgMDAwMDAgbiAKMDAwMDAwMDkzOCAwMDAwMCBuIAowMDAwMDAxMDM1IDAwMDAwIG4gCnRyYWlsZXIKPDwKL1NpemUgOQovUm9vdCAyIDAgUgovSW5mbyA4IDAgUgovSUQgWzw0MUFDOUY4MDM0MEJFQzQ2RjgxMjlFQjhGNTQ1ODIzNj48NDFBQzlGODAzNDBCRUM0NkY4MTI5RUI4RjU0NTgyMzY+XQo+PgpzdGFydHhyZWYKMTA5MAolJUVPRgo="
+    }
+  ],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 1,
+    "api_errors": 1,
+    "time_ms": 45872,
+    "error_details": [
+      {
+        "tool": "tripletex_post",
+        "path": "/supplier",
+        "status": 403,
+        "error": "{'error': 'Invalid or expired proxy token. Each submission receives a unique token - do not reuse tokens from previous submissions.', 'source': 'nmiai-proxy'}"
+      }
+    ]
+  }
+}

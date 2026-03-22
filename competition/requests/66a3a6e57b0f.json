@@ -1,0 +1,14 @@
+{
+  "task_id": "66a3a6e57b0f",
+  "timestamp": "2026-03-22T09:07:52.194692+00:00",
+  "prompt": "Créez et envoyez une facture au client Étoile SARL (nº org. 976414284) de 20000 NOK hors TVA. La facture concerne Heures de conseil.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 4,
+    "api_errors": 0,
+    "time_ms": 4580,
+    "error_details": null
+  }
+}

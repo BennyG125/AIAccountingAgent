@@ -1,0 +1,14 @@
+{
+  "task_id": "2d5398e49e33",
+  "timestamp": "2026-03-22T08:43:52.112105+00:00",
+  "prompt": "O cliente Cascata Lda (org. nº 899582454) reclamou sobre a fatura referente a \"Serviço de rede\" (29150 NOK sem IVA). Emita uma nota de crédito completa que reverta toda a fatura.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 3,
+    "api_errors": 0,
+    "time_ms": 3441,
+    "error_details": null
+  }
+}

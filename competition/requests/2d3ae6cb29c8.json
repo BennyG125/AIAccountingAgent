@@ -1,0 +1,21 @@
+{
+  "task_id": "2d3ae6cb29c8",
+  "timestamp": "2026-03-22T08:20:36.163979+00:00",
+  "prompt": "Registrer 13 timar for Sigrid Neset (sigrid.neset@example.org) på aktiviteten \"Rådgivning\" i prosjektet \"Systemoppgradering\" for Nordlys AS (org.nr 836112784). Timesats: 1150 kr/t. Generer ein prosjektfaktura til kunden basert på dei registrerte timane.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 1,
+    "api_errors": 1,
+    "time_ms": 9596,
+    "error_details": [
+      {
+        "tool": "tripletex_get",
+        "path": "/customer",
+        "status": 403,
+        "error": "{'error': 'Invalid or expired proxy token. Each submission receives a unique token - do not reuse tokens from previous submissions.', 'source': 'nmiai-proxy'}"
+      }
+    ]
+  }
+}

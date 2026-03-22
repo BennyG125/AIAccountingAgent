@@ -1,0 +1,14 @@
+{
+  "task_id": "9584613d3342",
+  "timestamp": "2026-03-22T09:12:44.313290+00:00",
+  "prompt": "Crea un pedido para el cliente Luna SL (org. nº 966920963) con los productos Desarrollo de sistemas (5271) a 6950 NOK y Asesoría de datos (3613) a 7000 NOK. Convierte el pedido en factura y registra el pago completo.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 9,
+    "api_errors": 0,
+    "time_ms": 6264,
+    "error_details": null
+  }
+}

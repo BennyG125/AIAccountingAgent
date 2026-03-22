@@ -1,0 +1,14 @@
+{
+  "task_id": "cf1e1fcbe8d1",
+  "timestamp": "2026-03-22T08:46:14.481968+00:00",
+  "prompt": "Die Zahlung von Flussgold GmbH (Org.-Nr. 865085079) für die Rechnung \"Datenberatung\" (20600 NOK ohne MwSt.) wurde von der Bank zurückgebucht. Stornieren Sie die Zahlung, damit die Rechnung wieder den offenen Betrag anzeigt.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 8,
+    "api_errors": 0,
+    "time_ms": 6644,
+    "error_details": null
+  }
+}

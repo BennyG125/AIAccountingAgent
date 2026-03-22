@@ -1,0 +1,14 @@
+{
+  "task_id": "b39cda3e5ce0",
+  "timestamp": "2026-03-22T09:13:00.248001+00:00",
+  "prompt": "Betalingen fra Havbris AS (org.nr 998536561) for fakturaen \"Programvarelisens\" (32350 kr ekskl. MVA) ble returnert av banken. Reverser betalingen slik at fakturaen igjen viser utestående beløp.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 8,
+    "api_errors": 0,
+    "time_ms": 6495,
+    "error_details": []
+  }
+}

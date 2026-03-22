@@ -1,0 +1,45 @@
+{
+  "task_id": "c9600d760620",
+  "timestamp": "2026-03-22T08:23:46.216771+00:00",
+  "prompt": "Gjennomfør hele prosjektsyklusen for 'ERP-implementering Snøhetta' (Snøhetta AS, org.nr 954447499): 1) Prosjektet har budsjett 431600 kr. 2) Registrer timer: Sigurd Johansen (prosjektleder, sigurd.johansen@example.org) 47 timer og Erik Haugen (konsulent, erik.haugen@example.org) 46 timer. 3) Registrer leverandørkostnad 95050 kr fra Nordhav AS (org.nr 957929974). 4) Opprett kundefaktura for prosjektet.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 17,
+    "api_calls": 26,
+    "api_errors": 5,
+    "time_ms": 231239,
+    "error_details": [
+      {
+        "tool": "tripletex_post",
+        "path": "/employee",
+        "status": 422,
+        "error": "Validering feilet."
+      },
+      {
+        "tool": "tripletex_post",
+        "path": "/employee",
+        "status": 422,
+        "error": "Validering feilet."
+      },
+      {
+        "tool": "tripletex_post",
+        "path": "/ledger/voucher",
+        "status": 422,
+        "error": "Validering feilet."
+      },
+      {
+        "tool": "tripletex_post",
+        "path": "/ledger/voucher",
+        "status": 422,
+        "error": "Validering feilet."
+      },
+      {
+        "tool": "tripletex_put",
+        "path": "/project/402069131",
+        "status": 422,
+        "error": "Validering feilet."
+      }
+    ]
+  }
+}

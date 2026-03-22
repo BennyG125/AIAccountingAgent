@@ -1,0 +1,14 @@
+{
+  "task_id": "84e357c5fe8d",
+  "timestamp": "2026-03-22T08:43:49.622528+00:00",
+  "prompt": "We have received invoice INV-2026-3063 from the supplier Oakwood Ltd (org no. 888445676) for 9100 NOK including VAT. The amount relates to office services (account 7300). Register the supplier invoice with the correct input VAT (25%).",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 4,
+    "api_errors": 0,
+    "time_ms": 3997,
+    "error_details": null
+  }
+}

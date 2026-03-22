@@ -1,0 +1,14 @@
+{
+  "task_id": "8c9cf296d76b",
+  "timestamp": "2026-03-22T09:14:29.439697+00:00",
+  "prompt": "Realize o encerramento mensal de março de 2026. Registe a reversão de acréscimos (10700 NOK por mês da conta 1720 para despesa). Registe a depreciação mensal de um ativo fixo com custo de aquisição 265550 NOK e vida útil 10 anos (depreciação linear para conta 6010). Verifique se o balancete está a zero. Registe também uma provisão salarial (débito conta de despesas salariais 5000, crédito conta de salários acumulados 2900).",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 0,
+    "api_errors": 0,
+    "time_ms": 302750,
+    "error_details": null
+  }
+}

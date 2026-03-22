@@ -1,0 +1,14 @@
+{
+  "task_id": "36dc952c102b",
+  "timestamp": "2026-03-22T09:18:20.005088+00:00",
+  "prompt": "Registrer ei reiserekning for Bjørn Brekke (bjrn.brekke@example.org) for \"Kundebesøk Bergen\". Reisa varte 4 dagar med diett (dagssats 800 kr). Utlegg: flybillett 7550 kr og taxi 250 kr.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 5,
+    "api_errors": 0,
+    "time_ms": 5896,
+    "error_details": null
+  }
+}

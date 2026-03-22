@@ -1,0 +1,14 @@
+{
+  "task_id": "f90d751e54e5",
+  "timestamp": "2026-03-22T09:09:35.436516+00:00",
+  "prompt": "Registre el proveedor Sierra SL con número de organización 854784978. Correo electrónico: faktura@sierrasl.no.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 1,
+    "api_errors": 0,
+    "time_ms": 2647,
+    "error_details": null
+  }
+}
