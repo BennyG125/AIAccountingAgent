@@ -32,8 +32,8 @@ EXTRACTION_SCHEMA = {
         "accrual_expense_account": {
             "type": "integer",
             "description": (
-                "Expense account number to debit for the accrual, e.g. 6300. "
-                "Default 6300 if not specified."
+                "Expense account number to debit for the accrual, e.g. 7700. "
+                "Default 7700 (Annen driftskostnad) if not specified."
             ),
         },
         "accrual_description": {
@@ -52,8 +52,8 @@ EXTRACTION_SCHEMA = {
         "depreciation_asset_account": {
             "type": "integer",
             "description": (
-                "Balance-sheet asset account number to credit for accumulated depreciation, "
-                "e.g. 1230. Default 1230 if not specified."
+                "Accumulated depreciation contra-asset account to credit, "
+                "e.g. 1209. Default 1209 if not specified."
             ),
         },
         "depreciation_description": {
@@ -101,18 +101,18 @@ class MonthlyClosingPlan(ExecutionPlan):
         # ------------------------------------------------------------------
 
         # Accounts needed depending on which vouchers are active:
-        #   Accrual:      expense account (e.g. 6300) + 1700
-        #   Depreciation: 6010 + asset balance-sheet account (e.g. 1230)
+        #   Accrual:      expense account (e.g. 7700) + 1700
+        #   Depreciation: 6010 + accumulated depreciation account (e.g. 1209)
         #   Salary:       5000 + 2900
 
         account_numbers_needed = set()
         if accrual_amount is not None:
-            accrual_expense_acc = str(params.get("accrual_expense_account") or 6300)
+            accrual_expense_acc = str(params.get("accrual_expense_account") or 7700)
             account_numbers_needed.add(accrual_expense_acc)
             account_numbers_needed.add("1700")
         if acquisition_cost is not None and asset_lifetime_years is not None:
             account_numbers_needed.add("6010")
-            dep_asset_acc = str(params.get("depreciation_asset_account") or 1230)
+            dep_asset_acc = str(params.get("depreciation_asset_account") or 1209)
             account_numbers_needed.add(dep_asset_acc)
         if salary_provision_amount is not None:
             account_numbers_needed.add("5000")
@@ -147,6 +147,7 @@ class MonthlyClosingPlan(ExecutionPlan):
                         "account": {"id": expense_acc_id},
                         "amount": amount,
                         "amountCurrency": amount,
+                        "currency": {"id": 1},
                         "description": description,
                     },
                     {
@@ -154,6 +155,7 @@ class MonthlyClosingPlan(ExecutionPlan):
                         "account": {"id": prepaid_acc_id},
                         "amount": -amount,
                         "amountCurrency": -amount,
+                        "currency": {"id": 1},
                         "description": description,
                     },
                 ],
@@ -194,6 +196,7 @@ class MonthlyClosingPlan(ExecutionPlan):
                         "account": {"id": dep_expense_id},
                         "amount": monthly_dep,
                         "amountCurrency": monthly_dep,
+                        "currency": {"id": 1},
                         "description": description,
                     },
                     {
@@ -201,6 +204,7 @@ class MonthlyClosingPlan(ExecutionPlan):
                         "account": {"id": dep_asset_id},
                         "amount": -monthly_dep,
                         "amountCurrency": -monthly_dep,
+                        "currency": {"id": 1},
                         "description": description,
                     },
                 ],
@@ -237,6 +241,7 @@ class MonthlyClosingPlan(ExecutionPlan):
                         "account": {"id": salary_acc_id},
                         "amount": amount,
                         "amountCurrency": amount,
+                        "currency": {"id": 1},
                         "description": description,
                     },
                     {
@@ -244,6 +249,7 @@ class MonthlyClosingPlan(ExecutionPlan):
                         "account": {"id": payable_acc_id},
                         "amount": -amount,
                         "amountCurrency": -amount,
+                        "currency": {"id": 1},
                         "description": description,
                     },
                 ],

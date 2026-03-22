@@ -12,7 +12,7 @@ TASK_PATTERNS: list[tuple[str, list[str]]] = [
     ("year_end_close", [
         r"jahresabschluss", r"year.?end.*clos", r"cierre.*anual", r"encerramento.*anual",
         r"årsavslutning", r"clôture.*annuel", r"abschreibung.*anlagen",
-        r"årsoppgjør",
+        r"årsoppgjør", r"årsoppgjer",
         r"fechamento\s*anual", r"cl[oô]ture\s*annuelle",
         r"abschreibung.*steuerr[üu]ckstellung",
         r"steuerr[üu]ckstellung.*abschreibung",
@@ -28,12 +28,14 @@ TASK_PATTERNS: list[tuple[str, list[str]]] = [
         r"cierre.*mensual", r"monthly.*clos", r"månedsslutt", r"monatsabschluss",
         r"clôture.*mensuel", r"encerramento.*mensal", r"periodificación",
         r"periodisering", r"deprecia.*mensual",
-        r"månedsavslutning", r"lønnsavsetning.*periodiser",
+        r"månedsavslutning", r"månavslutninga", r"månedsavslutninga",
+        r"lønnsavsetning.*periodiser", r"lønnsavsetjing",
         r"periodiser.*avskrivning", r"avskrivning.*periodiser",
     ]),
     ("cost_analysis_projects", [
         r"kostnadsanalyse", r"cost.*analy[sz]", r"análisis.*costo", r"análise.*custo",
         r"kostenanalyse", r"analyse.*coût", r"totalkostnad.*økte",
+        r"totalkostnad.*auk", r"kostnadskonto.*auk",
         r"gesamtkosten.*gestiegen", r"costos.*aumentaron", r"largest.*increase",
         r"costs.*increas", r"total.*costs", r"expense.*accounts.*increase",
     ]),
@@ -67,6 +69,7 @@ TASK_PATTERNS: list[tuple[str, list[str]]] = [
     ]),
     ("register_supplier_invoice", [
         r"leverandør.*faktura", r"faktura.*leverandør",
+        r"leverandor.*faktura", r"faktura.*leverandor",
         r"supplier.*invoice", r"invoice.*supplier",
         r"proveedor.*factura", r"factura.*proveedor",
         r"fornecedor.*fatura", r"fatura.*fornecedor",
@@ -87,6 +90,7 @@ TASK_PATTERNS: list[tuple[str, list[str]]] = [
     ("credit_note", [
         r"kreditnota", r"credit\s*note", r"nota\s*de\s*crédito", r"gutschrift",
         r"note\s*de\s*crédit",
+        r"avoir.*annul", r"[ée]mettez.*avoir", r"émettre.*avoir",
     ]),
     ("employee_onboarding", [
         r"arbeidskontrakt", r"employment.*contract", r"contrat.*travail",
@@ -113,16 +117,21 @@ TASK_PATTERNS: list[tuple[str, list[str]]] = [
         r"dimensjon", r"dimension", r"dimensión", r"dimensão",
     ]),
     ("run_salary", [
-        r"l[øo]nn", r"salary", r"salario", r"salário", r"gehalt", r"salaire",
+        r"kj[øo]r.*l[øo]nn", r"l[øo]nnskj[øo]ring", r"l[øo]nnsutbetaling",
+        r"run.*salary", r"ejecute.*nómina", r"execute.*folha",
+        r"gehalt.*auszahlen", r"gehaltsabrechnung", r"exécuter.*paie",
+        r"processar.*folha", r"process.*payroll", r"salary.*run",
+        r"process.*sal[aá]rio",
     ]),
     ("register_payment", [
         r"betal", r"payment", r"pago", r"pagamento", r"zahlung", r"paiement",
     ]),
     ("create_invoice", [
-        r"faktura", r"invoice", r"factura", r"fatura", r"rechnung", r"facture",
+        r"faktura(?!@)", r"invoice", r"factura(?!@)", r"fatura(?!@)", r"rechnung", r"facture(?!@)",
     ]),
     ("create_order", [
         r"bestilling", r"order", r"pedido", r"encomenda", r"bestellung", r"commande",
+        r"auftrag",
     ]),
     ("create_project", [
         r"prosjekt", r"project", r"proyecto", r"projeto", r"projekt", r"projet",

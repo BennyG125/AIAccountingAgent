@@ -150,7 +150,8 @@ class CostAnalysisProjectsPlan(ExecutionPlan):
             for acc in r["body"].get("values", []):
                 account_names[acc["number"]] = acc.get("name", f"Konto {acc['number']}")
         if not account_names:
-                # Non-fatal: fall back to account number as name
+            # Non-fatal: fall back to account number as name for ALL top-3 accounts
+            for acct_num in top3_account_numbers:
                 account_names[acct_num] = f"Konto {acct_num}"
 
         self._check_timeout(start_time)
@@ -169,6 +170,24 @@ class CostAnalysisProjectsPlan(ExecutionPlan):
         if project_manager_id is None:
             raise RuntimeError(
                 "No employees found — cannot set projectManager for internal projects"
+            )
+
+        self._check_timeout(start_time)
+
+        # ---------------------------------------------------------------
+        # Step 5b: Grant ALL_PRIVILEGES entitlements to project manager
+        # MUST happen before POST /project — PM needs AUTH_PROJECT_MANAGER
+        # ---------------------------------------------------------------
+        entitlement_result = client.put(
+            "/employee/entitlement/:grantEntitlementsByTemplate",
+            params={"employeeId": project_manager_id, "template": "ALL_PRIVILEGES"},
+        )
+        api_calls += 1
+        if not entitlement_result["success"]:
+            raise RuntimeError(
+                f"Failed to grant entitlements to employee {project_manager_id}: "
+                f"status={entitlement_result.get('status_code')}, "
+                f"error={entitlement_result.get('error')}"
             )
 
         self._check_timeout(start_time)

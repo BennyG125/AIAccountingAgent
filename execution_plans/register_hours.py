@@ -175,7 +175,7 @@ class RegisterHoursPlan(ExecutionPlan):
                 "/activity",
                 body={
                     "name": activity_name,
-                    "activityType": "PROJECT_GENERAL_ACTIVITY",
+                    "activityType": "GENERAL_ACTIVITY",
                     "isChargeable": True,
                 },
             )

@@ -15,6 +15,36 @@ from observability import traceable
 
 logger = logging.getLogger(__name__)
 
+# Only these task types are allowed to run deterministically.
+# All others fall through to Claude for better accuracy.
+DETERMINISTIC_WHITELIST = {
+    # Tier 1 — proven 100%
+    "create_product",
+    "create_invoice",
+    "create_customer",
+    "create_supplier",
+    "create_departments",
+    "create_employee",
+    "credit_note",
+    "register_payment",
+    "create_order",
+    # Tier 2-3 — proven 0 errors on deterministic
+    "employee_onboarding",
+    "register_supplier_invoice",
+    "travel_expense",
+    "project_lifecycle",
+    "overdue_invoice_reminder",
+    "bank_reconciliation",
+    "cost_analysis_projects",
+    "forex_payment",
+    "register_hours",
+    "fixed_price_project",
+    # Tier 3 — Claude performs worse, try deterministic
+    "monthly_closing",
+    "year_end_close",
+    "year_end_corrections",
+}
+
 # Import all plan modules to trigger @register decorators
 import execution_plans.create_customer  # noqa: F401
 import execution_plans.create_product  # noqa: F401
@@ -217,6 +247,11 @@ class DeterministicExecutor:
         task_type = classify_task(full_prompt)
         if task_type is None:
             logger.info("Deterministic: no classifier match, falling back")
+            return None
+
+        # 2b. Whitelist check — only proven task types run deterministically
+        if task_type not in DETERMINISTIC_WHITELIST:
+            logger.info(f"Deterministic: '{task_type}' not in whitelist, falling back to Claude")
             return None
 
         # 3. Check if we have an execution plan

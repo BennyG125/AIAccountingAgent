@@ -1,51 +1,70 @@
 # Register Supplier Invoice (Tier 2)
+STOP. Follow these steps IN ORDER. Do NOT think about alternative approaches. Execute immediately.
 
 **CRITICAL: NEVER call /incomingInvoice — it ALWAYS returns 403. Go directly to /ledger/voucher.**
 
-1. POST /supplier {name, organizationNumber} → capture supplier_id
-2. Look up account IDs (3 parallel GETs):
-   - GET /ledger/account?number=7000 (or the expense account from the prompt) → expense_account_id
-   - GET /ledger/account?number=2400 → supplier_debt_account_id
-   - GET /ledger/vatType?fields=id,number,percentage → find incoming VAT type
-     (Usually id=1: "Fradrag inngående avgift, høy sats" for 25% incoming VAT)
-3. POST /ledger/voucher with this EXACT structure:
+## Task Pattern
+Register a supplier invoice as a manual journal entry (voucher). Extract from prompt (or PDF via OCR): supplier name, org number, invoice number, gross amount (incl. VAT), VAT rate, expense account number, invoice date.
+
+If a PDF is attached: run `gemini_ocr` FIRST to extract all fields before any API calls.
+
+## Step 1: Find or Create Supplier
+**API call:** `GET /supplier?organizationNumber=<org_nr>&fields=id,name,organizationNumber`
+- If found → capture `supplier_id = values[0].id`. Skip POST.
+- If empty or no org number → `POST /supplier {name: "<name>", organizationNumber: "<org_nr>"}` → capture `id`
+
+## Step 2: Look Up Accounts + VAT Type (3 parallel calls)
+Issue ALL three simultaneously:
+- `GET /ledger/account?number=<expense_account>&fields=id,number,name` → `expense_account_id`
+- `GET /ledger/account?number=2400&fields=id,number,name` → `debt_account_id`
+- `GET /ledger/vatType?fields=id,number,name,percentage` → find `vat_type_id` where `percentage == 25` (for 25% VAT)
+
+## Step 3: Post Voucher (single call)
+**Calculate amounts:**
+- `gross` = total invoice amount incl. VAT (e.g. 62850)
+- `net` = gross / 1.25 (for 25% VAT) — e.g. 62850 / 1.25 = 50280
+- For 15% VAT: net = gross / 1.15
+- For 0% VAT: net = gross, omit vatType and amountGross fields
+
+**API call:** `POST /ledger/voucher`
+**Payload:**
 ```json
 {
   "date": "YYYY-MM-DD",
-  "description": "Leverandørfaktura INV-XXX - Supplier Name",
+  "description": "Leverandorfaktura INV-XXX - Supplier Name",
   "postings": [
     {
+      "row": 1,
       "account": {"id": "<expense_account_id>"},
-      "amount": <NET_AMOUNT>,
-      "amountCurrency": <NET_AMOUNT>,
-      "amountGross": <GROSS_AMOUNT>,
-      "amountGrossCurrency": <GROSS_AMOUNT>,
+      "amount": "<net>",
+      "amountCurrency": "<net>",
+      "amountGross": "<gross>",
+      "amountGrossCurrency": "<gross>",
       "currency": {"id": 1},
-      "vatType": {"id": <vat_type_id>},
-      "supplier": {"id": <supplier_id>},
-      "description": "Expense description",
-      "row": 1
+      "vatType": {"id": "<vat_type_id>"},
+      "supplier": {"id": "<supplier_id>"},
+      "description": "INV-XXX - Supplier Name"
     },
     {
-      "account": {"id": "<supplier_debt_account_id>"},
-      "amount": <NEGATIVE_GROSS_AMOUNT>,
-      "amountCurrency": <NEGATIVE_GROSS_AMOUNT>,
+      "row": 2,
+      "account": {"id": "<debt_account_id>"},
+      "amount": "<negative_gross>",
+      "amountCurrency": "<negative_gross>",
       "currency": {"id": 1},
-      "description": "Supplier debt",
-      "row": 2
+      "description": "Leverandorgjeld - Supplier Name"
     }
   ]
 }
 ```
 
-## Amount Calculations
-- GROSS = total amount including VAT (the invoice total)
-- NET = GROSS / 1.25 (for 25% VAT)
-- Row 2 amount = negative GROSS (e.g., if GROSS is 10000, row 2 amount is -10000)
+Then STOP. Do NOT verify.
 
-## Critical Rules
-- The system auto-creates a row 0 posting for the VAT account (2710) — do NOT create it yourself
-- amountGross MUST equal amountGrossCurrency — omitting either causes 422
-- amount MUST equal amountCurrency — omitting amountCurrency silently results in 0.0
-- Row 2 does NOT get vatType or amountGross fields
-- Rows start at 1 (row 0 is reserved for the system-generated VAT posting)
+## IMPORTANT
+- **Row 1 (expense + VAT):** ALL FOUR amount fields required: `amount` (net), `amountCurrency` (net), `amountGross` (gross), `amountGrossCurrency` (gross). Missing any → 422.
+- **Row 2 (supplier liability 2400):** Only `amount` and `amountCurrency` (both = -gross). Do NOT add vatType, amountGross, or amountGrossCurrency on row 2.
+- **System auto-creates row 0** for the VAT account posting. Do NOT manually create a VAT posting row. The manual postings do NOT need to balance — the system VAT row closes the balance.
+- **amountCurrency MUST equal amount** — omitting amountCurrency silently results in 0.0.
+- **amountGrossCurrency MUST equal amountGross** — mismatch causes 422.
+- Row numbers start at 1 (row 0 is system-reserved).
+- vatType IDs vary per sandbox — always look up dynamically by `percentage` field, never hardcode.
+- Target: 4-5 calls (4 if supplier exists). 0 errors.

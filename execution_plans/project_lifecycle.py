@@ -20,6 +20,7 @@ CRITICAL: Voucher rows must start at 1, all 4 amount fields required.
           Row 2 = supplier payable credit (-gross, NO vatType, NO amountGross).
 NEVER use /incomingInvoice — always 403. Use /ledger/voucher.
 """
+import copy
 import datetime
 
 from execution_plans._base import ExecutionPlan
@@ -439,7 +440,7 @@ class ProjectLifecyclePlan(ExecutionPlan):
         if not r["success"]:
             api_errors += 1
             raise RuntimeError(
-                f"Failed to create invoice for order {order_id}: "
+                f"Failed to create invoice (inline order): "
                 f"status={r.get('status_code')}, error={r.get('error')}"
             )
 
@@ -727,21 +728,21 @@ class ProjectLifecyclePlan(ExecutionPlan):
                     "supplier": {"id": supplier_id},
                     "amount": -gross_amount,
                     "amountCurrency": -gross_amount,
-                    "amountGross": -gross_amount,
-                    "amountGrossCurrency": -gross_amount,
                     "currency": {"id": 1},
                     "description": description_voucher,
                 },
             ],
         }
 
-        r = self._safe_post(
-            client,
-            "/ledger/voucher",
-            body=voucher_body,
-            retry_without=["vatType"],
-        )
+        r = client.post("/ledger/voucher", body=voucher_body)
         api_calls += 1
+        if not r["success"] and r.get("status_code") == 422:
+            # vatType may be invalid in this sandbox — retry without it
+            cleaned_body = copy.deepcopy(voucher_body)
+            for posting in cleaned_body.get("postings", []):
+                posting.pop("vatType", None)
+            r = client.post("/ledger/voucher", body=cleaned_body)
+            api_calls += 1
         if not r["success"]:
             api_errors += 1
             raise RuntimeError(
