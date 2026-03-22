@@ -104,21 +104,35 @@ for _info in _pkgutil.iter_modules(_ep_pkg.__path__):
                     break
 
 
-def extract_params(prompt: str, task_type: str) -> dict | None:
+_ALL_TASK_TYPES = sorted(DETERMINISTIC_WHITELIST)
+
+
+def extract_params(prompt: str, task_type: str) -> tuple[dict | None, str | None]:
     """Extract task parameters from the prompt using Claude Opus 4.6.
 
-    Returns a dict of extracted params, or None if extraction fails.
+    Also asks Claude to verify the regex classification is correct.
+
+    Returns (params_dict, confirmed_task_type) or (None, None) on failure.
+    confirmed_task_type is the task type Claude thinks is correct — may differ
+    from the regex-classified task_type.
     """
     schema = EXTRACTION_SCHEMAS.get(task_type)
     if not schema:
         logger.warning(f"No extraction schema for task_type='{task_type}'")
-        return None
+        return None, None
+
+    all_types_str = ", ".join(_ALL_TASK_TYPES)
 
     extraction_prompt = (
         f"You are extracting structured data from an accounting task prompt.\n"
-        f"The task type is: {task_type}\n\n"
+        f"The regex classifier assigned task type: {task_type}\n\n"
         f"Here is the prompt (may be in Norwegian, English, German, French, Spanish, or Portuguese):\n"
         f'"""\n{prompt}\n"""\n\n'
+        f"Step 1 — VERIFY CLASSIFICATION:\n"
+        f"Is '{task_type}' the correct task type for this prompt?\n"
+        f"Valid task types: {all_types_str}\n"
+        f"Set confirmed_task_type to the correct one (same as '{task_type}' if correct).\n\n"
+        f"Step 2 — EXTRACT PARAMETERS for the confirmed task type:\n"
         f"Extract ALL relevant fields into this JSON structure:\n"
         f"{json.dumps(schema, indent=2)}\n\n"
         f"Rules:\n"
@@ -127,6 +141,7 @@ def extract_params(prompt: str, task_type: str) -> dict | None:
         f"- For dates, use YYYY-MM-DD format\n"
         f"- For amounts, use numbers without currency symbols\n"
         f"- If a field is not mentioned in the prompt, use null\n"
+        f'- ALWAYS include "confirmed_task_type": "<task_type>" as the FIRST field\n'
         f"- Return ONLY a valid JSON object. No markdown, no explanation."
     )
 
@@ -146,6 +161,12 @@ def extract_params(prompt: str, task_type: str) -> dict | None:
         text = re.sub(r"\s*```$", "", text)
 
         params = json.loads(text)
+
+        # Extract confirmed_task_type (pop it so it doesn't pollute plan params)
+        confirmed = params.pop("confirmed_task_type", task_type)
+        # Only accept valid task types
+        if confirmed not in DETERMINISTIC_WHITELIST:
+            confirmed = task_type
 
         # Validate: if all values are null/empty/zero, extraction failed
         def _has_meaningful_value(v):
@@ -167,15 +188,15 @@ def extract_params(prompt: str, task_type: str) -> dict | None:
                 f"Extraction returned all empty/null for '{task_type}', "
                 f"raw={text[:200]}"
             )
-            return None
+            return None, None
 
-        return params
+        return params, confirmed
     except json.JSONDecodeError:
         logger.warning(f"JSON parse failed for '{task_type}' extraction")
-        return None
+        return None, None
     except Exception as e:
         logger.warning(f"Param extraction error for '{task_type}': {e}")
-        return None
+        return None, None
 
 
 class DeterministicExecutor:
@@ -266,15 +287,36 @@ class DeterministicExecutor:
             logger.info(f"Deterministic: no plan for '{task_type}', falling back")
             return None
 
-        logger.info(f"Deterministic: matched '{task_type}'")
+        logger.info(f"Deterministic: regex matched '{task_type}'")
 
-        # 4. Extract parameters (single Gemini Flash call)
-        params = extract_params(full_prompt, task_type)
+        # 4. Extract parameters + verify classification (single Claude call)
+        params, confirmed_type = extract_params(full_prompt, task_type)
         if params is None:
             logger.warning(
                 f"Deterministic: param extraction failed for '{task_type}', falling back"
             )
             return None
+
+        # 4a. Handle classification override from Claude
+        if confirmed_type and confirmed_type != task_type:
+            logger.warning(
+                f"Deterministic: Claude overrides regex '{task_type}' → '{confirmed_type}'"
+            )
+            # Switch to the correct plan
+            override_plan = PLANS.get(confirmed_type)
+            if override_plan and confirmed_type in DETERMINISTIC_WHITELIST:
+                # Re-extract with the correct schema
+                params2, _ = extract_params(full_prompt, confirmed_type)
+                if params2 is not None:
+                    task_type = confirmed_type
+                    plan = override_plan
+                    params = params2
+                    logger.info(f"Deterministic: re-extracted params for '{task_type}'")
+                else:
+                    logger.warning(
+                        f"Deterministic: re-extraction failed for '{confirmed_type}', "
+                        f"continuing with original '{task_type}'"
+                    )
 
         # 4b. Inject raw CSV data for bank_reconciliation
         if task_type == "bank_reconciliation" and csv_text:
