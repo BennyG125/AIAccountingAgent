@@ -1,6 +1,10 @@
 """Execution plan: Create Departments."""
+import logging
+
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 EXTRACTION_SCHEMA = {
     "type": "object",
@@ -56,9 +60,9 @@ class CreateDepartmentsPlan(ExecutionPlan):
                 api_calls += 1
                 if not ind_result["success"]:
                     api_errors += 1
-                    raise RuntimeError(
-                        f"Failed to create department '{dept['name']}': "
-                        f"status={ind_result.get('status_code')}, error={ind_result.get('error')}"
+                    logger.warning(
+                        "Failed to create department '%s': status=%s, error=%s",
+                        dept['name'], ind_result.get('status_code'), ind_result.get('error'),
                     )
 
         return self._make_result(api_calls=api_calls, api_errors=api_errors)

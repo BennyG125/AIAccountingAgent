@@ -15,8 +15,12 @@ NEVER use /asset endpoint — all operations are POST /ledger/voucher only.
 amountCurrency must always equal amount for NOK postings.
 Each voucher must balance (sum of amounts == 0).
 """
+import logging
+
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 EXTRACTION_SCHEMA = {
     "type": "object",
@@ -110,15 +114,16 @@ def _lookup_account(client, number: str) -> int | None:
     return None
 
 
-def _require_account(client, number: str, api_calls: list, api_errors: list) -> int:
-    """Look up account; raise RuntimeError if not found. Mutates api_calls/api_errors counts."""
+def _require_account(client, number: str, api_calls: list, api_errors: list) -> int | None:
+    """Look up account; return None if not found. Mutates api_calls/api_errors counts."""
     account_id = _lookup_account(client, number)
     api_calls[0] += 1
     if account_id is None:
         api_errors[0] += 1
-        raise RuntimeError(
-            f"Account {number} not found in this sandbox. "
-            "Ensure the chart of accounts contains this account number."
+        logger.warning(
+            "Account %s not found in this sandbox. "
+            "Ensure the chart of accounts contains this account number.",
+            number,
         )
     return account_id
 

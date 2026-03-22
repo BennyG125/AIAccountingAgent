@@ -4,10 +4,13 @@ A customer payment was returned by the bank. Create the full invoice chain
 (customer → product → order → invoice → payment), find the payment voucher,
 and reverse it.
 """
+import logging
 from datetime import date, timedelta
 
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 EXTRACTION_SCHEMA = {
     "customer_name": "string (customer/company name)",
@@ -26,6 +29,7 @@ class ReversePaymentPlan(ExecutionPlan):
         self._check_timeout(start_time)
         api_calls = 0
         api_errors = 0
+        error_details = []
         today = date.today().isoformat()
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
         due_date = (date.today() + timedelta(days=14)).isoformat()
@@ -33,6 +37,7 @@ class ReversePaymentPlan(ExecutionPlan):
         amount_incl_vat = round(amount * 1.25, 2)
 
         # 1. Create customer
+        customer_id = None
         r = client.post("/customer", body={
             "name": params["customer_name"],
             "organizationNumber": params.get("customer_org_number"),
@@ -40,23 +45,37 @@ class ReversePaymentPlan(ExecutionPlan):
         api_calls += 1
         if r["success"]:
             customer_id = r["body"]["value"]["id"]
-        elif r.get("status_code") == 422:
-            api_errors += 1
-            r2 = client.get("/customer", params={
-                "organizationNumber": params.get("customer_org_number"),
-                "fields": "id", "count": 1,
-            })
-            api_calls += 1
-            if r2["success"] and r2["body"].get("values"):
-                customer_id = r2["body"]["values"][0]["id"]
-            else:
-                raise RuntimeError(f"Failed to create/find customer: {r.get('error')}")
         else:
-            raise RuntimeError(f"Failed to create customer: {r.get('error')}")
+            api_errors += 1
+            # Try searching by org number first
+            if params.get("customer_org_number"):
+                r2 = client.get("/customer", params={
+                    "organizationNumber": params.get("customer_org_number"),
+                    "fields": "id", "count": 1,
+                })
+                api_calls += 1
+                if r2["success"] and r2["body"].get("values"):
+                    customer_id = r2["body"]["values"][0]["id"]
+
+            # Try searching by name if org number search failed
+            if customer_id is None:
+                r3 = client.get("/customer", params={
+                    "name": params["customer_name"],
+                    "fields": "id", "count": 1,
+                })
+                api_calls += 1
+                if r3["success"] and r3["body"].get("values"):
+                    customer_id = r3["body"]["values"][0]["id"]
+
+            if customer_id is None:
+                error_details.append(f"Failed to create/find customer: {r.get('error')}")
+                logger.warning("reverse_payment: could not create or find customer")
+                return self._make_result(api_calls=api_calls, api_errors=api_errors, error_details=error_details)
 
         self._check_timeout(start_time)
 
         # 2. Create product
+        product_id = None
         r = client.post("/product", body={
             "name": params["product_name"],
             "priceExcludingVatCurrency": amount,
@@ -66,11 +85,24 @@ class ReversePaymentPlan(ExecutionPlan):
             product_id = r["body"]["value"]["id"]
         else:
             api_errors += 1
-            raise RuntimeError(f"Failed to create product: {r.get('error')}")
+            # Try searching for existing product by name
+            r2 = client.get("/product", params={
+                "name": params["product_name"],
+                "fields": "id", "count": 1,
+            })
+            api_calls += 1
+            if r2["success"] and r2["body"].get("values"):
+                product_id = r2["body"]["values"][0]["id"]
+
+            if product_id is None:
+                error_details.append(f"Failed to create/find product: {r.get('error')}")
+                logger.warning("reverse_payment: could not create or find product")
+                return self._make_result(api_calls=api_calls, api_errors=api_errors, error_details=error_details)
 
         self._check_timeout(start_time)
 
         # 3. Create order with inline orderLine
+        order_id = None
         r = client.post("/order", body={
             "customer": {"id": customer_id},
             "orderDate": today,
@@ -86,11 +118,14 @@ class ReversePaymentPlan(ExecutionPlan):
             order_id = r["body"]["value"]["id"]
         else:
             api_errors += 1
-            raise RuntimeError(f"Failed to create order: {r.get('error')}")
+            error_details.append(f"Failed to create order: {r.get('error')}")
+            logger.warning("reverse_payment: could not create order")
+            return self._make_result(api_calls=api_calls, api_errors=api_errors, error_details=error_details)
 
         self._check_timeout(start_time)
 
         # 4. Create invoice
+        invoice_id = None
         r = client.post("/invoice", body={
             "invoiceDate": today,
             "invoiceDueDate": due_date,
@@ -101,7 +136,9 @@ class ReversePaymentPlan(ExecutionPlan):
             invoice_id = r["body"]["value"]["id"]
         else:
             api_errors += 1
-            raise RuntimeError(f"Failed to create invoice: {r.get('error')}")
+            error_details.append(f"Failed to create invoice: {r.get('error')}")
+            logger.warning("reverse_payment: could not create invoice")
+            return self._make_result(api_calls=api_calls, api_errors=api_errors, error_details=error_details)
 
         self._check_timeout(start_time)
 
@@ -128,7 +165,9 @@ class ReversePaymentPlan(ExecutionPlan):
         api_calls += 1
         if not r["success"]:
             api_errors += 1
-            raise RuntimeError(f"Failed to register payment: {r.get('error')}")
+            error_details.append(f"Failed to register payment: {r.get('error')}")
+            logger.warning("reverse_payment: could not register payment")
+            return self._make_result(api_calls=api_calls, api_errors=api_errors, error_details=error_details)
 
         self._check_timeout(start_time)
 
@@ -146,9 +185,9 @@ class ReversePaymentPlan(ExecutionPlan):
             voucher_id = vouchers[-1]["id"]
         else:
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to find payment voucher: {r.get('error')}"
-            )
+            error_details.append(f"Failed to find payment voucher: {r.get('error')}")
+            logger.warning("reverse_payment: could not find payment voucher")
+            return self._make_result(api_calls=api_calls, api_errors=api_errors, error_details=error_details)
 
         self._check_timeout(start_time)
 
@@ -160,6 +199,7 @@ class ReversePaymentPlan(ExecutionPlan):
         api_calls += 1
         if not r["success"]:
             api_errors += 1
-            raise RuntimeError(f"Failed to reverse voucher: {r.get('error')}")
+            error_details.append(f"Failed to reverse voucher: {r.get('error')}")
+            logger.warning("reverse_payment: voucher reversal failed")
 
-        return self._make_result(api_calls=api_calls, api_errors=api_errors)
+        return self._make_result(api_calls=api_calls, api_errors=api_errors, error_details=error_details)

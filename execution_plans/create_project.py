@@ -3,10 +3,13 @@
 Sequence: customer → department → employee (PM) → entitlements → project.
 The PM must have ALL_PRIVILEGES entitlements BEFORE project creation.
 """
+import logging
 from datetime import date
 
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 EXTRACTION_SCHEMA = {
     "project_name": "string (project name)",
@@ -30,6 +33,7 @@ class CreateProjectPlan(ExecutionPlan):
         today = date.today().isoformat()
 
         # 1. Create customer
+        customer_id = None
         r = client.post("/customer", body={
             "name": params["customer_name"],
             "organizationNumber": params.get("customer_org_number"),
@@ -47,13 +51,29 @@ class CreateProjectPlan(ExecutionPlan):
             if r2["success"] and r2["body"].get("values"):
                 customer_id = r2["body"]["values"][0]["id"]
             else:
-                raise RuntimeError(f"Failed to create/find customer: {r.get('error')}")
+                # Try searching by name as fallback
+                r3 = client.get("/customer", params={
+                    "name": params["customer_name"],
+                    "fields": "id", "count": 1,
+                })
+                api_calls += 1
+                if r3["success"] and r3["body"].get("values"):
+                    customer_id = r3["body"]["values"][0]["id"]
+                else:
+                    logger.warning("Failed to create/find customer: %s", r.get('error'))
         else:
-            raise RuntimeError(f"Failed to create customer: {r.get('error')}")
+            api_errors += 1
+            logger.warning("Failed to create customer: %s", r.get('error'))
+
+        if customer_id is None:
+            api_errors += 1
+            logger.warning("customer_id is None — cannot create project")
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
         # 2. Find or create department
+        dept_id = None
         r = client.get("/department", params={"fields": "id,name"})
         api_calls += 1
         if r["success"] and r["body"].get("values"):
@@ -67,11 +87,13 @@ class CreateProjectPlan(ExecutionPlan):
                 dept_id = r["body"]["value"]["id"]
             else:
                 api_errors += 1
-                raise RuntimeError(f"Failed to create department: {r.get('error')}")
+                logger.warning("Failed to create department: %s", r.get('error'))
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
         # 3. Create employee (PM)
+        pm_id = None
         r = client.post("/employee", body={
             "firstName": params["pm_first_name"],
             "lastName": params["pm_last_name"],
@@ -92,9 +114,15 @@ class CreateProjectPlan(ExecutionPlan):
             if r2["success"] and r2["body"].get("values"):
                 pm_id = r2["body"]["values"][0]["id"]
             else:
-                raise RuntimeError(f"Failed to create/find employee: {r.get('error')}")
+                logger.warning("Failed to create/find employee: %s", r.get('error'))
         else:
-            raise RuntimeError(f"Failed to create employee: {r.get('error')}")
+            api_errors += 1
+            logger.warning("Failed to create employee: %s", r.get('error'))
+
+        if pm_id is None:
+            api_errors += 1
+            logger.warning("pm_id is None — cannot create project")
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
@@ -104,7 +132,13 @@ class CreateProjectPlan(ExecutionPlan):
             params={"employeeId": pm_id, "template": "ALL_PRIVILEGES"},
         )
         api_calls += 1
-        # Don't fail on entitlement errors
+        if not r["success"]:
+            api_errors += 1
+            logger.warning(
+                "Failed to grant entitlements for PM %s: status=%s, error=%s",
+                pm_id, r.get('status_code'), r.get('error'),
+            )
+            # Non-fatal — continue, project creation might still work
 
         self._check_timeout(start_time)
 
@@ -118,6 +152,6 @@ class CreateProjectPlan(ExecutionPlan):
         api_calls += 1
         if not r["success"]:
             api_errors += 1
-            raise RuntimeError(f"Failed to create project: {r.get('error')}")
+            logger.warning("Failed to create project: %s", r.get('error'))
 
         return self._make_result(api_calls=api_calls, api_errors=api_errors)

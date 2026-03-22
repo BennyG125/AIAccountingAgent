@@ -19,12 +19,17 @@ CRITICAL: Voucher rows must start at 1, all 4 amount fields required.
           Row 1 = expense debit (net, with vatType + project link).
           Row 2 = supplier payable credit (-gross, NO vatType, NO amountGross).
 NEVER use /incomingInvoice — always 403. Use /ledger/voucher.
+
+NEVER raises RuntimeError — always returns partial results via _make_result().
 """
 import copy
 import datetime
+import logging
 
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 EXTRACTION_SCHEMA = {
     "type": "object",
@@ -156,6 +161,7 @@ class ProjectLifecyclePlan(ExecutionPlan):
         # Step 1: Find or create customer
         # ------------------------------------------------------------------
         self._check_timeout(start_time)
+        customer_id = None
         search_params = {"count": 1, "fields": "id,name"}
         if customer_org:
             search_params["organizationNumber"] = customer_org
@@ -184,24 +190,30 @@ class ProjectLifecyclePlan(ExecutionPlan):
                         customer_id = r2["body"]["values"][0]["id"]
                     else:
                         api_errors += 1
-                        raise RuntimeError(
-                            f"Failed to find/create customer '{customer_name}': "
-                            f"status={r.get('status_code')}, error={r.get('error')}"
+                        logger.warning(
+                            "Failed to find/create customer '%s': status=%s, error=%s",
+                            customer_name, r.get("status_code"), r.get("error"),
                         )
                 else:
                     api_errors += 1
-                    raise RuntimeError(
-                        f"Failed to create customer '{customer_name}': "
-                        f"status={r.get('status_code')}, error={r.get('error')}"
+                    logger.warning(
+                        "Failed to create customer '%s': status=%s, error=%s",
+                        customer_name, r.get("status_code"), r.get("error"),
                     )
             else:
                 customer_id = r["body"]["value"]["id"]
+
+        # Customer is critical for project + order/invoice — if missing, skip those steps
+        if customer_id is None:
+            logger.warning("No customer ID — returning partial result")
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
         # ------------------------------------------------------------------
         # Step 2: Find or create department (required for employee creation)
         # ------------------------------------------------------------------
+        dept_id = None
         r = client.get("/department", params={"fields": "id,name", "count": 1})
         api_calls += 1
         if r["success"] and r["body"].get("values"):
@@ -214,21 +226,33 @@ class ProjectLifecyclePlan(ExecutionPlan):
             api_calls += 1
             if not r["success"]:
                 api_errors += 1
-                raise RuntimeError(
-                    f"Failed to find/create department: "
-                    f"status={r.get('status_code')}, error={r.get('error')}"
+                logger.warning(
+                    "Failed to find/create department: status=%s, error=%s",
+                    r.get("status_code"), r.get("error"),
                 )
-            dept_id = r["body"]["value"]["id"]
+            else:
+                dept_id = r["body"]["value"]["id"]
+
+        # Department is required for employee creation — if missing, skip employee steps
+        if dept_id is None:
+            logger.warning("No department ID — returning partial result")
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
         # ------------------------------------------------------------------
         # Step 3: Find or create project manager employee
         # ------------------------------------------------------------------
-        pm_id = self._find_or_create_employee(
+        pm_id, extra_calls, extra_errors = self._find_or_create_employee(
             client, pm_first, pm_last, pm_email, dept_id
         )
-        api_calls += 2  # search + possible create
+        api_calls += extra_calls
+        api_errors += extra_errors
+
+        # Project manager is critical for project creation
+        if pm_id is None:
+            logger.warning("No project manager ID — returning partial result")
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
@@ -242,9 +266,10 @@ class ProjectLifecyclePlan(ExecutionPlan):
         api_calls += 1
         if not r["success"]:
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to grant entitlements to project manager {pm_id}: "
-                f"status={r.get('status_code')}, error={r.get('error')}"
+            # Non-fatal: some sandboxes may have it pre-granted, continue anyway
+            logger.warning(
+                "Failed to grant entitlements to project manager %s: status=%s, error=%s",
+                pm_id, r.get("status_code"), r.get("error"),
             )
 
         self._check_timeout(start_time)
@@ -255,14 +280,23 @@ class ProjectLifecyclePlan(ExecutionPlan):
         other_employee_ids = []
         for emp in other_employees:
             self._check_timeout(start_time)
-            emp_id = self._find_or_create_employee(
+            emp_id, extra_calls, extra_errors = self._find_or_create_employee(
                 client,
                 emp["first_name"],
                 emp["last_name"],
                 emp["email"],
                 dept_id,
             )
-            api_calls += 2  # search + possible create
+            api_calls += extra_calls
+            api_errors += extra_errors
+
+            if emp_id is None:
+                logger.warning(
+                    "Could not find/create employee %s %s — skipping",
+                    emp["first_name"], emp["last_name"],
+                )
+                other_employee_ids.append(None)
+                continue
 
             # Grant entitlements to all employees so they can log hours
             r = client.put(
@@ -281,6 +315,7 @@ class ProjectLifecyclePlan(ExecutionPlan):
         # ------------------------------------------------------------------
         # Step 5: Create project with fixed-price budget
         # ------------------------------------------------------------------
+        project_id = None
         r = client.get(
             "/project",
             params={
@@ -306,17 +341,24 @@ class ProjectLifecyclePlan(ExecutionPlan):
             api_calls += 1
             if not r["success"]:
                 api_errors += 1
-                raise RuntimeError(
-                    f"Failed to create project '{project_name}': "
-                    f"status={r.get('status_code')}, error={r.get('error')}"
+                logger.warning(
+                    "Failed to create project '%s': status=%s, error=%s",
+                    project_name, r.get("status_code"), r.get("error"),
                 )
-            project_id = r["body"]["value"]["id"]
+            else:
+                project_id = r["body"]["value"]["id"]
+
+        # Project is critical for timesheet, voucher, close — if missing, skip those
+        if project_id is None:
+            logger.warning("No project ID — returning partial result")
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
         # ------------------------------------------------------------------
         # Step 6: Find or create activity
         # ------------------------------------------------------------------
+        activity_id = None
         r = client.get(
             "/activity",
             params={"name": activity_name, "isGeneral": True, "fields": "id,name", "count": 1},
@@ -346,15 +388,15 @@ class ProjectLifecyclePlan(ExecutionPlan):
                         activity_id = r2["body"]["values"][0]["id"]
                     else:
                         api_errors += 1
-                        raise RuntimeError(
-                            f"Failed to find/create activity '{activity_name}': "
-                            f"status={r.get('status_code')}, error={r.get('error')}"
+                        logger.warning(
+                            "Failed to find/create activity '%s': status=%s, error=%s",
+                            activity_name, r.get("status_code"), r.get("error"),
                         )
                 else:
                     api_errors += 1
-                    raise RuntimeError(
-                        f"Failed to create activity '{activity_name}': "
-                        f"status={r.get('status_code')}, error={r.get('error')}"
+                    logger.warning(
+                        "Failed to create activity '%s': status=%s, error=%s",
+                        activity_name, r.get("status_code"), r.get("error"),
                     )
             else:
                 activity_id = r["body"]["value"]["id"]
@@ -364,39 +406,45 @@ class ProjectLifecyclePlan(ExecutionPlan):
         # ------------------------------------------------------------------
         # Step 7: Register hours for all employees (bulk)
         # ------------------------------------------------------------------
-        timesheet_entries = [
-            {
-                "activity": {"id": activity_id},
-                "employee": {"id": pm_id},
-                "project": {"id": project_id},
-                "date": today,
-                "hours": pm_hours,
-            }
-        ]
-        for i, emp_id in enumerate(other_employee_ids):
-            timesheet_entries.append({
-                "activity": {"id": activity_id},
-                "employee": {"id": emp_id},
-                "project": {"id": project_id},
-                "date": today,
-                "hours": float(other_employees[i]["hours"]),
-            })
-
-        bulk_ts = client.post("/timesheet/entry/list", body=timesheet_entries)
-        api_calls += 1
-        if not bulk_ts["success"]:
-            # Fallback: register individually
-            api_calls, api_errors = self._register_hours(
-                client, pm_id, project_id, activity_id, pm_hours, today,
-                api_calls, api_errors,
-            )
+        if activity_id is not None:
+            timesheet_entries = [
+                {
+                    "activity": {"id": activity_id},
+                    "employee": {"id": pm_id},
+                    "project": {"id": project_id},
+                    "date": today,
+                    "hours": pm_hours,
+                }
+            ]
             for i, emp_id in enumerate(other_employee_ids):
-                self._check_timeout(start_time)
-                emp_hours = float(other_employees[i]["hours"])
+                if emp_id is not None:
+                    timesheet_entries.append({
+                        "activity": {"id": activity_id},
+                        "employee": {"id": emp_id},
+                        "project": {"id": project_id},
+                        "date": today,
+                        "hours": float(other_employees[i]["hours"]),
+                    })
+
+            bulk_ts = client.post("/timesheet/entry/list", body=timesheet_entries)
+            api_calls += 1
+            if not bulk_ts["success"]:
+                # Fallback: register individually
                 api_calls, api_errors = self._register_hours(
-                    client, emp_id, project_id, activity_id, emp_hours, today,
+                    client, pm_id, project_id, activity_id, pm_hours, today,
                     api_calls, api_errors,
                 )
+                for i, emp_id in enumerate(other_employee_ids):
+                    if emp_id is None:
+                        continue
+                    self._check_timeout(start_time)
+                    emp_hours = float(other_employees[i]["hours"])
+                    api_calls, api_errors = self._register_hours(
+                        client, emp_id, project_id, activity_id, emp_hours, today,
+                        api_calls, api_errors,
+                    )
+        else:
+            logger.warning("No activity ID — skipping timesheet entries")
 
         self._check_timeout(start_time)
 
@@ -439,9 +487,9 @@ class ProjectLifecyclePlan(ExecutionPlan):
         api_calls += 1
         if not r["success"]:
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to create invoice (inline order): "
-                f"status={r.get('status_code')}, error={r.get('error')}"
+            logger.warning(
+                "Failed to create invoice (inline order): status=%s, error=%s",
+                r.get("status_code"), r.get("error"),
             )
 
         self._check_timeout(start_time)
@@ -481,10 +529,11 @@ class ProjectLifecyclePlan(ExecutionPlan):
         api_calls += 1
         if not r["success"]:
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to get project {project_id} for version: "
-                f"status={r.get('status_code')}, error={r.get('error')}"
+            logger.warning(
+                "Failed to get project %s for version: status=%s, error=%s — skipping close",
+                project_id, r.get("status_code"), r.get("error"),
             )
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
         project_version = r["body"]["value"]["version"]
 
         r = client.put(
@@ -499,9 +548,9 @@ class ProjectLifecyclePlan(ExecutionPlan):
         api_calls += 1
         if not r["success"]:
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to close project {project_id}: "
-                f"status={r.get('status_code')}, error={r.get('error')}"
+            logger.warning(
+                "Failed to close project %s: status=%s, error=%s",
+                project_id, r.get("status_code"), r.get("error"),
             )
 
         return self._make_result(api_calls=api_calls, api_errors=api_errors)
@@ -512,18 +561,22 @@ class ProjectLifecyclePlan(ExecutionPlan):
 
     def _find_or_create_employee(
         self, client, first_name, last_name, email, dept_id
-    ) -> int:
+    ) -> tuple[int | None, int, int]:
         """Find employee by email; create if not found.
 
         On 422 'e-postadressen er i bruk', falls back to GET /employee?email=X.
-        Returns employee ID.
+        Returns (employee_id_or_None, api_calls, api_errors).
         """
+        api_calls = 0
+        api_errors = 0
+
         r = client.get(
             "/employee",
             params={"email": email, "fields": "id,firstName,lastName", "count": 1},
         )
+        api_calls += 1
         if r["success"] and r["body"].get("values"):
-            return r["body"]["values"][0]["id"]
+            return r["body"]["values"][0]["id"], api_calls, api_errors
 
         # Not found — create
         r = client.post(
@@ -537,8 +590,9 @@ class ProjectLifecyclePlan(ExecutionPlan):
                 "department": {"id": dept_id},
             },
         )
+        api_calls += 1
         if r["success"]:
-            return r["body"]["value"]["id"]
+            return r["body"]["value"]["id"], api_calls, api_errors
 
         # Email already in use (422) — fetch the existing employee
         if r.get("status_code") == 422:
@@ -546,13 +600,16 @@ class ProjectLifecyclePlan(ExecutionPlan):
                 "/employee",
                 params={"email": email, "fields": "id,firstName,lastName", "count": 1},
             )
+            api_calls += 1
             if r2["success"] and r2["body"].get("values"):
-                return r2["body"]["values"][0]["id"]
+                return r2["body"]["values"][0]["id"], api_calls, api_errors
 
-        raise RuntimeError(
-            f"Failed to find or create employee {first_name} {last_name} ({email}): "
-            f"status={r.get('status_code')}, error={r.get('error')}"
+        api_errors += 1
+        logger.warning(
+            "Failed to find or create employee %s %s (%s): status=%s, error=%s",
+            first_name, last_name, email, r.get("status_code"), r.get("error"),
         )
+        return None, api_calls, api_errors
 
     def _register_hours(
         self, client, employee_id, project_id, activity_id, hours, date_str,
@@ -560,7 +617,7 @@ class ProjectLifecyclePlan(ExecutionPlan):
     ):
         """POST a timesheet entry; handles duplicate gracefully.
 
-        Returns updated (api_calls, api_errors).
+        Returns updated (api_calls, api_errors). Never raises.
         """
         r = client.post(
             "/timesheet/entry",
@@ -590,16 +647,17 @@ class ProjectLifecyclePlan(ExecutionPlan):
                 api_calls += 1
                 if not (lookup["success"] and lookup["body"].get("values")):
                     api_errors += 1
-                    raise RuntimeError(
-                        f"Failed to register timesheet entry for employee {employee_id} "
-                        f"and could not find existing: "
-                        f"status={r.get('status_code')}, error={r.get('error')}"
+                    logger.warning(
+                        "Failed to register timesheet entry for employee %s "
+                        "and could not find existing: status=%s, error=%s",
+                        employee_id, r.get("status_code"), r.get("error"),
                     )
             else:
                 api_errors += 1
-                raise RuntimeError(
-                    f"Failed to register timesheet entry for employee {employee_id}: "
-                    f"status={r.get('status_code')}, error={r.get('error')}"
+                logger.warning(
+                    "Failed to register timesheet entry for employee %s: "
+                    "status=%s, error=%s",
+                    employee_id, r.get("status_code"), r.get("error"),
                 )
         return api_calls, api_errors
 
@@ -609,7 +667,7 @@ class ProjectLifecyclePlan(ExecutionPlan):
     ):
         """Find/create supplier, look up accounts + VAT type, post ledger voucher.
 
-        Returns updated (api_calls, api_errors).
+        Returns updated (api_calls, api_errors). Never raises.
         """
         vat_rate = 0.25
         net_amount = round(gross_amount / (1 + vat_rate), 2)
@@ -645,16 +703,18 @@ class ProjectLifecyclePlan(ExecutionPlan):
                         supplier_id = r2["body"]["values"][0]["id"]
                     else:
                         api_errors += 1
-                        raise RuntimeError(
-                            f"Failed to find/create supplier '{supplier_name}': "
-                            f"status={r.get('status_code')}, error={r.get('error')}"
+                        logger.warning(
+                            "Failed to find/create supplier '%s': status=%s, error=%s",
+                            supplier_name, r.get("status_code"), r.get("error"),
                         )
+                        return api_calls, api_errors
                 else:
                     api_errors += 1
-                    raise RuntimeError(
-                        f"Failed to create supplier '{supplier_name}': "
-                        f"status={r.get('status_code')}, error={r.get('error')}"
+                    logger.warning(
+                        "Failed to create supplier '%s': status=%s, error=%s",
+                        supplier_name, r.get("status_code"), r.get("error"),
                     )
+                    return api_calls, api_errors
             else:
                 supplier_id = r["body"]["value"]["id"]
 
@@ -664,10 +724,11 @@ class ProjectLifecyclePlan(ExecutionPlan):
         api_calls += 1
         if not r["success"] or not r["body"].get("values"):
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to look up account 7000: "
-                f"status={r.get('status_code')}, error={r.get('error')}"
+            logger.warning(
+                "Failed to look up account 7000: status=%s, error=%s",
+                r.get("status_code"), r.get("error"),
             )
+            return api_calls, api_errors
         expense_account_id = r["body"]["values"][0]["id"]
 
         # Look up supplier payable account 2400
@@ -675,10 +736,11 @@ class ProjectLifecyclePlan(ExecutionPlan):
         api_calls += 1
         if not r["success"] or not r["body"].get("values"):
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to look up account 2400: "
-                f"status={r.get('status_code')}, error={r.get('error')}"
+            logger.warning(
+                "Failed to look up account 2400: status=%s, error=%s",
+                r.get("status_code"), r.get("error"),
             )
+            return api_calls, api_errors
         supplier_payable_id = r["body"]["values"][0]["id"]
 
         # Look up incoming VAT type
@@ -700,7 +762,8 @@ class ProjectLifecyclePlan(ExecutionPlan):
 
         if vat_type_id is None:
             api_errors += 1
-            raise RuntimeError("No VAT types available in this sandbox")
+            logger.warning("No VAT types available in this sandbox — skipping supplier voucher")
+            return api_calls, api_errors
 
         # Post supplier cost voucher with project link on expense row
         self._check_timeout(start_time)
@@ -746,9 +809,9 @@ class ProjectLifecyclePlan(ExecutionPlan):
             api_calls += 1
         if not r["success"]:
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to post supplier cost voucher: "
-                f"status={r.get('status_code')}, error={r.get('error')}"
+            logger.warning(
+                "Failed to post supplier cost voucher: status=%s, error=%s",
+                r.get("status_code"), r.get("error"),
             )
 
         return api_calls, api_errors

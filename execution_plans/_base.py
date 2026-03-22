@@ -30,7 +30,6 @@ class ExecutionPlan:
             Result dict with status, api_calls, api_errors, etc.
 
         Raises:
-            RuntimeError: On unrecoverable API failure
             TimeoutError: If execution exceeds EXECUTOR_TIMEOUT
         """
         raise NotImplementedError
@@ -53,21 +52,22 @@ class ExecutionPlan:
 
         Returns:
             Dict mapping account number string to account ID.
-            Raises RuntimeError if any account is not found.
+            Logs warnings for missing accounts instead of raising.
         """
         numbers_str = ",".join(str(n) for n in account_numbers)
         result = client.get("/ledger/account", params={"number": numbers_str})
         if not result["success"]:
-            raise RuntimeError(f"Failed to look up accounts {numbers_str}: {result}")
+            logger.warning("Failed to look up accounts %s: %s", numbers_str, result)
+            return {}
 
         accounts = {}
         for acc in result["body"].get("values", []):
             accounts[str(acc["number"])] = acc["id"]
 
-        # Verify all requested accounts were found
+        # Log warnings for missing accounts (but don't raise)
         for num in account_numbers:
             if str(num) not in accounts:
-                raise RuntimeError(f"Account {num} not found in this sandbox")
+                logger.warning("Account %s not found in this sandbox", num)
 
         return accounts
 
@@ -101,10 +101,10 @@ class ExecutionPlan:
         search_params: dict,
         create_path: str,
         create_body: dict,
-    ) -> int:
-        """Search for an entity; create if not found. Returns entity ID.
+    ) -> int | None:
+        """Search for an entity; create if not found. Returns entity ID or None.
 
-        Raises RuntimeError if both search and create fail.
+        Returns None and logs a warning if both search and create fail.
         """
         result = client.get(search_path, params=search_params)
         if result["success"]:
@@ -117,10 +117,11 @@ class ExecutionPlan:
         if result["success"]:
             return result["body"]["value"]["id"]
 
-        raise RuntimeError(
-            f"Failed to find or create at {create_path}: "
-            f"status={result.get('status_code')}, error={result.get('error')}"
+        logger.warning(
+            "Failed to find or create at %s: status=%s, error=%s",
+            create_path, result.get('status_code'), result.get('error'),
         )
+        return None
 
     def _make_result(
         self,

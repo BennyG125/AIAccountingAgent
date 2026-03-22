@@ -13,9 +13,12 @@ Flow:
 NEVER use /incomingInvoice — it always returns 403.
 """
 import datetime
+import logging
 
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 EXTRACTION_SCHEMA = {
     "type": "object",
@@ -104,11 +107,11 @@ class RegisterSupplierInvoicePlan(ExecutionPlan):
             api_calls += 1
             if not create_result["success"]:
                 api_errors += 1
-                raise RuntimeError(
-                    f"Failed to create supplier '{supplier_name}': "
-                    f"status={create_result.get('status_code')}, "
-                    f"error={create_result.get('error')}"
+                logger.warning(
+                    "Failed to create supplier '%s': status=%s, error=%s",
+                    supplier_name, create_result.get('status_code'), create_result.get('error'),
                 )
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
             supplier_id = create_result["body"]["value"]["id"]
 
         # --- Step 2: Batch look up accounts (2400 + expense) ---
@@ -141,7 +144,8 @@ class RegisterSupplierInvoicePlan(ExecutionPlan):
 
         if vat_type_id is None:
             api_errors += 1
-            raise RuntimeError("No VAT types available in this sandbox")
+            logger.warning("No VAT types available in this sandbox")
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         # --- Step 5: POST /ledger/voucher ---
         self._check_timeout(start_time)
@@ -192,10 +196,9 @@ class RegisterSupplierInvoicePlan(ExecutionPlan):
         api_calls += 1
         if not voucher_result["success"]:
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to post supplier invoice voucher: "
-                f"status={voucher_result.get('status_code')}, "
-                f"error={voucher_result.get('error')}"
+            logger.warning(
+                "Failed to post supplier invoice voucher: status=%s, error=%s",
+                voucher_result.get('status_code'), voucher_result.get('error'),
             )
 
         return self._make_result(api_calls=api_calls, api_errors=api_errors)

@@ -24,10 +24,13 @@ CRITICAL:
 """
 import io
 import csv
+import logging
 import re
 
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 # Minimal extraction schema — CSV data comes from file attachment
 EXTRACTION_SCHEMA = {
@@ -141,7 +144,8 @@ class BankReconciliationPlan(ExecutionPlan):
 
         csv_data = params.get("csv_data", "")
         if not csv_data:
-            raise RuntimeError("Missing required param: csv_data")
+            logger.warning("Missing required param: csv_data")
+            return self._make_result(api_calls=0, api_errors=1)
 
         # ------------------------------------------------------------------ #
         # Step 1: Parse CSV
@@ -157,16 +161,24 @@ class BankReconciliationPlan(ExecutionPlan):
         self._check_timeout(start_time)
         accounts = self._get_accounts(client, "1920", "2400", "7770")
         api_calls += 1
-        account_1920 = accounts["1920"]  # bank account
-        account_2400 = accounts["2400"]  # supplier payable
-        account_7770 = accounts["7770"]  # bank fees expense
+        account_1920 = accounts.get("1920")  # bank account
+        account_2400 = accounts.get("2400")  # supplier payable
+        account_7770 = accounts.get("7770")  # bank fees expense
+
+        if not account_1920 or not account_2400 or not account_7770:
+            api_errors += 1
+            logger.warning(
+                "Missing required accounts: 1920=%s, 2400=%s, 7770=%s",
+                account_1920, account_2400, account_7770,
+            )
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         # ------------------------------------------------------------------ #
         # Step 3: Find or create all unique customers
         # ------------------------------------------------------------------ #
         self._check_timeout(start_time)
 
-        unique_customers: dict[str, int] = {}
+        unique_customers: dict[str, int | None] = {}
         for row in customer_rows:
             name = row["customer_name"]
             if name not in unique_customers:
@@ -178,6 +190,9 @@ class BankReconciliationPlan(ExecutionPlan):
                     create_body={"name": name},
                 )
                 api_calls += 2
+                if customer_id is None:
+                    api_errors += 1
+                    logger.warning("Failed to find or create customer: %s", name)
                 unique_customers[name] = customer_id
 
         # ------------------------------------------------------------------ #
@@ -185,7 +200,7 @@ class BankReconciliationPlan(ExecutionPlan):
         # ------------------------------------------------------------------ #
         self._check_timeout(start_time)
 
-        unique_suppliers: dict[str, int] = {}
+        unique_suppliers: dict[str, int | None] = {}
         for row in supplier_rows:
             name = row["supplier_name"]
             if name not in unique_suppliers:
@@ -197,6 +212,9 @@ class BankReconciliationPlan(ExecutionPlan):
                     create_body={"name": name},
                 )
                 api_calls += 2
+                if supplier_id is None:
+                    api_errors += 1
+                    logger.warning("Failed to find or create supplier: %s", name)
                 unique_suppliers[name] = supplier_id
 
         # ------------------------------------------------------------------ #
@@ -225,7 +243,11 @@ class BankReconciliationPlan(ExecutionPlan):
 
         for row in customer_rows:
             self._check_timeout(start_time)
-            customer_id = unique_customers[row["customer_name"]]
+            customer_id = unique_customers.get(row["customer_name"])
+            if customer_id is None:
+                api_errors += 1
+                logger.warning("Skipping customer payment — no customer_id for %s", row["customer_name"])
+                continue
             amount = row["amount"]
 
             # Try to find an existing unpaid invoice for this customer + amount
@@ -262,8 +284,14 @@ class BankReconciliationPlan(ExecutionPlan):
                         api_calls += 1
                         if not prod_result["success"]:
                             api_errors += 1
-                            raise RuntimeError(f"Failed to create product: {prod_result}")
+                            logger.warning("Failed to create product: %s", prod_result)
+                            continue
                         product_id = prod_result["body"]["value"]["id"]
+
+                if product_id is None:
+                    api_errors += 1
+                    logger.warning("Skipping customer payment — no product_id available")
+                    continue
 
                 # Create order
                 order_result = client.post("/order", body={
@@ -279,7 +307,8 @@ class BankReconciliationPlan(ExecutionPlan):
                 api_calls += 1
                 if not order_result["success"]:
                     api_errors += 1
-                    raise RuntimeError(f"Failed to create order: {order_result}")
+                    logger.warning("Failed to create order: %s", order_result)
+                    continue
                 order_id = order_result["body"]["value"]["id"]
 
                 # Create invoice from order
@@ -290,7 +319,8 @@ class BankReconciliationPlan(ExecutionPlan):
                 api_calls += 1
                 if not inv_result["success"]:
                     api_errors += 1
-                    raise RuntimeError(f"Failed to create invoice: {inv_result}")
+                    logger.warning("Failed to create invoice: %s", inv_result)
+                    continue
                 invoice_id = inv_result["body"]["value"]["id"]
 
             # Register payment
@@ -306,6 +336,10 @@ class BankReconciliationPlan(ExecutionPlan):
             api_calls += 1
             if not payment_result["success"]:
                 api_errors += 1
+                logger.warning(
+                    "Failed to register payment for invoice %s: %s",
+                    invoice_id, payment_result,
+                )
                 # Non-fatal — continue with other rows
 
         # ------------------------------------------------------------------ #
@@ -315,7 +349,11 @@ class BankReconciliationPlan(ExecutionPlan):
         # ------------------------------------------------------------------ #
         for row in supplier_rows:
             self._check_timeout(start_time)
-            supplier_id = unique_suppliers[row["supplier_name"]]
+            supplier_id = unique_suppliers.get(row["supplier_name"])
+            if supplier_id is None:
+                api_errors += 1
+                logger.warning("Skipping supplier voucher — no supplier_id for %s", row["supplier_name"])
+                continue
             abs_amount = row["amount"]
             # Paying supplier: DEBIT 2400 (reduce liability, positive amount),
             # CREDIT 1920 (reduce bank, negative amount)
@@ -346,11 +384,13 @@ class BankReconciliationPlan(ExecutionPlan):
             api_calls += 1
             if not voucher_result["success"]:
                 api_errors += 1
-                raise RuntimeError(
-                    f"Failed to post supplier voucher for {row['supplier_name']}: "
-                    f"status={voucher_result.get('status_code')}, "
-                    f"error={voucher_result.get('error')}"
+                logger.warning(
+                    "Failed to post supplier voucher for %s: status=%s, error=%s",
+                    row['supplier_name'],
+                    voucher_result.get('status_code'),
+                    voucher_result.get('error'),
                 )
+                # Non-fatal — continue with other rows
 
         # ------------------------------------------------------------------ #
         # Step 10: Post vouchers for bank fees
@@ -409,10 +449,12 @@ class BankReconciliationPlan(ExecutionPlan):
             api_calls += 1
             if not voucher_result["success"]:
                 api_errors += 1
-                raise RuntimeError(
-                    f"Failed to post bank fee voucher on {row['date']}: "
-                    f"status={voucher_result.get('status_code')}, "
-                    f"error={voucher_result.get('error')}"
+                logger.warning(
+                    "Failed to post bank fee voucher on %s: status=%s, error=%s",
+                    row['date'],
+                    voucher_result.get('status_code'),
+                    voucher_result.get('error'),
                 )
+                # Non-fatal — continue with other rows
 
         return self._make_result(api_calls=api_calls, api_errors=api_errors)

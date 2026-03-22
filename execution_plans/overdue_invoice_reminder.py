@@ -15,9 +15,12 @@ CRITICAL:
 - All voucher posting rows require amountCurrency = amount.
 """
 import datetime
+import logging
 
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 # Fields the LLM should extract from the prompt
 # Only reminder_fee is truly required — customer can be discovered from the overdue invoice.
@@ -56,7 +59,8 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
 
         reminder_fee = params.get("reminder_fee")
         if not reminder_fee:
-            raise RuntimeError("reminder_fee is required but was not extracted")
+            logger.warning("reminder_fee is required but was not extracted")
+            return self._make_result(api_calls=api_calls, api_errors=1)
         debit_account_number = params.get("debit_account") or 1500
         credit_account_number = params.get("credit_account") or 3400
 
@@ -102,17 +106,20 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
         api_calls += 1
         if not invoice_result["success"]:
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to search invoices: "
-                f"status={invoice_result.get('status_code')}, error={invoice_result.get('error')}"
+            logger.warning(
+                "Failed to search invoices: status=%s, error=%s",
+                invoice_result.get("status_code"), invoice_result.get("error"),
             )
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         invoices = invoice_result["body"].get("values", [])
         if not invoices:
-            raise RuntimeError(
-                f"No invoices found in the past year"
-                + (f" for customerId={customer_id}" if customer_id else "")
+            api_errors += 1
+            logger.warning(
+                "No invoices found in the past year%s",
+                f" for customerId={customer_id}" if customer_id else "",
             )
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         # Identify overdue invoice: past due date and not paid (pick most overdue)
         overdue_invoice = self._pick_overdue_invoice(invoices, today)
@@ -124,27 +131,31 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
             if isinstance(overdue_customer, dict):
                 customer_id = overdue_customer.get("id")
             if customer_id is None:
-                raise RuntimeError(
-                    "Cannot determine customer ID from overdue invoice"
-                )
+                api_errors += 1
+                logger.warning("Cannot determine customer ID from overdue invoice")
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
         # ------------------------------------------------------------------
         # Step 2: Look up ledger account IDs
         # ------------------------------------------------------------------
+        debit_account_id: int | None = None
+        credit_account_id: int | None = None
+
         acct_1500_result = client.get(
             "/ledger/account", params={"number": str(debit_account_number)}
         )
         api_calls += 1
         if not acct_1500_result["success"] or not acct_1500_result["body"].get("values"):
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to look up account {debit_account_number}: "
-                f"status={acct_1500_result.get('status_code')}, "
-                f"error={acct_1500_result.get('error')}"
+            logger.warning(
+                "Failed to look up account %s: status=%s, error=%s",
+                debit_account_number, acct_1500_result.get("status_code"),
+                acct_1500_result.get("error"),
             )
-        debit_account_id: int = acct_1500_result["body"]["values"][0]["id"]
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
+        debit_account_id = acct_1500_result["body"]["values"][0]["id"]
 
         acct_3400_result = client.get(
             "/ledger/account", params={"number": str(credit_account_number)}
@@ -152,12 +163,13 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
         api_calls += 1
         if not acct_3400_result["success"] or not acct_3400_result["body"].get("values"):
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to look up account {credit_account_number}: "
-                f"status={acct_3400_result.get('status_code')}, "
-                f"error={acct_3400_result.get('error')}"
+            logger.warning(
+                "Failed to look up account %s: status=%s, error=%s",
+                credit_account_number, acct_3400_result.get("status_code"),
+                acct_3400_result.get("error"),
             )
-        credit_account_id: int = acct_3400_result["body"]["values"][0]["id"]
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
+        credit_account_id = acct_3400_result["body"]["values"][0]["id"]
 
         self._check_timeout(start_time)
 
@@ -191,11 +203,11 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
         api_calls += 1
         if not voucher_result["success"]:
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to post reminder fee voucher: "
-                f"status={voucher_result.get('status_code')}, "
-                f"error={voucher_result.get('error')}"
+            logger.warning(
+                "Failed to post reminder fee voucher: status=%s, error=%s",
+                voucher_result.get("status_code"), voucher_result.get("error"),
             )
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
@@ -209,17 +221,20 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
             if isinstance(overdue_customer, dict):
                 customer_id = overdue_customer.get("id")
             if customer_id is None:
-                raise RuntimeError(
+                api_errors += 1
+                logger.warning(
                     "Cannot create reminder invoice: unable to determine customer ID"
                 )
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         # Find or create a reminder product
+        product_id: int | None = None
         product_search = client.get(
             "/product", params={"name": "Purregebyr", "count": 1}
         )
         api_calls += 1
         if product_search["success"] and product_search["body"].get("values"):
-            product_id: int = product_search["body"]["values"][0]["id"]
+            product_id = product_search["body"]["values"][0]["id"]
         else:
             product_result = client.post(
                 "/product",
@@ -231,11 +246,11 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
             api_calls += 1
             if not product_result["success"]:
                 api_errors += 1
-                raise RuntimeError(
-                    f"Failed to create reminder fee product: "
-                    f"status={product_result.get('status_code')}, "
-                    f"error={product_result.get('error')}"
+                logger.warning(
+                    "Failed to create reminder fee product: status=%s, error=%s",
+                    product_result.get("status_code"), product_result.get("error"),
                 )
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
             product_id = product_result["body"]["value"]["id"]
 
         self._check_timeout(start_time)
@@ -266,11 +281,12 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
         api_calls += 1
         if not reminder_invoice_result["success"]:
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to create reminder invoice: "
-                f"status={reminder_invoice_result.get('status_code')}, "
-                f"error={reminder_invoice_result.get('error')}"
+            logger.warning(
+                "Failed to create reminder invoice: status=%s, error=%s",
+                reminder_invoice_result.get("status_code"),
+                reminder_invoice_result.get("error"),
             )
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
         reminder_invoice_id: int = reminder_invoice_result["body"]["value"]["id"]
 
         self._check_timeout(start_time)
@@ -324,11 +340,12 @@ class OverdueInvoiceReminderPlan(ExecutionPlan):
             api_calls += 1
             if not payment_result["success"]:
                 api_errors += 1
-                raise RuntimeError(
-                    f"Failed to register payment for overdue invoice {overdue_invoice_id}: "
-                    f"status={payment_result.get('status_code')}, "
-                    f"error={payment_result.get('error')}"
+                logger.warning(
+                    "Failed to register payment for overdue invoice %s: status=%s, error=%s",
+                    overdue_invoice_id, payment_result.get("status_code"),
+                    payment_result.get("error"),
                 )
+                # Non-fatal — continue and return result
 
         return self._make_result(api_calls=api_calls, api_errors=api_errors)
 

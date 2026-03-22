@@ -6,10 +6,13 @@ Full flow:
   → find/create activity → check/set hourly rate → register timesheet entry
   → (optionally) create order + invoice.
 """
+import logging
 from datetime import date, timedelta
 
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 # Fields the LLM should extract from the prompt
 EXTRACTION_SCHEMA = {
@@ -37,6 +40,7 @@ class RegisterHoursPlan(ExecutionPlan):
     def execute(self, client, params, start_time):
         self._check_timeout(start_time)
         api_calls = 0
+        api_errors = 0
         today = date.today().isoformat()
         due_date = (date.today() + timedelta(days=30)).isoformat()
 
@@ -52,6 +56,7 @@ class RegisterHoursPlan(ExecutionPlan):
         generate_invoice = params.get("generate_invoice", False)
 
         # --- Step 1: Find or create customer ---
+        customer_id = None
         search_params = {"fields": "id,name"}
         if org_number:
             search_params["organizationNumber"] = org_number
@@ -69,15 +74,26 @@ class RegisterHoursPlan(ExecutionPlan):
             r = client.post("/customer", body=create_body)
             api_calls += 1
             if not r["success"]:
-                raise RuntimeError(
-                    f"Failed to create customer: "
-                    f"status={r.get('status_code')}, error={r.get('error')}"
+                api_errors += 1
+                logger.warning(
+                    "Failed to create customer: status=%s, error=%s",
+                    r.get("status_code"), r.get("error"),
                 )
-            customer_id = r["body"]["value"]["id"]
+                # Try searching by name as fallback if we searched by org number
+                if org_number:
+                    r2 = client.get("/customer", params={"name": customer_name, "fields": "id,name"})
+                    api_calls += 1
+                    if r2["success"] and r2["body"].get("values"):
+                        customer_id = r2["body"]["values"][0]["id"]
+                if customer_id is None:
+                    return self._make_result(api_calls=api_calls, api_errors=api_errors)
+            else:
+                customer_id = r["body"]["value"]["id"]
 
         self._check_timeout(start_time)
 
         # --- Step 2: Find or create department ---
+        dept_id = None
         r = client.get("/department", params={"fields": "id,name"})
         api_calls += 1
         if r["success"] and r["body"].get("values"):
@@ -86,15 +102,18 @@ class RegisterHoursPlan(ExecutionPlan):
             r = client.post("/department", body={"name": "Avdeling", "departmentNumber": "1"})
             api_calls += 1
             if not r["success"]:
-                raise RuntimeError(
-                    f"Failed to create department: "
-                    f"status={r.get('status_code')}, error={r.get('error')}"
+                api_errors += 1
+                logger.warning(
+                    "Failed to create department: status=%s, error=%s",
+                    r.get("status_code"), r.get("error"),
                 )
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
             dept_id = r["body"]["value"]["id"]
 
         self._check_timeout(start_time)
 
         # --- Step 3: Find or create employee ---
+        employee_id = None
         r = client.get("/employee", params={"email": employee_email, "fields": "id,firstName,lastName"})
         api_calls += 1
         employee_created = False
@@ -114,12 +133,24 @@ class RegisterHoursPlan(ExecutionPlan):
             )
             api_calls += 1
             if not r["success"]:
-                raise RuntimeError(
-                    f"Failed to create employee: "
-                    f"status={r.get('status_code')}, error={r.get('error')}"
+                api_errors += 1
+                logger.warning(
+                    "Failed to create employee: status=%s, error=%s",
+                    r.get("status_code"), r.get("error"),
                 )
-            employee_id = r["body"]["value"]["id"]
-            employee_created = True
+                # Try searching by name as fallback
+                r2 = client.get(
+                    "/employee",
+                    params={"firstName": employee_first, "lastName": employee_last, "fields": "id"},
+                )
+                api_calls += 1
+                if r2["success"] and r2["body"].get("values"):
+                    employee_id = r2["body"]["values"][0]["id"]
+                if employee_id is None:
+                    return self._make_result(api_calls=api_calls, api_errors=api_errors)
+            else:
+                employee_id = r["body"]["value"]["id"]
+                employee_created = True
 
         self._check_timeout(start_time)
 
@@ -131,14 +162,17 @@ class RegisterHoursPlan(ExecutionPlan):
             )
             api_calls += 1
             if not r["success"]:
-                raise RuntimeError(
-                    f"Failed to grant entitlements for employee {employee_id}: "
-                    f"status={r.get('status_code')}, error={r.get('error')}"
+                api_errors += 1
+                logger.warning(
+                    "Failed to grant entitlements for employee %s: status=%s, error=%s",
+                    employee_id, r.get("status_code"), r.get("error"),
                 )
+                # Non-fatal — continue without entitlements
 
         self._check_timeout(start_time)
 
         # --- Step 5: Find or create project ---
+        project_id = None
         r = client.get(
             "/project",
             params={"name": project_name, "customerId": customer_id, "fields": "id,name"},
@@ -158,15 +192,18 @@ class RegisterHoursPlan(ExecutionPlan):
             )
             api_calls += 1
             if not r["success"]:
-                raise RuntimeError(
-                    f"Failed to create project: "
-                    f"status={r.get('status_code')}, error={r.get('error')}"
+                api_errors += 1
+                logger.warning(
+                    "Failed to create project: status=%s, error=%s",
+                    r.get("status_code"), r.get("error"),
                 )
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
             project_id = r["body"]["value"]["id"]
 
         self._check_timeout(start_time)
 
         # --- Step 6: Find or create activity ---
+        activity_id = None
         r = client.get("/activity", params={"name": activity_name, "fields": "id,name"})
         api_calls += 1
         if r["success"] and r["body"].get("values"):
@@ -182,10 +219,12 @@ class RegisterHoursPlan(ExecutionPlan):
             )
             api_calls += 1
             if not r["success"]:
-                raise RuntimeError(
-                    f"Failed to create activity: "
-                    f"status={r.get('status_code')}, error={r.get('error')}"
+                api_errors += 1
+                logger.warning(
+                    "Failed to create activity: status=%s, error=%s",
+                    r.get("status_code"), r.get("error"),
                 )
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
             activity_id = r["body"]["value"]["id"]
 
         self._check_timeout(start_time)
@@ -209,10 +248,12 @@ class RegisterHoursPlan(ExecutionPlan):
             )
             api_calls += 1
             if not r["success"]:
-                raise RuntimeError(
-                    f"Failed to set hourly rate for project {project_id}: "
-                    f"status={r.get('status_code')}, error={r.get('error')}"
+                api_errors += 1
+                logger.warning(
+                    "Failed to set hourly rate for project %s: status=%s, error=%s",
+                    project_id, r.get("status_code"), r.get("error"),
                 )
+                # Non-fatal — continue, timesheet entry may still work
 
         self._check_timeout(start_time)
 
@@ -244,15 +285,20 @@ class RegisterHoursPlan(ExecutionPlan):
                 )
                 api_calls += 1
                 if not (lookup["success"] and lookup["body"].get("values")):
-                    raise RuntimeError(
-                        f"Failed to register timesheet entry and could not retrieve existing: "
-                        f"status={r.get('status_code')}, error={r.get('error')}"
+                    api_errors += 1
+                    logger.warning(
+                        "Failed to register timesheet entry and could not retrieve existing: "
+                        "status=%s, error=%s",
+                        r.get("status_code"), r.get("error"),
                     )
+                    return self._make_result(api_calls=api_calls, api_errors=api_errors)
             else:
-                raise RuntimeError(
-                    f"Failed to register timesheet entry: "
-                    f"status={r.get('status_code')}, error={r.get('error')}"
+                api_errors += 1
+                logger.warning(
+                    "Failed to register timesheet entry: status=%s, error=%s",
+                    r.get("status_code"), r.get("error"),
                 )
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
@@ -276,10 +322,12 @@ class RegisterHoursPlan(ExecutionPlan):
             )
             api_calls += 1
             if not r["success"]:
-                raise RuntimeError(
-                    f"Failed to create order: "
-                    f"status={r.get('status_code')}, error={r.get('error')}"
+                api_errors += 1
+                logger.warning(
+                    "Failed to create order: status=%s, error=%s",
+                    r.get("status_code"), r.get("error"),
                 )
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
             order_id = r["body"]["value"]["id"]
 
             self._check_timeout(start_time)
@@ -295,9 +343,11 @@ class RegisterHoursPlan(ExecutionPlan):
             )
             api_calls += 1
             if not r["success"]:
-                raise RuntimeError(
-                    f"Failed to create invoice for order {order_id}: "
-                    f"status={r.get('status_code')}, error={r.get('error')}"
+                api_errors += 1
+                logger.warning(
+                    "Failed to create invoice for order %s: status=%s, error=%s",
+                    order_id, r.get("status_code"), r.get("error"),
                 )
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
-        return self._make_result(api_calls=api_calls, api_errors=0)
+        return self._make_result(api_calls=api_calls, api_errors=api_errors)

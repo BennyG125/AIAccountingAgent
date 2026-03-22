@@ -1,6 +1,10 @@
 """Execution plan: Create Customer (Tier 1)."""
+import logging
+
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 EXTRACTION_SCHEMA = {
     "name": "string (customer name)",
@@ -42,10 +46,23 @@ class CreateCustomerPlan(ExecutionPlan):
             }
 
         result = client.post("/customer", body=body)
+        api_calls = 1
+        api_errors = 0
         if not result["success"]:
-            raise RuntimeError(
-                f"Failed to create customer: "
-                f"status={result.get('status_code')}, error={result.get('error')}"
+            api_errors += 1
+            logger.warning(
+                "Failed to create customer: status=%s, error=%s",
+                result.get('status_code'), result.get('error'),
             )
+            # Try to find existing customer by org number or name
+            search_params = {}
+            if params.get("org_number"):
+                search_params["organizationNumber"] = params["org_number"]
+            else:
+                search_params["name"] = params["name"]
+            find_result = client.get("/customer", params=search_params)
+            api_calls += 1
+            if find_result["success"] and find_result["body"].get("values"):
+                logger.warning("Found existing customer, continuing")
 
-        return self._make_result(api_calls=1, api_errors=0)
+        return self._make_result(api_calls=api_calls, api_errors=api_errors)

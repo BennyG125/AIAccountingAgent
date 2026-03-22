@@ -10,11 +10,14 @@ Full flow:
   6. POST /project for each top-3 account (internal project named after account)
   7. POST /activity for each project (if required)
 """
+import logging
 from collections import defaultdict
 from datetime import date
 
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 # Minimal extraction schema — date ranges are always Jan/Feb 2026 for this task type
 EXTRACTION_SCHEMA = {
@@ -53,7 +56,7 @@ class CostAnalysisProjectsPlan(ExecutionPlan):
         create_activities = params.get("create_activities", False)
 
         # ---------------------------------------------------------------
-        # Step 1: Fetch January expense postings (accounts 4000–8999)
+        # Step 1: Fetch January expense postings (accounts 4000-8999)
         # ---------------------------------------------------------------
         jan_result = client.get(
             "/ledger/posting",
@@ -69,15 +72,16 @@ class CostAnalysisProjectsPlan(ExecutionPlan):
         api_calls += 1
         if not jan_result["success"]:
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to fetch January postings: "
-                f"status={jan_result.get('status_code')}, error={jan_result.get('error')}"
+            logger.warning(
+                "Failed to fetch January postings: status=%s, error=%s",
+                jan_result.get('status_code'), jan_result.get('error'),
             )
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
         # ---------------------------------------------------------------
-        # Step 2: Fetch February expense postings (accounts 4000–8999)
+        # Step 2: Fetch February expense postings (accounts 4000-8999)
         # ---------------------------------------------------------------
         feb_result = client.get(
             "/ledger/posting",
@@ -93,10 +97,11 @@ class CostAnalysisProjectsPlan(ExecutionPlan):
         api_calls += 1
         if not feb_result["success"]:
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to fetch February postings: "
-                f"status={feb_result.get('status_code')}, error={feb_result.get('error')}"
+            logger.warning(
+                "Failed to fetch February postings: status=%s, error=%s",
+                feb_result.get('status_code'), feb_result.get('error'),
             )
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
@@ -168,9 +173,9 @@ class CostAnalysisProjectsPlan(ExecutionPlan):
                 project_manager_id = values[0]["id"]
 
         if project_manager_id is None:
-            raise RuntimeError(
-                "No employees found — cannot set projectManager for internal projects"
-            )
+            api_errors += 1
+            logger.warning("No employees found — cannot set projectManager for internal projects")
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
@@ -184,11 +189,14 @@ class CostAnalysisProjectsPlan(ExecutionPlan):
         )
         api_calls += 1
         if not entitlement_result["success"]:
-            raise RuntimeError(
-                f"Failed to grant entitlements to employee {project_manager_id}: "
-                f"status={entitlement_result.get('status_code')}, "
-                f"error={entitlement_result.get('error')}"
+            api_errors += 1
+            logger.warning(
+                "Failed to grant entitlements to employee %s: status=%s, error=%s",
+                project_manager_id,
+                entitlement_result.get('status_code'),
+                entitlement_result.get('error'),
             )
+            # Non-fatal — continue, project creation might still work
 
         self._check_timeout(start_time)
 
@@ -221,9 +229,11 @@ class CostAnalysisProjectsPlan(ExecutionPlan):
                     project_ids.append(ind_result["body"]["value"]["id"])
                 else:
                     api_errors += 1
-                    raise RuntimeError(
-                        f"Failed to create project '{proj_body['name']}': {ind_result}"
+                    logger.warning(
+                        "Failed to create project '%s': %s",
+                        proj_body['name'], ind_result,
                     )
+                    # Non-fatal — continue with remaining projects
 
         self._check_timeout(start_time)
 

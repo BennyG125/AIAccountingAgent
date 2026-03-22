@@ -8,9 +8,12 @@ Full flow:
   4. POST /salary/transaction with payslips structure
 """
 import datetime
+import logging
 
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 # Fields the LLM should extract from the prompt
 EXTRACTION_SCHEMA = {
@@ -33,6 +36,7 @@ class RunSalaryPlan(ExecutionPlan):
     def execute(self, client, params, start_time):
         self._check_timeout(start_time)
         api_calls = 0
+        api_errors = 0
 
         today = datetime.date.today()
         current_month = today.month
@@ -68,10 +72,12 @@ class RunSalaryPlan(ExecutionPlan):
                 dept_create = client.post("/department", body={"name": "General", "departmentNumber": "100"})
                 api_calls += 1
                 if not dept_create["success"]:
-                    raise RuntimeError(
-                        f"Failed to create default department: "
-                        f"status={dept_create.get('status_code')}, error={dept_create.get('error')}"
+                    api_errors += 1
+                    logger.warning(
+                        "Failed to create default department: status=%s, error=%s",
+                        dept_create.get('status_code'), dept_create.get('error'),
                     )
+                    return self._make_result(api_calls=api_calls, api_errors=api_errors)
                 dept_id = dept_create["body"]["value"]["id"]
 
             emp_body = {
@@ -85,10 +91,12 @@ class RunSalaryPlan(ExecutionPlan):
             emp_create = client.post("/employee", body=emp_body)
             api_calls += 1
             if not emp_create["success"]:
-                raise RuntimeError(
-                    f"Failed to create employee: "
-                    f"status={emp_create.get('status_code')}, error={emp_create.get('error')}"
+                api_errors += 1
+                logger.warning(
+                    "Failed to create employee: status=%s, error=%s",
+                    emp_create.get('status_code'), emp_create.get('error'),
                 )
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
             emp_id = emp_create["body"]["value"]["id"]
 
             self._check_timeout(start_time)
@@ -202,7 +210,9 @@ class RunSalaryPlan(ExecutionPlan):
                     base_type_id = st["id"]
                     break
             if base_type_id is None:
-                raise RuntimeError("Could not find any salary type")
+                api_errors += 1
+                logger.warning("Could not find any salary type in this sandbox")
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         if bonus_type_id is None and params.get("bonus_amount"):
             bonus_search = client.get("/salary/type", params={"name": "Bonus", "fields": "id,name,number"})
@@ -251,7 +261,6 @@ class RunSalaryPlan(ExecutionPlan):
 
         tx_result = client.post("/salary/transaction", body=transaction_body)
         api_calls += 1
-        api_errors = 0
         if not tx_result["success"]:
             api_errors += 1
 

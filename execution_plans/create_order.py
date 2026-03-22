@@ -1,8 +1,11 @@
 """Execution plan: Create Order → Invoice → Payment (Tier 2)."""
+import logging
 from datetime import date, timedelta
 
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 EXTRACTION_SCHEMA = {
     "customer_name": "string — customer/company name",
@@ -40,6 +43,10 @@ class CreateOrderPlan(ExecutionPlan):
             },
         )
         api_calls += 2
+        if customer_id is None:
+            api_errors += 1
+            logger.warning("Failed to find or create customer '%s'", customer_name)
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
@@ -126,7 +133,8 @@ class CreateOrderPlan(ExecutionPlan):
         api_calls += 1
         if not order_result["success"]:
             api_errors += 1
-            raise RuntimeError(f"Failed to create order: {order_result.get('error')}")
+            logger.warning("Failed to create order: %s", order_result.get('error'))
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         order_id = order_result["body"]["value"]["id"]
 
@@ -141,7 +149,8 @@ class CreateOrderPlan(ExecutionPlan):
         api_calls += 1
         if not invoice_result["success"]:
             api_errors += 1
-            raise RuntimeError(f"Failed to create invoice: {invoice_result.get('error')}")
+            logger.warning("Failed to create invoice: %s", invoice_result.get('error'))
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         invoice_id = invoice_result["body"]["value"]["id"]
         invoice_amount = invoice_result["body"]["value"].get("amount", 0)

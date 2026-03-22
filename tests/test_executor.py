@@ -78,17 +78,17 @@ class TestExecutionPlanBase:
         )
         assert result == 99
 
-    def test_find_or_create_raises_on_failure(self):
+    def test_find_or_create_returns_none_on_failure(self):
         plan = ExecutionPlan()
         client = MagicMock()
         client.get.return_value = {"success": True, "body": {"values": []}}
         client.post.return_value = {
             "success": False, "status_code": 500, "error": "server error"
         }
-        with pytest.raises(RuntimeError, match="Failed to find or create"):
-            plan._find_or_create(
-                client, "/search", {}, "/create", {"name": "x"}
-            )
+        result = plan._find_or_create(
+            client, "/search", {}, "/create", {"name": "x"}
+        )
+        assert result is None
 
     def test_make_result_shape(self):
         plan = ExecutionPlan()
@@ -166,7 +166,7 @@ class TestCreateCustomerPlan:
         call_body = client.post.call_args[1].get("body") or client.post.call_args[0][1]
         assert "physicalAddress" in call_body
 
-    def test_execute_raises_on_failure(self):
+    def test_execute_returns_errors_on_failure(self):
         plan = CreateCustomerPlan()
         client = MagicMock()
         client.post.return_value = {
@@ -174,9 +174,14 @@ class TestCreateCustomerPlan:
             "status_code": 500,
             "error": "server error",
         }
-        with pytest.raises(RuntimeError, match="Failed to create customer"):
-            plan.execute(
-                client,
-                {"name": "Test AS"},
-                start_time=time.time(),
-            )
+        client.get.return_value = {
+            "success": True,
+            "body": {"values": []},
+        }
+        result = plan.execute(
+            client,
+            {"name": "Test AS"},
+            start_time=time.time(),
+        )
+        assert result["status"] == "completed"
+        assert result["api_errors"] >= 1

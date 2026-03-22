@@ -7,10 +7,13 @@ Full flow: find/create customer → create product → create order → create i
 Optimisation: if the evaluator pre-created the invoice we find it by customer +
 EUR amount and skip straight to payment + forex voucher.
 """
+import logging
 from datetime import date, timedelta
 
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 # Fields the LLM should extract from the prompt
 EXTRACTION_SCHEMA = {
@@ -127,6 +130,9 @@ class ForexPaymentPlan(ExecutionPlan):
         # ==============================================================
         # If fast path found both, skip creation steps entirely
         # ==============================================================
+        customer_id = None
+        invoice_id = None
+
         if found_invoice_id is not None and found_customer_id is not None:
             customer_id = found_customer_id
             invoice_id = found_invoice_id
@@ -140,38 +146,48 @@ class ForexPaymentPlan(ExecutionPlan):
             if org_number:
                 create_body["organizationNumber"] = org_number
 
-            customer_id = self._find_or_create(
-                client,
-                search_path="/customer",
-                search_params=(
-                    {"organizationNumber": org_number}
-                    if org_number
-                    else {"name": customer_name, "count": 1}
-                ),
-                create_path="/customer",
-                create_body=create_body,
-            )
+            try:
+                customer_id = self._find_or_create(
+                    client,
+                    search_path="/customer",
+                    search_params=(
+                        {"organizationNumber": org_number}
+                        if org_number
+                        else {"name": customer_name, "count": 1}
+                    ),
+                    create_path="/customer",
+                    create_body=create_body,
+                )
+            except RuntimeError as e:
+                api_errors += 1
+                logger.warning("Failed to find or create customer: %s", e)
+                return self._make_result(api_calls=api_calls + 2, api_errors=api_errors)
             api_calls += 2  # search + create (or search only if found)
 
             self._check_timeout(start_time)
 
             # --- Step 2: Look up EUR currency ID ---
+            eur_currency_id = None
             currency_result = client.get("/currency", params={"code": "EUR"})
             api_calls += 1
             if not currency_result["success"]:
                 api_errors += 1
-                raise RuntimeError(
-                    f"Failed to look up EUR currency: "
-                    f"status={currency_result.get('status_code')}, error={currency_result.get('error')}"
+                logger.warning(
+                    "Failed to look up EUR currency: status=%s, error=%s",
+                    currency_result.get("status_code"), currency_result.get("error"),
                 )
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
             eur_values = currency_result["body"].get("values", [])
             if not eur_values:
-                raise RuntimeError("EUR currency not found in /currency response")
+                api_errors += 1
+                logger.warning("EUR currency not found in /currency response")
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
             eur_currency_id = eur_values[0]["id"]
 
             self._check_timeout(start_time)
 
             # --- Step 3: Find or create product (minimal — no vatType) ---
+            product_id = None
             product_search = client.get(
                 "/product", params={"name": description, "count": 1}
             )
@@ -189,10 +205,11 @@ class ForexPaymentPlan(ExecutionPlan):
                 api_calls += 1
                 if not product_result["success"]:
                     api_errors += 1
-                    raise RuntimeError(
-                        f"Failed to create product: "
-                        f"status={product_result.get('status_code')}, error={product_result.get('error')}"
+                    logger.warning(
+                        "Failed to create product: status=%s, error=%s",
+                        product_result.get("status_code"), product_result.get("error"),
                     )
+                    return self._make_result(api_calls=api_calls, api_errors=api_errors)
                 product_id = product_result["body"]["value"]["id"]
 
             self._check_timeout(start_time)
@@ -217,10 +234,11 @@ class ForexPaymentPlan(ExecutionPlan):
             api_calls += 1
             if not order_result["success"]:
                 api_errors += 1
-                raise RuntimeError(
-                    f"Failed to create order: "
-                    f"status={order_result.get('status_code')}, error={order_result.get('error')}"
+                logger.warning(
+                    "Failed to create order: status=%s, error=%s",
+                    order_result.get("status_code"), order_result.get("error"),
                 )
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
             order_id = order_result["body"]["value"]["id"]
 
             self._check_timeout(start_time)
@@ -238,10 +256,11 @@ class ForexPaymentPlan(ExecutionPlan):
             api_calls += 1
             if not invoice_result["success"]:
                 api_errors += 1
-                raise RuntimeError(
-                    f"Failed to create invoice: "
-                    f"status={invoice_result.get('status_code')}, error={invoice_result.get('error')}"
+                logger.warning(
+                    "Failed to create invoice: status=%s, error=%s",
+                    invoice_result.get("status_code"), invoice_result.get("error"),
                 )
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
             invoice_id = invoice_result["body"]["value"]["id"]
 
             self._check_timeout(start_time)
@@ -250,8 +269,19 @@ class ForexPaymentPlan(ExecutionPlan):
         # SHARED: register payment + forex voucher (both paths converge)
         # ==============================================================
 
+        # If we don't have customer_id or invoice_id at this point, bail out
+        if customer_id is None or invoice_id is None:
+            api_errors += 1
+            logger.warning(
+                "Missing customer_id=%s or invoice_id=%s — cannot proceed with payment",
+                customer_id, invoice_id,
+            )
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
+
         # --- Batch look up ledger accounts (1500 + forex account) ---
         forex_account_number = str(8070 if is_gain else 8060)
+        ar_account_id = None
+        forex_account_id = None
         try:
             accounts = self._get_accounts(client, "1500", forex_account_number)
             api_calls += 1
@@ -263,7 +293,9 @@ class ForexPaymentPlan(ExecutionPlan):
             ar_result = client.get("/ledger/account", params={"number": "1500"})
             api_calls += 1
             if not ar_result["success"] or not ar_result["body"].get("values"):
-                raise RuntimeError("Failed to look up account 1500")
+                api_errors += 1
+                logger.warning("Failed to look up account 1500")
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
             ar_account_id = ar_result["body"]["values"][0]["id"]
 
             create_name = "Valutagevinst" if is_gain else "Valutatap"
@@ -273,7 +305,9 @@ class ForexPaymentPlan(ExecutionPlan):
             )
             api_calls += 1
             if not create_result["success"]:
-                raise RuntimeError(f"Failed to create account {forex_account_number}")
+                api_errors += 1
+                logger.warning("Failed to create account %s", forex_account_number)
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
             forex_account_id = create_result["body"]["value"]["id"]
 
         self._check_timeout(start_time)
@@ -299,10 +333,11 @@ class ForexPaymentPlan(ExecutionPlan):
         api_calls += 1
         if not payment_result["success"]:
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to register payment for invoice {invoice_id}: "
-                f"status={payment_result.get('status_code')}, error={payment_result.get('error')}"
+            logger.warning(
+                "Failed to register payment for invoice %s: status=%s, error=%s",
+                invoice_id, payment_result.get("status_code"), payment_result.get("error"),
             )
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
@@ -363,9 +398,10 @@ class ForexPaymentPlan(ExecutionPlan):
         api_calls += 1
         if not voucher_result["success"]:
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to post forex voucher: "
-                f"status={voucher_result.get('status_code')}, error={voucher_result.get('error')}"
+            logger.warning(
+                "Failed to post forex voucher: status=%s, error=%s",
+                voucher_result.get("status_code"), voucher_result.get("error"),
             )
+            # Non-fatal at this point — payment was registered, voucher failed
 
         return self._make_result(api_calls=api_calls, api_errors=api_errors)

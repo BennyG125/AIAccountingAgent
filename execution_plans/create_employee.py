@@ -1,6 +1,10 @@
 """Execution plan: Create Employee (Tier 1)."""
+import logging
+
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 EXTRACTION_SCHEMA = {
     "first_name": "string (first name)",
@@ -50,10 +54,11 @@ class CreateEmployeePlan(ExecutionPlan):
                 dept_id = r["body"]["value"]["id"]
             else:
                 api_errors += 1
-                raise RuntimeError(
-                    f"Failed to create department: "
-                    f"status={r.get('status_code')}, error={r.get('error')}"
+                logger.warning(
+                    "Failed to create department: status=%s, error=%s",
+                    r.get('status_code'), r.get('error'),
                 )
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         # 2. Create employee
         body = {
@@ -80,15 +85,19 @@ class CreateEmployeePlan(ExecutionPlan):
             if r2["success"] and r2["body"].get("values"):
                 emp_id = r2["body"]["values"][0]["id"]
             else:
-                raise RuntimeError(
-                    f"Failed to create or find employee: "
-                    f"status={r.get('status_code')}, error={r.get('error')}"
+                api_errors += 1
+                logger.warning(
+                    "Failed to create or find employee: status=%s, error=%s",
+                    r.get('status_code'), r.get('error'),
                 )
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
         else:
-            raise RuntimeError(
-                f"Failed to create employee: "
-                f"status={r.get('status_code')}, error={r.get('error')}"
+            api_errors += 1
+            logger.warning(
+                "Failed to create employee: status=%s, error=%s",
+                r.get('status_code'), r.get('error'),
             )
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         # 3. Grant entitlements
         r = client.put(

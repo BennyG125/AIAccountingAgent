@@ -1,8 +1,11 @@
 """Execution plan: Custom Accounting Dimension (Tier 2)."""
 import datetime
+import logging
 
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 EXTRACTION_SCHEMA = {
     "type": "object",
@@ -84,10 +87,11 @@ class CustomDimensionPlan(ExecutionPlan):
             api_calls += 1
             if not result["success"]:
                 api_errors += 1
-                raise RuntimeError(
-                    f"Failed to create accountingDimensionName '{dimension_name}': "
-                    f"status={result.get('status_code')}, error={result.get('error')}"
+                logger.warning(
+                    "Failed to create accountingDimensionName '%s': status=%s, error=%s",
+                    dimension_name, result.get('status_code'), result.get('error'),
                 )
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
             dimension_index = result["body"]["value"]["dimensionIndex"]
 
         # Step 2 — Find or create each dimension value; capture the ID for the voucher value
@@ -126,10 +130,11 @@ class CustomDimensionPlan(ExecutionPlan):
             api_calls += 1
             if not result["success"]:
                 api_errors += 1
-                raise RuntimeError(
-                    f"Failed to create accountingDimensionValue '{value_name}': "
-                    f"status={result.get('status_code')}, error={result.get('error')}"
+                logger.warning(
+                    "Failed to create accountingDimensionValue '%s': status=%s, error=%s",
+                    value_name, result.get('status_code'), result.get('error'),
                 )
+                continue
             created_id = result["body"]["value"]["id"]
             if value_name == voucher_dimension_value:
                 voucher_value_id = created_id
@@ -138,10 +143,12 @@ class CustomDimensionPlan(ExecutionPlan):
             # Fallback: check case-insensitive match for the voucher dimension value
             voucher_value_id = existing_values_map.get(voucher_dimension_value.lower())
             if voucher_value_id is None:
-                raise RuntimeError(
-                    f"Dimension value '{voucher_dimension_value}' not found among "
-                    f"created/existing values: {dimension_values}"
+                api_errors += 1
+                logger.warning(
+                    "Dimension value '%s' not found among created/existing values: %s",
+                    voucher_dimension_value, dimension_values,
                 )
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         # Step 3 — Batch look up expense + bank accounts (1 call instead of 2)
         self._check_timeout(start_time)
@@ -181,9 +188,9 @@ class CustomDimensionPlan(ExecutionPlan):
         api_calls += 1
         if not result["success"]:
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to post voucher: "
-                f"status={result.get('status_code')}, error={result.get('error')}"
+            logger.warning(
+                "Failed to post voucher: status=%s, error=%s",
+                result.get('status_code'), result.get('error'),
             )
 
         return self._make_result(api_calls=api_calls, api_errors=api_errors)

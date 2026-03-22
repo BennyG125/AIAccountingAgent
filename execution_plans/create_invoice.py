@@ -1,8 +1,11 @@
 """Execution plan: Create Invoice (Tier 2)."""
+import logging
 from datetime import date, timedelta
 
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 # Fields the LLM should extract from the prompt
 EXTRACTION_SCHEMA = {
@@ -49,6 +52,10 @@ class CreateInvoicePlan(ExecutionPlan):
             },
         )
         api_calls += 2  # search + create (or just 1 search + 1 create at most)
+        if customer_id is None:
+            api_errors += 1
+            logger.warning("Failed to find or create customer '%s'", customer_name)
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
@@ -151,9 +158,9 @@ class CreateInvoicePlan(ExecutionPlan):
         api_calls += 1
         if not invoice_result["success"]:
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to create invoice: "
-                f"status={invoice_result.get('status_code')}, error={invoice_result.get('error')}"
+            logger.warning(
+                "Failed to create invoice: status=%s, error=%s",
+                invoice_result.get('status_code'), invoice_result.get('error'),
             )
 
         return self._make_result(api_calls=api_calls, api_errors=api_errors)

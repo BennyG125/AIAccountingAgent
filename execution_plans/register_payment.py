@@ -6,10 +6,13 @@ Full flow: find/create customer → create product → create order → create i
 Optimisation: if the evaluator pre-created the invoice we find it by customer +
 amount and skip straight to payment registration (3 API calls instead of ~7).
 """
+import logging
 from datetime import date, timedelta
 
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 # Fields the LLM should extract from the prompt
 EXTRACTION_SCHEMA = {
@@ -133,6 +136,7 @@ class RegisterPaymentPlan(ExecutionPlan):
         # ==============================================================
 
         # --- Step 1: Find or create customer ---
+        api_errors = 0
         create_body = {"name": customer_name}
         if org_number:
             create_body["organizationNumber"] = org_number
@@ -149,6 +153,10 @@ class RegisterPaymentPlan(ExecutionPlan):
             create_body=create_body,
         )
         api_calls += 2  # search + create (or just search if found)
+        if customer_id is None:
+            api_errors += 1
+            logger.warning("Failed to find or create customer '%s'", customer_name)
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
@@ -165,11 +173,12 @@ class RegisterPaymentPlan(ExecutionPlan):
             product_result = client.post("/product", body=product_body)
             api_calls += 1
             if not product_result["success"]:
-                raise RuntimeError(
-                    f"Failed to create product: "
-                    f"status={product_result.get('status_code')}, "
-                    f"error={product_result.get('error')}"
+                api_errors += 1
+                logger.warning(
+                    "Failed to create product: status=%s, error=%s",
+                    product_result.get('status_code'), product_result.get('error'),
                 )
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
             product_id = product_result["body"]["value"]["id"]
 
         self._check_timeout(start_time)
@@ -191,11 +200,12 @@ class RegisterPaymentPlan(ExecutionPlan):
         })
         api_calls += 1
         if not invoice_result["success"]:
-            raise RuntimeError(
-                f"Failed to create invoice: "
-                f"status={invoice_result.get('status_code')}, "
-                f"error={invoice_result.get('error')}"
+            api_errors += 1
+            logger.warning(
+                "Failed to create invoice: status=%s, error=%s",
+                invoice_result.get('status_code'), invoice_result.get('error'),
             )
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
         invoice_id = invoice_result["body"]["value"]["id"]
 
         self._check_timeout(start_time)
@@ -205,7 +215,7 @@ class RegisterPaymentPlan(ExecutionPlan):
             client, invoice_id, payment_date, params["paid_amount"],
         )
 
-        return self._make_result(api_calls=api_calls, api_errors=0)
+        return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
     # ------------------------------------------------------------------
     # Payment helper (shared by fast and full paths)
@@ -235,10 +245,9 @@ class RegisterPaymentPlan(ExecutionPlan):
         )
         calls += 1
         if not payment_result["success"]:
-            raise RuntimeError(
-                f"Failed to register payment for invoice {invoice_id}: "
-                f"status={payment_result.get('status_code')}, "
-                f"error={payment_result.get('error')}"
+            logger.warning(
+                "Failed to register payment for invoice %s: status=%s, error=%s",
+                invoice_id, payment_result.get('status_code'), payment_result.get('error'),
             )
 
         return calls

@@ -5,10 +5,13 @@ Full flow:
   → GET paymentType → GET costCategories → GET rateCategories
   → POST /travelExpense with embedded costs + perDiemCompensations
 """
+import logging
 from datetime import date
 
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 # Fields the LLM should extract from the prompt
 EXTRACTION_SCHEMA = {
@@ -40,6 +43,7 @@ class TravelExpensePlan(ExecutionPlan):
     def execute(self, client, params, start_time):
         self._check_timeout(start_time)
         api_calls = 0
+        api_errors = 0
         today = date.today().isoformat()
 
         employee_email = params["employee_email"]
@@ -54,6 +58,7 @@ class TravelExpensePlan(ExecutionPlan):
         costs_input = params.get("costs") or []
 
         # --- Step 1: Find or create employee ---
+        employee_id = None
         r = client.get("/employee", params={"email": employee_email, "fields": "id,firstName,lastName"})
         api_calls += 1
         employee_created = False
@@ -61,6 +66,7 @@ class TravelExpensePlan(ExecutionPlan):
             employee_id = r["body"]["values"][0]["id"]
         else:
             # Need a department first
+            dept_id = None
             r_dept = client.get("/department", params={"fields": "id,name"})
             api_calls += 1
             if r_dept["success"] and r_dept["body"].get("values"):
@@ -69,10 +75,12 @@ class TravelExpensePlan(ExecutionPlan):
                 r_dept = client.post("/department", body={"name": "Avdeling", "departmentNumber": "1"})
                 api_calls += 1
                 if not r_dept["success"]:
-                    raise RuntimeError(
-                        f"Failed to create department: "
-                        f"status={r_dept.get('status_code')}, error={r_dept.get('error')}"
+                    api_errors += 1
+                    logger.warning(
+                        "Failed to create department: status=%s, error=%s",
+                        r_dept.get('status_code'), r_dept.get('error'),
                     )
+                    return self._make_result(api_calls=api_calls, api_errors=api_errors)
                 dept_id = r_dept["body"]["value"]["id"]
 
             r = client.post(
@@ -98,18 +106,28 @@ class TravelExpensePlan(ExecutionPlan):
                     if r2["success"] and r2["body"].get("values"):
                         employee_id = r2["body"]["values"][0]["id"]
                     else:
-                        raise RuntimeError(
-                            f"Failed to create employee and could not find existing: "
-                            f"status={r.get('status_code')}, error={r.get('error')}"
+                        api_errors += 1
+                        logger.warning(
+                            "Failed to create employee and could not find existing: "
+                            "status=%s, error=%s",
+                            r.get('status_code'), r.get('error'),
                         )
+                        return self._make_result(api_calls=api_calls, api_errors=api_errors)
                 else:
-                    raise RuntimeError(
-                        f"Failed to create employee: "
-                        f"status={r.get('status_code')}, error={r.get('error')}"
+                    api_errors += 1
+                    logger.warning(
+                        "Failed to create employee: status=%s, error=%s",
+                        r.get('status_code'), r.get('error'),
                     )
+                    return self._make_result(api_calls=api_calls, api_errors=api_errors)
             else:
                 employee_id = r["body"]["value"]["id"]
                 employee_created = True
+
+        if employee_id is None:
+            api_errors += 1
+            logger.warning("employee_id is None after find/create — cannot continue")
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
@@ -121,10 +139,12 @@ class TravelExpensePlan(ExecutionPlan):
             )
             api_calls += 1
             if not r["success"]:
-                raise RuntimeError(
-                    f"Failed to grant entitlements for employee {employee_id}: "
-                    f"status={r.get('status_code')}, error={r.get('error')}"
+                api_errors += 1
+                logger.warning(
+                    "Failed to grant entitlements for employee %s: status=%s, error=%s",
+                    employee_id, r.get('status_code'), r.get('error'),
                 )
+                # Non-fatal — continue, travel expense may still work
 
         self._check_timeout(start_time)
 
@@ -135,7 +155,9 @@ class TravelExpensePlan(ExecutionPlan):
         if r["success"] and r["body"].get("values"):
             payment_type_id = r["body"]["values"][0]["id"]
         if payment_type_id is None:
-            raise RuntimeError("No payment types found on /travelExpense/paymentType")
+            api_errors += 1
+            logger.warning("No payment types found on /travelExpense/paymentType")
+            return self._make_result(api_calls=api_calls, api_errors=api_errors)
 
         self._check_timeout(start_time)
 
@@ -288,9 +310,10 @@ class TravelExpensePlan(ExecutionPlan):
         r = client.post("/travelExpense", body=expense_body)
         api_calls += 1
         if not r["success"]:
-            raise RuntimeError(
-                f"Failed to POST /travelExpense: "
-                f"status={r.get('status_code')}, error={r.get('error')}"
+            api_errors += 1
+            logger.warning(
+                "Failed to POST /travelExpense: status=%s, error=%s",
+                r.get('status_code'), r.get('error'),
             )
 
-        return self._make_result(api_calls=api_calls, api_errors=0)
+        return self._make_result(api_calls=api_calls, api_errors=api_errors)

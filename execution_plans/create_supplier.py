@@ -1,6 +1,10 @@
 """Execution plan: Create Supplier (Tier 1)."""
+import logging
+
 from execution_plans._base import ExecutionPlan
 from execution_plans._registry import register
+
+logger = logging.getLogger(__name__)
 
 EXTRACTION_SCHEMA = {
     "name": "string (supplier name)",
@@ -42,10 +46,24 @@ class CreateSupplierPlan(ExecutionPlan):
             }
 
         result = client.post("/supplier", body=body)
+        api_calls = 1
+        api_errors = 0
         if not result["success"]:
-            raise RuntimeError(
-                f"Failed to create supplier: "
-                f"status={result.get('status_code')}, error={result.get('error')}"
+            api_errors += 1
+            logger.warning(
+                "Failed to create supplier: status=%s, error=%s",
+                result.get('status_code'), result.get('error'),
             )
+            # Try to find existing supplier by org number or name
+            search_params = {}
+            if params.get("org_number"):
+                search_params["organizationNumber"] = params["org_number"]
+            else:
+                search_params["name"] = params["name"]
+            find_result = client.get("/supplier", params=search_params)
+            api_calls += 1
+            if find_result["success"] and find_result["body"].get("values"):
+                logger.warning("Found existing supplier, continuing")
+            # Either way, return gracefully
 
-        return self._make_result(api_calls=1, api_errors=0)
+        return self._make_result(api_calls=api_calls, api_errors=api_errors)

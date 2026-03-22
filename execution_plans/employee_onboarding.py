@@ -122,14 +122,22 @@ class EmployeeOnboardingPlan(ExecutionPlan):
             retry_without=["nationalIdentityNumber"],
         )
         api_calls += 1
+        employee_id = None
         if not employee_result["success"]:
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to create employee: "
-                f"status={employee_result.get('status_code')}, "
-                f"error={employee_result.get('error')}"
+            # Fallback: try to find existing employee by email
+            search_result = client.get(
+                "/employee", params={"email": params["email"], "count": 1}
             )
-        employee_id = employee_result["body"]["value"]["id"]
+            api_calls += 1
+            if search_result["success"]:
+                values = search_result["body"].get("values", [])
+                if values:
+                    employee_id = values[0]["id"]
+            if employee_id is None:
+                return self._make_result(api_calls=api_calls, api_errors=api_errors)
+        else:
+            employee_id = employee_result["body"]["value"]["id"]
 
         self._check_timeout(start_time)
 
@@ -153,41 +161,35 @@ class EmployeeOnboardingPlan(ExecutionPlan):
             employment_body["division"] = {"id": division_id}
         employment_result = client.post("/employee/employment", body=employment_body)
         api_calls += 1
+        employment_id = None
         if not employment_result["success"]:
             api_errors += 1
-            raise RuntimeError(
-                f"Failed to create employment: "
-                f"status={employment_result.get('status_code')}, "
-                f"error={employment_result.get('error')}"
+            # Continue — skip employment details since we have no employment_id
+        else:
+            employment_id = employment_result["body"]["value"]["id"]
+
+        # --- Step 5: Create employment details (only if employment was created) ---
+        if employment_id is not None:
+            self._check_timeout(start_time)
+
+            # CRITICAL: Only send whitelisted fields — any unknown field causes 422.
+            # NOTE: field is "percentageOfFullTimeEquivalent" (NOT "percentOfFullTimeEquivalent")
+            details_body = {
+                "employment": {"id": employment_id},
+                "date": params["startDate"],
+                "employmentType": params.get("employmentType", "ORDINARY"),
+                "percentageOfFullTimeEquivalent": params["percentageOfFullTimeEquivalent"],
+                "annualSalary": params["annualSalary"],
+            }
+            occupation_code = params.get("occupationCode")
+            if occupation_code is not None:
+                details_body["occupationCode"] = {"id": occupation_code}
+
+            details_result = client.post(
+                "/employee/employment/details", body=details_body
             )
-        employment_id = employment_result["body"]["value"]["id"]
-
-        self._check_timeout(start_time)
-
-        # --- Step 5: Create employment details ---
-        # CRITICAL: Only send whitelisted fields — any unknown field causes 422.
-        # NOTE: field is "percentageOfFullTimeEquivalent" (NOT "percentOfFullTimeEquivalent")
-        details_body = {
-            "employment": {"id": employment_id},
-            "date": params["startDate"],
-            "employmentType": params.get("employmentType", "ORDINARY"),
-            "percentageOfFullTimeEquivalent": params["percentageOfFullTimeEquivalent"],
-            "annualSalary": params["annualSalary"],
-        }
-        occupation_code = params.get("occupationCode")
-        if occupation_code is not None:
-            details_body["occupationCode"] = {"id": occupation_code}
-
-        details_result = client.post(
-            "/employee/employment/details", body=details_body
-        )
-        api_calls += 1
-        if not details_result["success"]:
-            api_errors += 1
-            raise RuntimeError(
-                f"Failed to create employment details: "
-                f"status={details_result.get('status_code')}, "
-                f"error={details_result.get('error')}"
-            )
+            api_calls += 1
+            if not details_result["success"]:
+                api_errors += 1
 
         return self._make_result(api_calls=api_calls, api_errors=api_errors)
