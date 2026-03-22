@@ -8,4 +8,5 @@ dist/
 build/
 openapi.json
 .worktrees/
+.analyzed_logs.json
 real-requests/

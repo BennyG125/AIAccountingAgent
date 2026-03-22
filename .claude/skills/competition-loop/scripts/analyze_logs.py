@@ -2,17 +2,20 @@
 """Pull and analyze GCP competition logs for the AI Accounting Agent.
 
 Usage:
-    python .claude/skills/competition-loop/scripts/analyze_logs.py [--bucket BUCKET] [--hours N] [--save-requests]
+    python .claude/skills/competition-loop/scripts/analyze_logs.py [--bucket BUCKET] [--hours N]
+    python .claude/skills/competition-loop/scripts/analyze_logs.py --all        # include previously analyzed
+    python .claude/skills/competition-loop/scripts/analyze_logs.py --reset      # clear analyzed ledger
 
 Downloads latest competition logs from GCS, analyzes error patterns,
-executor distribution, timing, and classifier gaps. Outputs a structured
-report to stdout.
+executor distribution, timing, and classifier gaps. Skips logs that
+have already been analyzed (tracked in .analyzed_logs.json).
 
 Options:
     --bucket BUCKET   GCS bucket (default: ai-nm26osl-1799-competition-logs)
     --hours N         Only analyze logs from last N hours (default: 24)
-    --save-requests   Save new request fixtures to tests/competition_tasks/
     --output FILE     Write JSON report to file instead of stdout
+    --all             Include previously analyzed logs (full re-analysis)
+    --reset           Clear the analyzed logs ledger and exit
 """
 
 import argparse
@@ -25,10 +28,42 @@ import sys
 import tempfile
 from collections import Counter
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+# Ledger file tracking which GCS log files have been analyzed
+LEDGER_PATH = Path(__file__).parent.parent.parent.parent / ".analyzed_logs.json"
 
 
-def download_logs(bucket: str, hours: int, tmpdir: str) -> list[str]:
-    """Download recent logs from GCS to a temp directory."""
+def load_ledger() -> dict:
+    """Load the ledger of previously analyzed log files."""
+    if LEDGER_PATH.exists():
+        try:
+            with open(LEDGER_PATH) as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return {"analyzed": {}}
+    return {"analyzed": {}}
+
+
+def save_ledger(ledger: dict):
+    """Save the ledger after analysis."""
+    with open(LEDGER_PATH, "w") as f:
+        json.dump(ledger, f, indent=2)
+
+
+def mark_analyzed(ledger: dict, filenames: list[str]):
+    """Mark log files as analyzed in the ledger."""
+    now = datetime.now(timezone.utc).isoformat()
+    for name in filenames:
+        ledger["analyzed"][name] = now
+    save_ledger(ledger)
+
+
+def download_logs(bucket: str, hours: int, tmpdir: str, ledger: dict, include_all: bool) -> tuple[list[str], list[str]]:
+    """Download recent logs from GCS to a temp directory.
+
+    Returns (files_to_analyze, all_filenames) — skips already-analyzed unless include_all.
+    """
     prefix = f"gs://{bucket}/requests/"
 
     # List all files
@@ -38,17 +73,16 @@ def download_logs(bucket: str, hours: int, tmpdir: str) -> list[str]:
     )
     if result.returncode != 0:
         print(f"Error listing bucket: {result.stderr}", file=sys.stderr)
-        return []
+        return [], []
 
     files = result.stdout.strip().split("\n")
     if not files or files == [""]:
-        return []
+        return [], []
 
     # Filter by time
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
     recent = []
     for f in files:
-        # Extract timestamp from filename: requests/2026-03-22T07-04-43_...
         basename = f.split("/")[-1]
         match = re.match(r"(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})", basename)
         if match:
@@ -58,15 +92,39 @@ def download_logs(bucket: str, hours: int, tmpdir: str) -> list[str]:
 
     if not recent:
         print(f"No logs found in last {hours} hours", file=sys.stderr)
-        return []
+        return [], []
+
+    # Filter out already-analyzed
+    all_basenames = [f.split("/")[-1] for f in recent]
+    if include_all:
+        to_download = recent
+        new_basenames = all_basenames
+    else:
+        already = set(ledger.get("analyzed", {}).keys())
+        to_download = []
+        new_basenames = []
+        skipped = 0
+        for f in recent:
+            basename = f.split("/")[-1]
+            if basename in already:
+                skipped += 1
+            else:
+                to_download.append(f)
+                new_basenames.append(basename)
+        if skipped > 0:
+            print(f"Skipping {skipped} already-analyzed logs", file=sys.stderr)
+
+    if not to_download:
+        print("No new logs to analyze (all previously analyzed)", file=sys.stderr)
+        return [], all_basenames
 
     # Download
     subprocess.run(
-        ["gsutil", "-m", "cp"] + recent + [tmpdir + "/"],
+        ["gsutil", "-m", "cp"] + to_download + [tmpdir + "/"],
         capture_output=True, timeout=120
     )
 
-    return sorted(glob.glob(f"{tmpdir}/*.json"))
+    return sorted(glob.glob(f"{tmpdir}/*.json")), new_basenames
 
 
 def parse_logs(files: list[str]) -> list[dict]:
@@ -210,13 +268,16 @@ def test_classifier(prompts: list[str]) -> list[dict]:
     return gaps
 
 
-def print_report(report: dict, classifier_gaps: list[dict]):
+def print_report(report: dict, classifier_gaps: list[dict], new_count: int, skipped_count: int):
     """Print human-readable report to stdout."""
     print("=" * 70)
     print("COMPETITION LOG ANALYSIS")
     print("=" * 70)
 
-    print(f"\nTotal requests: {report['total_requests']}")
+    if skipped_count > 0:
+        print(f"\nNew requests: {new_count} (skipped {skipped_count} previously analyzed)")
+    print(f"Total analyzed: {report['total_requests']}")
+
     print("\n--- Executor Distribution ---")
     for ex, stats in report["executor_stats"].items():
         err_rate = (
@@ -265,16 +326,30 @@ def main():
     parser.add_argument("--bucket", default="ai-nm26osl-1799-competition-logs")
     parser.add_argument("--hours", type=int, default=24)
     parser.add_argument("--output", help="Write JSON report to file")
+    parser.add_argument("--all", action="store_true", help="Include previously analyzed logs")
+    parser.add_argument("--reset", action="store_true", help="Clear analyzed logs ledger")
     args = parser.parse_args()
+
+    if args.reset:
+        if LEDGER_PATH.exists():
+            LEDGER_PATH.unlink()
+            print(f"Cleared ledger at {LEDGER_PATH}", file=sys.stderr)
+        else:
+            print("No ledger to clear", file=sys.stderr)
+        return
+
+    ledger = load_ledger()
+    already_count = len(ledger.get("analyzed", {}))
 
     with tempfile.TemporaryDirectory() as tmpdir:
         print(f"Downloading logs from gs://{args.bucket} (last {args.hours}h)...", file=sys.stderr)
-        files = download_logs(args.bucket, args.hours, tmpdir)
+        files, new_basenames = download_logs(args.bucket, args.hours, tmpdir, ledger, args.all)
         if not files:
-            print("No log files found.", file=sys.stderr)
+            if new_basenames:
+                print("All logs already analyzed. Use --all to re-analyze.", file=sys.stderr)
             sys.exit(1)
 
-        print(f"Analyzing {len(files)} log files...", file=sys.stderr)
+        print(f"Analyzing {len(files)} new log files...", file=sys.stderr)
         entries = parse_logs(files)
         report = analyze(entries)
 
@@ -287,7 +362,12 @@ def main():
                 json.dump(report, f, indent=2, ensure_ascii=False)
             print(f"Report written to {args.output}", file=sys.stderr)
         else:
-            print_report(report, classifier_gaps)
+            skipped = already_count if not args.all else 0
+            print_report(report, classifier_gaps, len(files), skipped)
+
+        # Mark these logs as analyzed
+        mark_analyzed(ledger, new_basenames)
+        print(f"\nMarked {len(new_basenames)} logs as analyzed", file=sys.stderr)
 
 
 if __name__ == "__main__":
