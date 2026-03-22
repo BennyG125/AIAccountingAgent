@@ -75,6 +75,7 @@ import execution_plans.year_end_close  # noqa: F401
 import execution_plans.project_lifecycle  # noqa: F401
 import execution_plans.create_project  # noqa: F401
 import execution_plans.reverse_payment  # noqa: F401
+import execution_plans.create_order  # noqa: F401
 
 # ---------------------------------------------------------------------------
 # Extraction schemas — auto-collected from each plan module's EXTRACTION_SCHEMA
@@ -104,7 +105,7 @@ for _info in _pkgutil.iter_modules(_ep_pkg.__path__):
 
 
 def extract_params(prompt: str, task_type: str) -> dict | None:
-    """Extract task parameters from the prompt using Gemini Flash.
+    """Extract task parameters from the prompt using Claude Opus 4.6.
 
     Returns a dict of extracted params, or None if extraction fails.
     """
@@ -130,19 +131,16 @@ def extract_params(prompt: str, task_type: str) -> dict | None:
     )
 
     try:
-        from agent import _get_genai_client, GEMINI_MODEL
-        from google.genai import types
+        from claude_client import get_claude_client, CLAUDE_MODEL
 
-        client = _get_genai_client()
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=[types.Content(role="user", parts=[
-                types.Part.from_text(text=extraction_prompt)
-            ])],
-            config=types.GenerateContentConfig(temperature=0.0),
+        client = get_claude_client()
+        response = client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=4096,
+            messages=[{"role": "user", "content": extraction_prompt}],
         )
 
-        text = (response.text or "").strip()
+        text = (response.content[0].text or "").strip()
         # Strip markdown code fences if present
         text = re.sub(r"^```(?:json)?\s*", "", text)
         text = re.sub(r"\s*```$", "", text)

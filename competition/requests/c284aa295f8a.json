@@ -1,0 +1,14 @@
+{
+  "task_id": "c284aa295f8a",
+  "timestamp": "2026-03-22T08:19:23.426694+00:00",
+  "prompt": "Vi sendte en faktura på 10701 EUR til Tindra AS (org.nr 890241662) da kursen var 10.54 NOK/EUR. Kunden har nå betalt, men kursen er 11.43 NOK/EUR. Registrer betalingen og bokfør valutadifferansen (agio) på korrekt konto.",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 13,
+    "api_errors": 0,
+    "time_ms": 14516,
+    "error_details": null
+  }
+}

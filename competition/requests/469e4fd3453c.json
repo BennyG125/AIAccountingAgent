@@ -1,0 +1,14 @@
+{
+  "task_id": "469e4fd3453c",
+  "timestamp": "2026-03-22T08:18:50.997593+00:00",
+  "prompt": "Opprett en faktura til kunden Lysgård AS (org.nr 851635874) med tre produktlinjer: Analyserapport (2934) til 29800 kr med 25 % MVA, Datarådgivning (8699) til 5200 kr med 15 % MVA (næringsmiddel), og Nettverkstjeneste (1355) til 18050 kr med 0 % MVA (avgiftsfri).",
+  "files": [],
+  "result_summary": {
+    "status": "completed",
+    "iterations": 1,
+    "api_calls": 5,
+    "api_errors": 0,
+    "time_ms": 15008,
+    "error_details": null
+  }
+}

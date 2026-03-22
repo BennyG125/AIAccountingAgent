@@ -148,6 +148,18 @@ If you skip the recipe you WILL get 4xx errors and waste API calls, which lowers
 - **Supplier invoices (vouchers)**: When creating voucher postings for supplier invoices,
   ALWAYS include all four amount fields on each row: amount, amountCurrency, amountGross,
   amountGrossCurrency (all set to the same value for NOK). Missing amountGross causes 422.
+- **GET /company**: NEVER use `GET /company/1` or `GET /company/<id>` — returns 404.
+  Use `GET /company` (no path parameter) to get company info.
+- **Custom dimensions — ONLY TWO ENDPOINTS EXIST**:
+  1. `POST /ledger/accountingDimensionName` — create the dimension
+  2. `POST /ledger/accountingDimensionValue` — create values for it
+  Do NOT try: /dimension, /ledger/dimension, /ledger/customDimension, /freeAccountingDimension,
+  /dimension/v2, /ledger/account/dimension, /ledger/voucher/customDimension,
+  /ledger/posting/customDimension, or ANY other variant. They ALL return 404.
+  Do NOT try to enable modules via /company/salesmodules for dimensions — they are already available.
+- **Salary: division is REQUIRED**: When creating employment (POST /employee/employment),
+  you MUST include `division: {{"id": <id>}}`. Get division ID from `GET /company/divisions?fields=id`.
+  NEVER try to POST /division — it always fails with 422.
 
 ## Recipes for Known Task Types
 
