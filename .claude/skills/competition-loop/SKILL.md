@@ -73,6 +73,13 @@ Check if deterministic-handled tasks have 0 errors. If errors > 0, the plan itse
 For task types identified in Phase 2 that have NO optimal sequence doc in `real-requests/optimal-sequence/`, create one BEFORE building an execution plan. This is the research step.
 
 ### Find real requests for the task type
+Saved requests are pre-classified with `task_type`, `classified_by`, and `tier`:
+```bash
+# Find all requests for a task type
+grep -l '"task_type": "register_payment"' competition/requests/*.json
+```
+
+Or to search by keyword in unclassified requests:
 ```python
 import json, glob
 for f in sorted(glob.glob('competition/requests/*.json')):
@@ -177,12 +184,25 @@ gcloud run deploy accounting-agent-comp --source . --region europe-north1 --proj
 
 ## Phase 5 (Optional): Save New Request Fixtures
 
-Save competition requests as local test fixtures for replay:
+Save competition requests as local test fixtures for replay (auto-tags with `task_type`, `classified_by`, `tier`):
 ```bash
 python scripts/save_competition_requests.py
 ```
 
 Or use the `save-and-replay` skill for individual requests.
+
+### Check pipeline coverage
+```bash
+python scripts/coverage_report.py          # Full coverage matrix
+python scripts/coverage_report.py --gaps   # Only task types with missing components
+```
+
+This shows which task types have classifier patterns, optimal sequences, execution plans, recipes, guards, and whitelist entries — plus how many saved requests exist per type.
+
+### Find replay candidates for a task type
+```bash
+grep -l '"task_type": "register_payment"' competition/requests/*.json
+```
 
 ## Key Architecture Facts
 

@@ -43,6 +43,9 @@ Saved requests go to `competition/requests/{task_id}.json` — prompt, files, an
   "timestamp": "2026-03-21T07:40:32Z",
   "prompt": "Opprett ein faktura...",
   "files": [],
+  "task_type": "create_invoice",
+  "classified_by": "auto",
+  "tier": 1,
   "result_summary": {
     "status": "completed",
     "api_calls": 9,
@@ -51,6 +54,13 @@ Saved requests go to `competition/requests/{task_id}.json` — prompt, files, an
     "error_details": [...]
   }
 }
+```
+
+Fields `task_type`, `classified_by`, and `tier` are auto-populated by the classifier on save. Use `classified_by: "manual"` to override — it will be preserved on re-save.
+
+### Find replay candidates by task type
+```bash
+grep -l '"task_type": "register_payment"' competition/requests/*.json
 ```
 
 ## Replay a Request

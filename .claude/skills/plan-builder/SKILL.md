@@ -9,17 +9,25 @@ Create new deterministic execution plans from real competition requests. The wor
 
 ## Step 1: Analyze Real Requests
 
-Find real competition requests for the target task type:
+Find real competition requests for the target task type. Saved requests are pre-classified with `task_type`, `classified_by`, and `tier`:
 
+```bash
+# Find all requests for a specific task type
+grep -l '"task_type": "register_payment"' competition/requests/*.json
+
+# Check pipeline coverage to see what's missing
+python scripts/coverage_report.py --gaps
+```
+
+Or search by keyword for detailed analysis:
 ```python
 import json, glob
 for f in sorted(glob.glob('competition/requests/*.json')):
     with open(f) as fh:
         d = json.load(fh)
-    prompt = d.get('prompt', '')
-    # Filter for relevant task type
-    if '<keyword>' in prompt.lower():
-        print(prompt[:200])
+    # Use pre-classified task_type or search by keyword
+    if d.get('task_type') == 'register_payment':
+        print(d['prompt'][:200])
         print(f"Calls: {d.get('result_summary', {}).get('api_calls')}")
         print(f"Errors: {d.get('result_summary', {}).get('api_errors')}")
 ```
